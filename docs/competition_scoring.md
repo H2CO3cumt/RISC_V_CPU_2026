@@ -50,8 +50,8 @@
 | 分析能力 | 性能计数器、CPI 分解、PDS ILA 波形 | P0 | 至少解释一个 CoreMark 关键循环瓶颈 |
 | 应用场景 | 8 通道多协议逻辑分析仪 P0 闭环 | P0 | 采集、触发、MMIO、UART/SPI 解析、VCD 和现场演示闭环 |
 | 工程质量 | 模块化、Testbench、统一 Regression、报告 | P0 | 自动 PASS/FAIL、版本可追溯、文档与演示一致 |
-| RLE | 逻辑分析仪无损压缩及量化 | P1 可选 | P0 Release 不依赖；完成时必须 Round-trip PASS |
-| BTB | 16 项 BTB + 2-bit 预测性能实验 | P2 可选 | P0 Release 不依赖；不得宣称完成完整高级控制逻辑 |
+| RLE | 逻辑分析仪无损压缩及量化 | 本届冻结 | 仅保留为赛后研究，不进入本届实现、配置或材料 |
+| BTB | 16 项 BTB + 2-bit 预测性能实验 | 本届冻结 | 仅保留为赛后研究，不得宣称完成完整高级控制逻辑 |
 
 ## 4. 两个月范围决策
 
@@ -64,10 +64,10 @@
 - 逻辑分析仪 Raw 模式端到端应用闭环。
 - 自动 Regression、提交级 trace、ILA 性能分析和参赛材料。
 
-### 可以删除且不得阻塞提交
+### 已从本届执行范围冻结
 
-- RLE。
-- BTB。
+- RLE：仅保留赛后研究说明，本届不启动 Task 31。
+- BTB：仅保留赛后研究说明，本届不启动 Task 32。
 - 超出 P0 演示所需的压力测试规模和配置组合。
 
 ### 本届不做
@@ -77,26 +77,27 @@
 - AI/YOLO、自定义指令、外部 DDR、HDMI、PCIe、千兆网。
 - 16 通道、I²C 解析、协议感知或多级复杂触发、复杂 GUI。
 
-## 5. 可选增强项启动条件
+## 5. 本届增强冻结规则
 
-只有同时满足以下条件，才允许开始 RLE 或 BTB；否则直接进入最终 Regression 和材料制作：
+本届目标已经切换为单人 60 天国赛冲刺。无论主线是否提前完成，均不启动 RLE 或 BTB，不创建对应 RTL 分支，不把其结构、性能或功能写入参赛材料。提前产生的余量只能投入：
 
-1. RV32I、Pipeline、Hazard、GCC、UART/GPIO、FPGA、CoreMark 和逻辑分析仪 P0 全部 PASS。
-2. 任务 30 已通过，并形成可恢复的 P0 功能基线。
-3. 距离提交仍至少保留 7 个完整有效工作日用于最终回归、报告、视频和故障恢复演练。
-4. 一次只做一个增强项，并预先定义退出条件。
+1. RV32I、Pipeline、Hazard、GCC、UART/GPIO、FPGA、CoreMark 和逻辑分析仪 P0 的完整 Regression。
+2. Timing、资源和 CoreMark 三项指标的重复构建与复现。
+3. 随机背压、Reset、错误路径 side effect 和连续板级采集稳定性。
+4. 技术报告、3 分钟视频、PPT、答辩和现场故障恢复演练。
 
-推荐优先级为 RLE 高于 BTB：RLE直接增强已选应用的创新性和资源利用叙事；BTB 单独实现虽然可能改善 CoreMark/MHz，但不等于官方“高级控制逻辑”整项完成。若实测收益不足、Timing 下降或 Regression 不稳定，增强项从最终配置移除，保留实验记录即可。
+只有本届 `competition_final` 已冻结并完成提交后，用户重新立项，才允许把 Task 31 或 Task 32 作为赛后研究启动。赛后结果不得反向混入已冻结的本届提交版本。
 
 ## 6. 进度止损线
 
 | 时间点 | 必须达到 | 未达到时的动作 |
 |---|---|---|
-| 第 2 周末 | 单周期候选 Reference Model | 停止所有应用和增强项讨论，只推进 CPU 主线 |
-| 第 3 周末 | GCC、MMIO、UART/GPIO、单周期正式 Regression | 不增加新外设功能 |
-| 第 5 周末 | 五级流水线 Hazard 与 GCC Pipeline PASS | 永久取消本届 RLE/BTB |
-| 第 6 周末 | FPGA、CoreMark Baseline 和性能数据 | 逻辑分析仪只做 P0，不增加任何增强 |
-| 第 7 周末 | 逻辑分析仪 P0 端到端闭环 | 立即冻结功能，进入最终 Regression 和材料 |
-| 第 8 周 | Release、报告、视频、答辩演练 | 只修复阻塞性 Bug |
+| D3 | 目标板卡/器件和验证路径确定 | 当日解决采购、远程平台或器件信息阻塞；不得让硬件未知状态拖到 Task 10 末尾 |
+| D12 | 单周期候选 Reference Model | 停止应用讨论，只推进单周期正确性；重新评估 D20 是否可达 |
+| D20 | GCC、MMIO、UART/GPIO、单周期正式 Regression | 不增加任何新外设功能；若延期超过 3 天，标记原 60 天全范围为红色风险 |
+| D35 | 五级流水线 Hazard、GCC Pipeline、提交级对比和性能计数器 PASS | 未通过前不得进入 FPGA/CoreMark，更不得开始应用 RTL |
+| D42 | FPGA、CoreMark Baseline 和性能数据 | 未冻结 `pipeline_coremark_stable` 时不得开始 Task 30；优先保住完整 CPU+SoC 交付 |
+| D52 | 逻辑分析仪 P0 端到端闭环 | 立即冻结功能，禁止新增配置，只修复阻塞性 Bug 并进入最终材料 |
+| D60 | Release、报告、视频、答辩演练 | 冻结 `competition_final`；冻结后修改必须重跑完整最终 Regression |
 
 这些是项目管理止损线，不是官方赛程或官方分值。

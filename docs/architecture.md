@@ -37,7 +37,7 @@
 - 基础 SoC 的参考配置为 `RV32I Core + Interconnect + RAM + UART TX/RX + GPIO`，用于证明软件、MMIO 和板级链路，不代表 Core 固定依赖 UART/GPIO。
 - 地址映射在 Task 15 固定于 SoC 互连层，任何区域不得重叠；未映射地址行为必须可测试，并预留一个通用 Application MMIO 窗口。调整外设地址不得修改 Core。
 - Task 16 只验证并冻结 Core/SoC 事务语义和基础互连方法。UART、GPIO 的独立与集成测试必须证明外设可替换，Task 16 不提前实现比赛应用。
-- 比赛应用已经选定为“基于自研五级流水 RISC-V 的可重构多协议逻辑分析与故障诊断平台”。CPU 仅通过 MMIO 配置 Core 外部 Capture Engine，Raw 采样/触发数据保存在外设 BRAM，再由软件解析 UART/SPI 并经 UART 发送给 Python 上位机；RLE 只作为不阻塞交付的可选增强，完整范围见 `docs/application_logic_analyzer.md`。
+- 比赛应用已经选定为“基于自研五级流水 RISC-V 的可重构多协议逻辑分析与故障诊断平台”。CPU 仅通过 MMIO 配置 Core 外部 Capture Engine，Raw 采样/触发数据保存在外设 BRAM，再由软件解析 UART/SPI 并经 UART 发送给 Python 上位机；本届冻结 RLE，完整范围见 `docs/application_logic_analyzer.md`。
 - 报名页面作品名称固定为“RISC-V多协议逻辑分析仪”（14/15字符）；技术报告可使用上述完整名称。报名简介的唯一版本保存在 `docs/application_logic_analyzer.md`，后续修改必须同步检查500字符限制和未完成功能的措辞。
 - 应用选择已经固定，但集成边界保持可替换：删除逻辑分析仪并换成 SPI、传感器或其他加速器时，只能修改应用外设、SoC 地址表和软件，不能修改 CPU Core。
 
@@ -55,12 +55,12 @@
 
 - 评分主线及取舍以 `docs/competition_scoring.md` 为准：完整 RV32I、五级流水线与 Hazard、UART/GPIO、CoreMark 三项性能指标、实际应用、ILA 分析和规范材料全部为 P0。
 - 官方“高级控制逻辑”按“动态分支预测以及完整异常/中断”描述。本届不实现完整异常/中断，因此不会仅凭 BTB 宣称完整完成该高级任务。
-- 16 项直接映射 BTB + 2-bit 饱和计数器仅保留为 P2 性能实验。只有任务 30 通过并形成稳定 P0 功能基线，且仍预留至少 7 个有效工作日时才能开始；最终交付不依赖 BTB。
-- 若启动 BTB，必须保留 Always-Not-Taken Baseline，统计 prediction、BTB hit、taken、misprediction，并比较 Predictor Off/On 的 CoreMark/MHz、CPI、LUT、FF、Fmax 和错误预测率。
-- 若 BTB 不能保持完整 Regression/Timing PASS，或性能收益不足以抵消资源/Fmax 代价，最终提交移除或关闭 BTB，只保留实验记录。
+- 16 项直接映射 BTB + 2-bit 饱和计数器仅保留为赛后研究备忘。本届 60 天国赛冲刺不启动、不进入最终配置或材料，即使主线提前完成也不得恢复。
+- 赛后若重新立项 BTB，必须以 `pipeline_coremark_stable` 为 Always-Not-Taken Baseline，统计 prediction、BTB hit、taken、misprediction，并比较 Predictor Off/On 的 CoreMark/MHz、CPI、LUT、FF、Fmax 和错误预测率。
+- 赛后 BTB 若不能保持完整 Regression/Timing PASS，或性能收益不足以抵消资源/Fmax 代价，不得进入后续研究基线；不得修改或覆盖本届 `competition_final`。
 - 本届明确删除 I-Cache、D-Cache、burst、完整异常/中断、AI/YOLO、自定义指令、外部 DDR、HDMI、PCIe 和千兆网，不建立这些 RTL 分支，也不在材料中宣称支持。
 - 接口文档保留 Cache/中断的未来解耦扩展原则，仅用于防止架构绑死，不表示本届计划实现。
-- 逻辑分析仪 P0 固定为 8 通道、基础边沿/电平/掩码触发、前后采样、BRAM、Raw、UART/SPI 软件解析和简单 Python/VCD；RLE 为 P1 可选增强。16 通道、I²C、协议感知/多级触发、外部 DDR 和复杂 GUI 均删除。
+- 逻辑分析仪 P0 固定为 8 通道、基础边沿/电平/掩码触发、前后采样、BRAM、Raw、UART/SPI 软件解析和简单 Python/VCD；本届冻结 RLE。16 通道、I²C、协议感知/多级触发、外部 DDR 和复杂 GUI 均删除。
 
 ## 7. 尚待对应 Gate 决定的项目
 
@@ -68,5 +68,5 @@
 - RAM/MMIO 地址映射、单周期 adapter 和互连逐根信号名：Task 15。
 - 流水寄存器字段、控制信号和流水线 Core 顶层逐根端口名：Task 18；接口语义必须保持与 `docs/interfaces.md` 一致。
 - 逻辑分析仪 8 路输入的物理引脚、最高采样目标和板外 UART 链路：Task 10 根据开发板能力确认，Task 30 实测冻结；这些决定不得要求修改五级流水线主体。
-- 可选 RLE 的记录格式、最大游程和溢出策略：只有 Task 31 启动时决定。
-- 可选 16 项 BTB 的 PC index/tag 位划分、更新时机和 Flush 恢复细节：只有 Task 32 启动时决定；不得改变 architectural state 或 Core/SoC 外设接口。
+- 赛后 RLE 的记录格式、最大游程和溢出策略：只有本届提交完成且 Task 31 被重新立项时决定。
+- 赛后 16 项 BTB 的 PC index/tag 位划分、更新时机和 Flush 恢复细节：只有本届提交完成且 Task 32 被重新立项时决定；不得改变 architectural state 或 Core/SoC 外设接口。

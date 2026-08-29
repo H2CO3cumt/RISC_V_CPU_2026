@@ -17,7 +17,7 @@
 9. 在运行 CoreMark 前完成最小性能计数器，并用提交级 trace 自动比较 Single Cycle 与 Pipeline。
 10. 评分主线固定为：完整 RV32I、五级流水线与 Hazard、UART/GPIO、CoreMark/MHz、Fmax、CoreMark/LUT、实际应用、代码规范和 ILA 性能分析；评分依据与范围取舍以 `docs/competition_scoring.md` 为准。
 11. 在 `pipeline_coremark_stable` 后，以 Core 外部 MMIO 外设方式完成“可重构多协议逻辑分析与故障诊断平台”的 P0 端到端闭环；应用范围和验收以 `docs/application_logic_analyzer.md` 为准。
-12. RLE 和 16 项直接映射 BTB + 2-bit 饱和计数器均为非阻塞可选增强项，不属于最终交付前置条件。只有任务 30 通过并形成稳定 P0 功能基线、最终材料与回归时间已经预留时才允许开始，并必须提供 Before/After 数据。
+12. 两个月国赛冲刺期间冻结 RLE 和 16 项直接映射 BTB + 2-bit 饱和计数器，不启动任务 31～32，不进入最终配置、Regression 或参赛材料。只有 `competition_final` 冻结并完成本届提交后，才允许作为赛后研究重新立项，并必须提供 Before/After 数据。
 13. 官方“高级控制逻辑”同时包含动态预测与完整异常/中断；本届不以 BTB 单项宣称完成该高级任务。本届明确不实现 I-Cache、D-Cache、burst、完整异常/中断、AI/YOLO、外部 DDR、HDMI、PCIe、千兆网和自定义 RISC-V 指令。
 
 ## 2. 开发与教学原则
@@ -57,10 +57,10 @@ RISC-V 基础 -> RV32I ISA -> 单周期模块 -> 单周期 CPU
 -> CoreMark -> Performance Analysis -> Logic Analyzer Application
 -> Final Regression/Materials/Release
 
-可选分支（不阻塞 Release）：RLE 或 16-entry BTB 性能实验
+赛后研究（不属于本届 Release）：RLE 或 16-entry BTB 性能实验
 ```
 
-基础阶段未通过时，不得建议直接进行增强项。I/D Cache、异常/中断、AI 和其他已删减功能不属于本届路线图，即使基础阶段通过也不得临时回加。只有当前 Gate 达到验收标准后，才允许进入下一 Gate；可选增强项未完成不得阻塞 P0 主线进入最终 Regression 和材料冻结。
+基础阶段未通过时，不得建议直接进行增强项。I/D Cache、异常/中断、AI、RLE、BTB 和其他已冻结功能不属于本届执行路线，即使基础阶段提前通过也不得临时回加。只有当前 Gate 达到验收标准后，才允许进入下一 Gate。
 
 ## 5. Debug 原则
 
@@ -92,15 +92,17 @@ RISC-V 基础 -> RV32I ISA -> 单周期模块 -> 单周期 CPU
 - 本届不实现 Cache；接口只保留未来可插拔能力，所有 MMIO 区域始终属于 uncacheable，任何未来 Cache 也不得改变 Core/SoC 边界。
 - 本届不实现异常/中断；若赛后研究，只允许使用通用中断输入，具体中断源和聚合逻辑仍属于 SoC。
 - 边界、握手、事务副作用和验证矩阵以 `docs/interfaces.md` 为唯一接口契约。
-- 最终应用已选定为可重构多协议逻辑分析仪，但“应用已确定”不等于“Core 可以感知应用”。Capture Engine、触发、BRAM、状态寄存器、上位机链路和可选 RLE 全部位于 Core 外，详细范围以 `docs/application_logic_analyzer.md` 为准。
+- 最终应用已选定为可重构多协议逻辑分析仪，但“应用已确定”不等于“Core 可以感知应用”。Capture Engine、触发、BRAM、状态寄存器和上位机链路全部位于 Core 外；赛后若研究 RLE，也只能位于 Core 外。详细范围以 `docs/application_logic_analyzer.md` 为准。
 
 ## 9. 性能优化原则
 
-优化优先级为：Correctness、Timing Pass、Stable FPGA Operation、Performance Counters、CoreMark、CPI Analysis、Logic Analyzer P0 Demo、Fmax/Area Optimization、可选 RLE/BTB。
+优化优先级为：Correctness、Timing Pass、Stable FPGA Operation、Performance Counters、CoreMark、CPI Analysis、Logic Analyzer P0 Demo、Fmax/Area Optimization。本届到此为止，不启动 RLE/BTB。
 
 任何性能优化必须提供 Before/After 数据；不得仅因增加模块而判断优化成功。功能正确性或时序稳定性下降时，应优先恢复正确性。
 
-两个月 P0 范围已冻结：逻辑分析仪固定为 8 通道、基础触发、前后采样、BRAM、Raw、UART/SPI 软件解析和简单 Python/VCD；RLE 仅为可选增强。不得增加 16 通道、I²C、协议感知/多级复杂触发、外部 DDR 或复杂 GUI。
+两个月 P0 范围已冻结：逻辑分析仪固定为 8 通道、基础触发、前后采样、BRAM、Raw、UART/SPI 软件解析和简单 Python/VCD；本届不实现 RLE。不得增加 16 通道、I²C、协议感知/多级复杂触发、外部 DDR 或复杂 GUI。
+
+国赛冲刺以 `docs/roadmap.md` 的 60 天硬节点为准。Task 0～30、33～35 构成本届唯一交付主线；任何提前完成产生的余量优先用于 Regression、Timing、CoreMark 复现、逻辑分析仪稳定性、报告、视频和答辩演练，不得用来恢复已冻结功能。
 
 ## 10. 项目文档
 

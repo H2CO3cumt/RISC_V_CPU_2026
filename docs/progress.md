@@ -17,7 +17,7 @@ Task 2 - RV32I 指令格式
 - [x] 选定“可重构多协议逻辑分析仪”应用并建立功能、MMIO、验证和量化指标规格
 - [x] 固定报名作品名称“RISC-V多协议逻辑分析仪”和410字符作品简介
 - [x] 根据官方赛题页建立 `docs/competition_scoring.md`，明确基础、性能、应用、文档和高阶任务映射
-- [x] 重新冻结单人两个月范围：基础项和官方性能指标全保留，应用固定8通道Raw P0闭环，RLE与BTB改为不阻塞提交的可选增强
+- [x] 重新冻结单人 60 天国赛冲刺范围：基础项和官方性能指标全保留，应用固定 8 通道 Raw P0 闭环，RLE 与 BTB 本届不启动并移至赛后研究
 - [x] 在项目根目录初始化本地 Git 仓库，默认分支为 `main`，并建立首版 `.gitignore`
 - [x] 从本届路线删除Cache/burst、完整异常中断、AI、DDR/HDMI/PCIe/千兆网、自定义指令及逻辑分析仪扩展项
 - [ ] RV32I 指令格式
@@ -34,7 +34,7 @@ Task 2 - RV32I 指令格式
 - PDS：2024.2-SP2-EN，安装于 `D:\Pango\PDS_2024.2-SP2`；`pds_shell -version` 验证通过，PATH 已配置。目标器件/BRAM 工程冒烟验证仍按 Task 10 执行。
 - Python/串口：Python 3.13.15 位于 `D:\Python313`；pySerial 3.5 位于 `D:\Python313\Lib\site-packages`，导入和串口枚举验证通过。
 - Python D 盘约束：`PYTHONUSERBASE=D:\PythonUser`、`PIP_CACHE_DIR=D:\PythonCache\pip`，后续用户包与缓存固定到 D 盘。
-- 目标 FPGA/开发板：尚未记录具体型号；Task 10 通过前必须确定实体板卡或远程 FPGA 平台。
+- 目标 FPGA/开发板：尚未记录具体型号；D3 前必须确定实体板卡或远程 FPGA 平台，Task 10 再完成器件、时钟/Reset 和 BRAM 冒烟验收。
 - 固定编译目标：`-march=rv32i -mabi=ilp32`。
 - 详细工具版本、路径、校验值和验证结果见 `docs/toolchain.md`。
 
@@ -48,13 +48,23 @@ Task 2 - RV32I 指令格式
 
 ## 当前已知问题
 
-- 目标紫光同创 FPGA/开发板型号尚未确定；不阻塞当前 Task 2，但会阻塞 Task 10 通过。
+- 目标紫光同创 FPGA/开发板型号尚未确定；不阻塞当前 Task 2 学习，但必须在 D3 前形成平台决策，否则国赛冲刺硬节点 FAIL，并继续阻塞 Task 10 通过。
 - 逻辑分析仪物理引脚和最高采样目标依赖 Task 10 的开发板确认；本届通道数已固定为8，系统时钟 clock-enable 方案不阻塞当前任务。
 - Git 仓库已建立，首次基线提交与 GitHub 私有远程状态见本次 Git 配置结果。
 
+## 国赛冲刺基线
+
+- 冲刺基准日：`D0 = 2026-08-29`；内部目标日：`D60 = 2026-10-28`。若官方截止更早，以官方截止为准。
+- 本届唯一交付主线：Task 0～30、33～35；Task 31 RLE 与 Task 32 BTB 固定跳过，不进入本届 RTL、Regression、bitstream 或材料。
+- 硬节点：D3 硬件平台决策、D12 单周期候选 Reference、D20 `single_cycle_stable`、D35 Pipeline/GCC/性能计数器、D42 `pipeline_coremark_stable`、D52 逻辑分析仪 P0、D60 `competition_final`。
+- 国赛证据链固定为：正确性（指令/Regression/提交级对比）、性能（CoreMark/MHz、Fmax、CoreMark/LUT、CPI）、应用（8 通道 Raw UART/SPI 闭环）、工程质量（Core/SoC 解耦、可复现构建、报告/视频/答辩）。
+- 提前完成产生的时间只用于 Regression、Timing/CoreMark 复现、P0 稳定性和参赛材料，不恢复已冻结功能。
+
 ## 下一目标
 
-学习并能够正确拆解 RV32I 的 R、I、S、B、U、J 六类指令格式；完成每类至少一个拆解练习，正确解释 immediate 重排与符号扩展，并通过 Task 2 验收。
+主线目标：学习并能够正确拆解 RV32I 的 R、I、S、B、U、J 六类指令格式；完成每类至少一个拆解练习，正确解释 immediate 重排与符号扩展，并通过 Task 2 验收。
+
+并行的非 RTL 硬截止：在 D3 前确定目标板卡/器件、PDS 工程路径、时钟/Reset 和 BRAM 冒烟验证方案；该决策不得跳过 Task 2～9 的学习与模块 Gate。
 
 ## 更新规则
 

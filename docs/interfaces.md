@@ -108,7 +108,7 @@
 - 未映射地址、重叠区域和访问宽度错误由互连/目标 wrapper 按 Task 15 约定返回，不在流水线中硬编码。
 - UART、GPIO 是基础 SoC 的参考配置，不是 Core 的组成部分。
 - 替换或新增 SPI、传感器、逻辑分析仪或加速器时，只增加/替换目标 wrapper、地址区域和软件驱动；Core 源文件及其回归测试不得改动。
-- 当前比赛应用已经选定为可重构多协议逻辑分析仪，其 Capture Engine、Trigger、BRAM、MMIO wrapper 和可选 RLE 均属于外设层；具体功能以 `docs/application_logic_analyzer.md` 为准，且该应用规格不得覆盖或削弱本文的 Core/SoC 契约。
+- 当前比赛应用已经选定为可重构多协议逻辑分析仪，其 Capture Engine、Trigger、BRAM 和 MMIO wrapper 均属于外设层；本届冻结的 RLE 即使赛后研究也只能位于外设层。具体功能以 `docs/application_logic_analyzer.md` 为准，且该应用规格不得覆盖或削弱本文的 Core/SoC 契约。
 - MMIO 写必须精确且不可重复；具备 side effect 的读同样不得被预取、合并或重复。
 
 ## 5. 调试、性能与赛后扩展点

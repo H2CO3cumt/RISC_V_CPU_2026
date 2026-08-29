@@ -1,6 +1,6 @@
 # RISC-V CPU 2026 项目路线图
 
-本文档把两个月单人参赛计划固化为任务 0～35，其中任务 31～32 是不阻塞交付的可选增强。它不是进度记录，而是开发顺序、任务内容和验收条件的唯一依据。
+本文档把两个月单人国赛冲刺计划固化为本届交付任务 0～30、33～35。任务 31～32 仅保留为赛后研究备忘，本届不启动、不验收、不进入最终配置。本文档不是进度记录，而是开发顺序、任务内容和验收条件的唯一依据。
 
 新聊天恢复项目时，按以下顺序读取：
 
@@ -54,8 +54,8 @@
   ↓
 任务 33～35：最终 Regression、材料与提交冻结
 
-可选分支：任务 31 RLE 或任务 32 BTB 性能实验
-可选任务未完成不阻塞任务 33；只有满足专门启动条件时才能插入。
+赛后研究备忘：任务 31 RLE、任务 32 BTB 性能实验
+本届国赛冲刺不得插入任务 31～32；Task 30 通过后直接进入 Task 33。
 ```
 
 ### 通用通过规则
@@ -73,33 +73,34 @@
 
 ### Gate 规则
 
-- 当前 P0 任务未通过时，不得开始依赖它的后续 P0 任务；任务 31～32 是可跳过的独立增强分支。
+- 当前 P0 任务未通过时，不得开始依赖它的后续 P0 任务；任务 31～32 不属于本届执行任务。
 - 单周期完整 Regression 未通过时，不得开始五级流水线 RTL。
 - 任务 13 只建立候选基线；稳定的单周期 CPU 必须在任务 17 正式 Regression 后冻结为最终 Reference Model。
 - Pipeline 与 Single Cycle 必须自动比较 `x1`～`x31`、关键 RAM 数据和按退休顺序生成的提交级 trace。
 - 目标 FPGA、PDS、时钟/复位和 BRAM 接口未通过早期可行性验证时，不得把仿真 RAM 行为直接当作可综合实现。
 - 最小性能计数器未通过定向测试时，不得开始正式 CoreMark 跑分。
-- Pipeline、GCC、FPGA、CoreMark Baseline 和逻辑分析仪 G11 未稳定前，不得开始 RLE 或 BTB；任务 30 通过后尚未形成可恢复的 P0 功能基线、未给最终交付预留至少 7 个有效工作日时同样不得开始。
+- 本届无论主线是否提前完成，均不得开始 RLE 或 BTB；提前产生的余量全部用于完整 Regression、Timing/CoreMark 复现、P0 稳定性、材料和答辩演练。
 - I/D Cache、burst、完整异常/中断、AI、外部 DDR、HDMI、PCIe、千兆网和自定义指令已从本届范围删除，即使有剩余时间也不得临时回加。
 - 任何性能优化都必须提供 Before/After 的功能、频率、资源与性能数据。
 - 外设、地址表或板级接口变化不得传播进 CPU Core；违反 `docs/interfaces.md` 的方案不得通过对应 Gate。
 - 逻辑分析仪是已选应用，但其规格不得覆盖 Core/SoC 接口契约；应用 RTL 只能在 Task 29 Baseline 冻结后按 Task 30 实现。
-- Task 30 的 Raw P0 闭环通过后可直接进入 Task 33；RLE 和 BTB 都不是 Release 前置条件。
+- Task 30 的 Raw P0 闭环通过后必须直接进入 Task 33；RLE 和 BTB 不进入本届 Release。
 
-### 八周时间盒与止损线
+### 60 天国赛冲刺时间盒与止损线
 
-| 周次 | 计划任务 | 周末必须达到 |
+冲刺基准日 `D0 = 2026-08-29`，内部目标日 `D60 = 2026-10-28`。这是项目管理时间盒，不代替官方赛程；若官方截止更早，以官方截止为准。
+
+| 硬节点 | 计划任务 | 必须达到 |
 |---|---|---|
-| 第 1 周 | 2～7 | RV32I 格式、工具链、RegFile、ALU、ImmGen、Decoder |
-| 第 2 周 | 8～13 | 单周期候选 Reference Model |
-| 第 3 周 | 14～17 | GCC/SoC/正式单周期 Regression，冻结 `single_cycle_stable` |
-| 第 4 周 | 18～20 | 五级流水线基础与 Forwarding |
-| 第 5 周 | 21～25 | Stall/Flush/复杂 Hazard/GCC Pipeline/性能计数器 |
-| 第 6 周 | 26～29 | FPGA、上板、CoreMark 和性能 Baseline |
-| 第 7 周 | 30 | 逻辑分析仪 Raw P0 端到端闭环 |
-| 第 8 周 | 33～35 | 最终 Regression、报告、视频、答辩和 Release |
+| D3 | 硬件平台决策 | 确定目标板卡/器件、PDS 工程路径、时钟/Reset、BRAM 冒烟验证方案；不要求提前跳过 Task 2 编写 CPU RTL |
+| D12 | 2～13 | 完整单周期候选 Reference Model、指令定向测试和提交级接口 PASS |
+| D20 | 14～17 | GCC/SoC/UART/GPIO/正式单周期 Regression PASS，冻结 `single_cycle_stable` |
+| D35 | 18～25 | 五级流水线、Forwarding、Stall、Flush、复杂 Hazard、GCC Pipeline、性能计数器和提交级对比 PASS |
+| D42 | 26～29 | FPGA、上板、CoreMark、ILA 性能证据和 `pipeline_coremark_stable` PASS |
+| D52 | 30 | 8 通道 Raw 逻辑分析仪、UART/SPI 解析、Python/VCD 和物理回环端到端闭环 PASS |
+| D60 | 33～35 | 最终 Regression、报告、视频、答辩、故障恢复演练和 `competition_final` 冻结 |
 
-若未达到周末目标，按 `docs/competition_scoring.md` 的止损线删除可选增强，不得削减 RV32I、Hazard、UART/GPIO、CoreMark、应用 P0 或最终材料。任务 34 的图表和证据允许在前序 Gate 完成时同步积累，但最终版本只能在任务 33 后冻结。
+若未达到硬节点，按 `docs/competition_scoring.md` 的止损线处理，不得通过恢复 RLE/BTB、削减验证或过度宣称来掩盖延期。任务 34 的图表和证据允许在前序 Gate 完成时同步积累，但最终版本只能在任务 33 后冻结。
 
 ---
 
@@ -131,7 +132,7 @@
 - 在 `docs/progress.md` 记录当前任务、稳定版本、已通过测试、已知问题和下一步。
 - 规划 RTL、Testbench、测试程序、软件、脚本和构建产物目录；实际目录可在首次使用时创建。
 - 检查并记录仿真器、波形工具、RISC-V GCC 工具链、GNU Make、Python 串口库和 PDS 版本；缺失项如实记录。
-- 记录计划使用的紫光同创 FPGA/开发板；尚未确定时，记录远程 FPGA 平台作为验证路径，并规定最迟在任务 10 前完成选择。
+- 记录计划使用的紫光同创 FPGA/开发板；尚未确定时，记录远程 FPGA 平台作为验证路径，并在 D3 前完成平台选择。Task 10 再完成器件、时钟/Reset 和 BRAM 的实际冒烟验收。
 - 记录目标时钟、Reset 极性、片上 RAM/BRAM 方案和约束文件的预期位置；未知项允许标为待验证，但不得静默跳过。
 
 #### 验收标准
@@ -1276,7 +1277,7 @@ sw   x3, 0(x0)
 
 - `pipeline_coremark_stable` 可识别、可恢复、可复现。
 - Before 数据和基础赛题性能分析材料完整。
-- 未达到此条件时禁止任何可选增强；已删减的 Cache、异常/中断和 AI 不因 Baseline 通过而恢复。
+- 未达到此条件时不得进入 Task 30；已冻结的 RLE/BTB 及已删减的 Cache、异常/中断和 AI 不因 Baseline 通过而恢复。
 
 ---
 
@@ -1302,7 +1303,7 @@ sw   x3, 0(x0)
 #### 需要实现什么
 
 - Capture Engine 可保留便于单元测试的通道参数，但本届上板配置固定为 8 路；实现 clock-enable 采样、边沿/电平/掩码触发、触发前后采样和 BRAM 环形缓冲。
-- 实现 Raw 记录模式；RLE 不在本任务内，只有可选任务 31 启动时才实现。
+- 实现 Raw 记录模式；本届不实现 RLE，Task 31 仅保留为赛后研究备忘。
 - 实现独立 `logic_analyzer_mmio` wrapper，通过 Task 15 预留的 Application MMIO 窗口连接，不向 Core 增加任何端口或地址。
 - 编写裸机 C 驱动，完成配置、Arm/Stop、状态查询、数据读取以及 UART/SPI 捕获数据解析。
 - 经基础 UART 外设输出原始数据、解析结果和元数据；Python 上位机显示波形、触发位置、协议帧并导出 VCD。
@@ -1331,12 +1332,13 @@ sw   x3, 0(x0)
 
 ---
 
-## 阶段 K：可选增强与最终交付
+## 阶段 K：赛后研究备忘与最终交付
 
-### 任务 31（可选）：实现并量化 RLE
+### 任务 31（赛后冻结）：实现并量化 RLE
 
-**优先级：P1，可跳过，不阻塞任务 33**  
-**前置任务：任务 30；同时满足 `docs/competition_scoring.md` 的可选增强启动条件**
+**优先级：赛后研究，不属于本届交付**
+
+**前置任务：本届 `competition_final` 已冻结并完成提交，且用户重新立项**
 
 #### 目标
 
@@ -1362,13 +1364,14 @@ sw   x3, 0(x0)
 
 #### 通过条件
 
-- Round-trip、完整 Regression 和板级演示全部 PASS，并形成 Before/After 数据时，RLE 才能进入最终配置。
-- 任一条件失败时从最终配置移除 RLE，任务 33 继续使用 Raw P0 功能基线。
+- Round-trip、完整 Regression 和板级演示全部 PASS，并形成 Before/After 数据时，RLE 才能进入赛后研究基线。
+- 任一条件失败时不得冻结赛后 RLE 研究基线；无论结果如何，均不得修改本届 `competition_final`。
 
-### 任务 32（可选）：16 项 BTB + 2-bit 预测性能实验
+### 任务 32（赛后冻结）：16 项 BTB + 2-bit 预测性能实验
 
-**优先级：P2，可跳过，不阻塞任务 33**  
-**前置任务：任务 29 和任务 30；不依赖任务 31；同时满足 `docs/competition_scoring.md` 的可选增强启动条件**
+**优先级：赛后研究，不属于本届交付**
+
+**前置任务：本届 `competition_final` 已冻结并完成提交，且用户重新立项；不依赖任务 31**
 
 #### 目标
 
@@ -1395,17 +1398,17 @@ sw   x3, 0(x0)
 
 #### 通过条件
 
-- 只有 Predictor On 的完整 Regression、Timing 和板级运行全部 PASS，且 CoreMark/MHz 有可复现正收益时，才允许进入最终配置。
-- 否则最终提交使用 Predictor Off Baseline，只保留实验记录；任务 33 不因此阻塞。
+- 只有 Predictor On 的完整 Regression、Timing 和板级运行全部 PASS，且 CoreMark/MHz 有可复现正收益时，才允许进入赛后研究基线。
+- 否则赛后研究继续使用 Predictor Off Baseline，只保留实验记录；无论结果如何，均不得修改本届 `competition_final`。
 
 ### 任务 33：最终系统 Regression 与范围审计
 
 **优先级：P0**  
-**前置任务：任务 30；任务 31～32 如未启动可直接跳过，如已启动则只能纳入已完整 PASS 的结果**
+**前置任务：任务 30；任务 31～32 本届固定跳过**
 
 #### 目标
 
-在制作参赛材料前冻结唯一可提交系统，证明 RV32I、流水线、基础外设、CoreMark 和逻辑分析仪 P0 全部可恢复、可重复，并确认已删减或未通过的可选功能没有进入最终配置。
+在制作参赛材料前冻结唯一可提交系统，证明 RV32I、流水线、基础外设、CoreMark 和逻辑分析仪 P0 全部可恢复、可重复，并确认本届冻结和明确不做的功能没有进入最终配置。
 
 #### 需要学什么
 
@@ -1415,8 +1418,8 @@ sw   x3, 0(x0)
 
 #### 需要实现什么
 
-- 建立 P0 Baseline、RAM-only、UART/GPIO、逻辑分析仪的最终配置矩阵；只有可选 RLE/BTB 已完整通过时才加入对应配置。
-- 一次性运行 RV32I、单周期、Pipeline、Hazard、GCC、MMIO、UART/GPIO、逻辑分析仪 P0、CoreMark 和提交级 trace Regression；已纳入最终配置的可选功能必须一并回归。
+- 建立 P0 Baseline、RAM-only、UART/GPIO、逻辑分析仪的最终配置矩阵；不得加入 RLE/BTB 配置。
+- 一次性运行 RV32I、单周期、Pipeline、Hazard、GCC、MMIO、UART/GPIO、逻辑分析仪 P0、CoreMark 和提交级 trace Regression。
 - 上板连续执行 CoreMark、GPIO/UART Demo 和至少 20 次逻辑分析仪采集。
 - 保存 RTL、约束、软件、测试镜像、bitstream、PDS 报告和工具版本校验值。
 - 审计工程与材料，确认没有 I/D Cache、burst、异常/中断、AI、DDR、HDMI、PCIe、千兆网、自定义指令、16 通道、I²C 或复杂触发/GUI 的实现与声明。
@@ -1427,7 +1430,7 @@ sw   x3, 0(x0)
 - 所有配置自动输出明确 PASS/FAIL，任一失败时 Release Candidate 失败。
 - 多次构建与运行结果一致，工具、镜像和 bitstream 可对应。
 - 错误路径、随机背压和 Reset 不产生重复或丢失 side effect。
-- 最终提交配置、可选功能纳入/排除状态和理由已经记录。
+- 最终提交配置、本届冻结/删除功能及其范围理由已经记录。
 
 #### 通过条件
 
@@ -1442,24 +1445,24 @@ sw   x3, 0(x0)
 
 #### 目标
 
-把已经通过验证的系统整理为可评审、可复现、不过度宣称的国赛材料，突出基础任务完整性、CoreMark 三项性能指标、Core/外设解耦、逻辑分析仪应用和 ILA 性能分析；可选增强只在真实完成时展示。
+把已经通过验证的系统整理为可评审、可复现、不过度宣称的国赛材料，突出基础任务完整性、CoreMark 三项性能指标、Core/外设解耦、逻辑分析仪应用和 ILA 性能分析；本届材料不展示 RLE/BTB。
 
 #### 需要学什么
 
 - 技术报告的证据链、图表表达和复现信息。
 - 3分钟演示视频的叙事结构与现场答辩节奏。
-- 如何用 PDS ILA、提交级 trace 和性能计数器解释流水线；若 BTB 被纳入，再解释预测行为。
+- 如何用 PDS ILA、提交级 trace 和性能计数器解释流水线。
 - 如何区分“已实现并验证”“实验结果”和“明确未实现”。
 
 #### 需要实现什么
 
-- 完成系统框图、五级流水数据通路、Core/SoC边界和逻辑分析仪数据流；只有 BTB 被纳入最终配置时才加入 BTB 结构图。
+- 完成系统框图、五级流水数据通路、Core/SoC边界和逻辑分析仪数据流；不加入未实现的 BTB/RLE 结构图。
 - 整理模块层级、关键状态机与流水控制注释，解释时钟/Reset/IO 约束和主要时序路径，满足赛题的代码规范与时序约束说明要求。
 - 汇总RV32I覆盖、Regression、CoreMark/MHz、CPI、Fmax、Slack、LUT/FF/BRAM和CoreMark/LUT。
-- 加入 CoreMark 关键循环的 PDS ILA 波形，解释 Forwarding、Stall 和 Flush；可选 BTB 已纳入时再解释预测/错误恢复。
-- 汇总逻辑分析仪采样频率、触发延迟、Raw 深度、UART 吞吐及软硬件采样对比；可选 RLE 已纳入时再报告压缩比。
+- 加入 CoreMark 关键循环的 PDS ILA 波形，解释 Forwarding、Stall 和 Flush。
+- 汇总逻辑分析仪采样频率、触发延迟、Raw 深度、UART 吞吐及软硬件采样对比；不报告未实现的 RLE 压缩比。
 - 制作3分钟演示视频：作品定位、CPU证据、现场可变输入采样、协议解析、量化结果和解耦证明。
-- 准备答辩问题：RV32I、Hazard、Reference Model、CoreMark、Timing、MMIO 解耦和逻辑分析仪；只为已实现的可选功能准备 RLE/BTB 结论。
+- 准备答辩问题：RV32I、Hazard、Reference Model、CoreMark、Timing、MMIO 解耦和逻辑分析仪；对 RLE/BTB 只准确回答“本届为保证主线正确性和可复现性而冻结”。
 - 所有材料明确列出删减项，不出现Cache、异常中断、AI等未实现功能的暗示。
 
 #### 验收标准
@@ -1496,7 +1499,7 @@ sw   x3, 0(x0)
 
 - 冻结RTL、Testbench、软件、Python上位机、约束、bitstream、报告、PPT、视频和复现说明。
 - 保存最终文件清单、校验值、工具版本、板卡、引脚、电源、串口和跳线连接图。
-- 准备稳定 P0 主 bitstream；若最终主版本启用了可选功能，再准备已经验证的纯 P0 备用 bitstream。两者均必须来自已通过 Regression 的配置。
+- 准备稳定的逻辑分析仪 P0 主 bitstream，并保留已经验证的 `pipeline_coremark_stable` 诊断 bitstream；两者均必须来自已通过对应 Regression 的冻结配置。
 - 在干净环境执行从构建、下载、Reset、CoreMark到逻辑分析仪采集的完整复现。
 - 至少完成三轮计时答辩演练和现场故障恢复演练。
 - 冻结后只允许修复阻塞性Bug；任何修改必须重跑任务33的完整Regression并重新生成校验值。
@@ -1533,8 +1536,8 @@ sw   x3, 0(x0)
 | G9 Pipeline/FPGA | 24～27 | GCC Pipeline、性能计数器、Timing 和板级验证全部 PASS |
 | G10 性能基线 | 28～29 | CoreMark 运行不少于 10 秒，ILA/性能报告完整，Baseline 已冻结 |
 | G11 逻辑分析仪应用 | 30 | Raw P0、UART/SPI 解析、Python/VCD、连续 20 次采集和必需量化报告全部 PASS；三种 SoC 配置复用同一 Pipeline Core |
-| G12 可选增强 | 31 或 32 | 非强制；RLE 或 BTB 只有完整 Regression、Timing、板级和 Before/After 全部 PASS 时才允许纳入最终配置 |
-| G13 最终系统候选 | 33 | P0 全配置 Regression、CoreMark、Timing、板级压力和范围审计 PASS；未完成的可选功能不进入最终配置 |
+| 赛后研究 | 31 或 32 | 本届冻结，不进入 Gate、最终配置或参赛材料；仅在 `competition_final` 后重新立项 |
+| G13 最终系统候选 | 33 | P0 全配置 Regression、CoreMark、Timing、板级压力和范围审计 PASS；本届冻结/删除功能不进入最终配置 |
 | G14 参赛交付 | 34～35 | 报告、PPT、视频、复现包、最终 bitstream、必要时的备用 bitstream 和现场演练完成，最终版本冻结且可恢复 |
 
 ## 四、当前起点

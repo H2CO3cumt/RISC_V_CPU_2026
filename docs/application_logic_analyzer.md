@@ -59,7 +59,7 @@ logic inputs -> input register -> sample/trigger -> | logic_analyzer       |
 ### 逻辑分析仪外设负责
 
 - 数字输入寄存、采样使能、边沿检测和触发判断。
-- 触发前/后数据保存和 BRAM 环形缓冲；可选增强版本再加入 RLE 压缩。
+- 触发前/后数据保存和 BRAM 环形缓冲；本届只实现 Raw，RLE 仅保留为赛后研究。
 - MMIO 控制/状态寄存器和采样数据窗口。
 - 设备自己的 Busy、Done、Triggered、Overflow 状态。
 
@@ -86,7 +86,7 @@ logic inputs -> input register -> sample/trigger -> | logic_analyzer       |
 - Python 上位机只实现必要的数字波形、触发位置、协议帧显示和 VCD 导出，不开发复杂 GUI 框架。
 - 提供可重复的板内 GPIO/UART/SPI 激励与物理引脚回环演示，不依赖人工制造不可复现波形。
 
-### 3.2 P1：可选增强项，不阻塞 G11/最终提交
+### 3.2 赛后研究：RLE（本届冻结）
 
 - 实现 RLE 无损压缩模式，记录 `(sample_value, run_length)`，并保留 Raw 模式作为最坏情况回退。
 - 提供硬件解压参考模型或软件解压器，自动证明 `decompress(compress(input)) == input`。
@@ -94,7 +94,7 @@ logic inputs -> input register -> sample/trigger -> | logic_analyzer       |
 - 对静态、低翻转、高翻转和伪随机波形分别报告压缩率，禁止只展示最有利样本。
 - 对比 CPU 软件轮询采样与 Capture Engine 的无丢样最高输入频率，量化硬件并行采集收益。
 
-RLE 只有在任务 30 通过并形成稳定 P0 功能基线，且已按 `docs/competition_scoring.md` 预留最终交付时间时才能开始。未实现 RLE 时，Raw 模式仍构成完整应用；材料不得暗示已经支持压缩。
+本届 60 天国赛冲刺不启动 RLE，不创建对应 RTL，不进入 G11、最终配置或参赛材料。只有 `competition_final` 冻结并完成本届提交后，用户重新立项，才允许按本节开展赛后研究。Raw 模式构成本届完整应用；材料不得暗示已经支持压缩。
 
 ### 3.3 明确不做
 
@@ -107,7 +107,7 @@ RLE 只有在任务 30 通过并形成稳定 P0 功能基线，且已按 `docs/c
 
 ## 4. 外设内部模块建议
 
-模块名在 Task 30 评审后冻结，职责现在固定如下；`rle_encoder` 只在可选 Task 31 启动时加入：
+模块名在 Task 30 评审后冻结，职责现在固定如下；`rle_encoder` 不属于本届模块清单，仅在赛后重新立项 Task 31 时加入：
 
 | 模块 | 职责 | 独立测试重点 |
 |---|---|---|
@@ -115,7 +115,7 @@ RLE 只有在任务 30 通过并形成稳定 P0 功能基线，且已按 `docs/c
 | `sample_enable_gen` | 根据分频值产生单周期采样使能 | 周期、Reset、动态配置边界 |
 | `trigger_engine` | 电平/边沿触发匹配 | 每类触发和多通道组合 |
 | `capture_buffer` | BRAM 环形缓冲、前后触发计数 | wrap、触发位置、首尾样本 |
-| `rle_encoder`（可选） | 相同样本游程压缩 | 最大游程、频繁翻转、溢出、Round-trip |
+| `rle_encoder`（赛后） | 相同样本游程压缩 | 最大游程、频繁翻转、溢出、Round-trip |
 | `logic_analyzer_mmio` | 控制、状态和数据窗口 | byte enable、背压、一次 side effect |
 | `logic_analyzer_top` | 仅组合外设子模块，不实例化 CPU | 模式切换和端到端外设测试 |
 
@@ -127,8 +127,8 @@ RLE 只有在任务 30 通过并形成稳定 P0 功能基线，且已按 `docs/c
 
 | 寄存器 | 软件可见语义 |
 |---|---|
-| `CONTROL` | Arm、Stop、软清除；可选增强版本增加 Raw/RLE 模式位 |
-| `STATUS` | Armed、Triggered、Done、Overflow；可选增强版本增加当前模式 |
+| `CONTROL` | Arm、Stop、软清除；本届无 RLE 模式位 |
+| `STATUS` | Armed、Triggered、Done、Overflow；本届无模式切换状态 |
 | `SAMPLE_DIV` | 采样使能间隔，非法值行为必须定义 |
 | `CHANNEL_MASK` | 参与保存/显示的有效通道 |
 | `TRIGGER_MASK` | 参与触发比较的通道 |
@@ -138,9 +138,9 @@ RLE 只有在任务 30 通过并形成稳定 P0 功能基线，且已按 `docs/c
 | `PRE_COUNT` | 触发前保留样本数 |
 | `POST_COUNT` | 触发后继续采样数 |
 | `TRIGGER_INDEX` | 触发样本在逻辑数据流中的位置 |
-| `CAPTURE_COUNT` | 实际有效 Raw 记录数；可选增强版本为 Raw/RLE 记录数 |
+| `CAPTURE_COUNT` | 实际有效 Raw 记录数 |
 | `READ_INDEX` | 数据窗口读指针 |
-| `READ_DATA` | 读取一条 Raw 记录；可选增强版本可读取 RLE 记录 |
+| `READ_DATA` | 读取一条 Raw 记录 |
 
 必须明确每个寄存器的只读/只写属性、Reset 值、byte enable、写一清零和读 side effect。第一版优先让 `READ_INDEX` 显式递增，避免隐式读 side effect；若采用读后自增，必须用随机背压测试证明一次读取只自增一次。
 
@@ -153,7 +153,7 @@ RLE 只有在任务 30 通过并形成稳定 P0 功能基线，且已按 `docs/c
 - 上升沿、下降沿、电平和掩码触发。
 - 未触发、立即触发、缓冲区 wrap、前后触发边界。
 - Raw 模式容量、Overflow 和 Stop/Reset。
-- 若启用可选 RLE：增加单样本、最大游程、游程分裂、高翻转输入和自动解压 Round-trip。
+- 赛后若重新立项 RLE：另行增加单样本、最大游程、游程分裂、高翻转输入和自动解压 Round-trip；不计入本届测试矩阵。
 - MMIO 连续读写、byte enable、随机背压和 Reset；不得丢失或重复命令。
 
 ### SoC 集成测试
@@ -175,7 +175,7 @@ RLE 只有在任务 30 通过并形成稳定 P0 功能基线，且已按 `docs/c
 
 - Pipeline Core：CoreMark/MHz、Fmax、CoreMark/LUT、CPI、Stall/Flush Rate。
 - Capture Engine：最高稳定采样频率、通道数、触发延迟、Raw 深度。
-- 若启用可选 RLE：报告典型/最坏压缩比、等效采样深度、额外 LUT/FF/BRAM 和 Fmax 影响。
+- 赛后若重新立项 RLE：另行报告典型/最坏压缩比、等效采样深度、额外 LUT/FF/BRAM 和 Fmax 影响；本届材料不报告压缩数据。
 - SoC：纯 Core、基础 UART/GPIO、加入逻辑分析仪三种配置的 LUT/FF/BRAM/Fmax。
 - 软硬件协同：CPU 轮询与硬件 Capture Engine 的最高无丢样频率和 CPU 占用对比。
 - 数据链路：UART 有效吞吐、一次完整采集上传时间和上位机重建时间。
@@ -186,10 +186,10 @@ RLE 只有在任务 30 通过并形成稳定 P0 功能基线，且已按 `docs/c
 
 只有以下项目全部满足，Task 30/G11 才能标记完成：
 
-1. P0 全部功能具有独立自动测试且全部 PASS；RLE 不属于 G11 必需条件。
+1. P0 全部功能具有独立自动测试且全部 PASS；RLE 不属于本届 G11 范围。
 2. 裸机 C 驱动、UART/SPI 解析、UART 传输和 Python 上位机形成可重复闭环。
 3. 已知激励、随机激励、随机背压、Reset 和连续采集测试全部 PASS。
 4. 三种 SoC 配置复用完全相同的 Pipeline Core，原完整 Regression 与 CoreMark 保持 PASS。
 5. 应用 RTL 不含 CPU 内部信号，CPU Core 不含任何逻辑分析仪端口、地址、状态和协议逻辑。
-6. 资源、时序、采样、吞吐和软硬件对比数据完整；只有启用 RLE 时才要求压缩数据。
+6. 资源、时序、采样、吞吐和软硬件对比数据完整；本届不要求且不展示 RLE 压缩数据。
 7. 现场演示脚本、故障恢复流程、3 分钟演示视频素材和答辩证据形成项目文件，不依赖历史聊天。
