@@ -1,0 +1,35 @@
+# Windows and editor files
+Thumbs.db
+Desktop.ini
+*.tmp
+*.bak
+*~
+.vscode/
+.idea/
+
+# Python generated files
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# HDL simulation outputs
+*.vcd
+*.fst
+*.lxt
+*.lxt2
+*.vvp
+*.wlf
+*.wdb
+
+# Generated build directories
+build/
+out/
+dist/
+work/
+
+# Temporary workspace files; retain the official scoring references
+tmp/*
+!tmp/pdfs/
+!tmp/pdfs/riscv-topic-10.png
+!tmp/pdfs/riscv-topic-11.png
