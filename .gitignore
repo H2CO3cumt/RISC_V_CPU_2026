@@ -13,6 +13,9 @@ __pycache__/
 .venv/
 venv/
 
+# Node dependencies for the material generators in scripts/
+node_modules/
+
 # HDL simulation outputs
 *.vcd
 *.fst
@@ -33,3 +36,33 @@ tmp/*
 !tmp/pdfs/
 !tmp/pdfs/riscv-topic-10.png
 !tmp/pdfs/riscv-topic-11.png
+
+# Agent scratch material from earlier sessions (PPT chart cache and validators)
+.chart-data-*/
+.codex-finalizer/
+
+# PDS shell logs, root-level project descriptor copies
+log/
+impl.pds
+run.log
+stdout.log
+stderr.log
+
+# PDS implementation stages; every one of them is rebuilt by the project
+# pds_recipe.tcl plus scripts/run_*.ps1. The shipped bitstream is archived
+# under release/final_submission and release/artifacts instead.
+fpga/**/synthesize/
+fpga/**/place_route/
+fpga/**/route_optimize/
+fpga/**/device_map/
+fpga/**/generate_bitstream/
+fpga/**/report_timing/
+fpga/**/compile/
+fpga/**/logbackup/
+fpga/**/bak/
+fpga/**/ip/
+*.smsk
+
+# Development-stage board validation bundle; the distributed form is
+# release/MES50HP_board_validation_package.zip
+release/board_validation/
