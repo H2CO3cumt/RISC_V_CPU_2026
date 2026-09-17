@@ -1,0 +1,13 @@
+`timescale 1ns/1ps
+module tb_application_mmio_mux;
+ reg clk=0,reset=1,req_valid=0,req_write=0,rsp_ready=0; reg [31:0]req_addr=0,req_wdata=0; reg [3:0]req_wstrb=4'hf; wire req_ready,rsp_valid,rsp_error; wire [31:0]rsp_rdata; integer failures=0;
+ wire pv,pr,psv,psr,pe,lv,lr,lsv,lsr,le; wire [31:0]pa,pwd,prd,la,lwd,lrd; wire pw,lw; wire [3:0]pws,lws; wire clear; wire [7:0]sample_outputs;
+ application_mmio_mux dut(.clk(clk),.reset(reset),.req_valid(req_valid),.req_ready(req_ready),.req_addr(req_addr),.req_write(req_write),.req_wdata(req_wdata),.req_wstrb(req_wstrb),.rsp_valid(rsp_valid),.rsp_ready(rsp_ready),.rsp_rdata(rsp_rdata),.rsp_error(rsp_error),.perf_req_valid(pv),.perf_req_ready(pr),.perf_req_addr(pa),.perf_req_write(pw),.perf_req_wdata(pwd),.perf_req_wstrb(pws),.perf_rsp_valid(psv),.perf_rsp_ready(psr),.perf_rsp_rdata(prd),.perf_rsp_error(pe),.la_req_valid(lv),.la_req_ready(lr),.la_req_addr(la),.la_req_write(lw),.la_req_wdata(lwd),.la_req_wstrb(lws),.la_rsp_valid(lsv),.la_rsp_ready(lsr),.la_rsp_rdata(lrd),.la_rsp_error(le));
+ reg [63:0]cyc=64'h1234_5678_9abc_def0; wire [63:0]zero=0; wire [7:0]ch=0;
+ perf_mmio perf(.clk(clk),.reset(reset),.req_valid(pv),.req_ready(pr),.req_addr(pa),.req_write(pw),.req_wdata(pwd),.req_wstrb(pws),.rsp_valid(psv),.rsp_ready(psr),.rsp_rdata(prd),.rsp_error(pe),.clear(clear),.cycle_count(cyc),.instret_count(zero),.stall_count(zero),.load_stall_count(zero),.branch_count(zero),.branch_taken_count(zero),.flush_count(zero));
+ logic_analyzer_mmio la_dev(.clk(clk),.reset(reset),.req_valid(lv),.req_ready(lr),.req_addr(la),.req_write(lw),.req_wdata(lwd),.req_wstrb(lws),.rsp_valid(lsv),.rsp_ready(lsr),.rsp_rdata(lrd),.rsp_error(le),.channels(ch),.sample_outputs(sample_outputs));
+ always #5 clk=~clk;
+ task trans; input [31:0]a;input wr;input [31:0]v;input [31:0]want;input bad;begin @(negedge clk);req_addr=a;req_write=wr;req_wdata=v;req_valid=1;wait(req_ready);@(posedge clk);#1;req_valid=0;req_write=0;req_addr=32'hdeadbeef;repeat(2)@(posedge clk);if(!rsp_valid)begin $display("MUX response missing");failures=failures+1;end else if(rsp_error!==bad || (!bad&&!wr&&rsp_rdata!==want))begin $display("MUX response FAIL addr=%h data=%h err=%b",a,rsp_rdata,rsp_error);failures=failures+1;end else $display("MUX transaction PASS addr=%h",a);rsp_ready=1;@(posedge clk);#1;rsp_ready=0;wait(!rsp_valid);end endtask
+ initial begin repeat(2)@(posedge clk);reset=0;trans(32'h10002000,0,0,32'h9abcdef0,0);trans(32'h10002108,1,16'd3,0,0);trans(32'h10002200,0,0,0,1);if(failures==0)$display("ALL APPLICATION MUX TEST PASS");else $fatal(1,"APPLICATION MUX %0d FAIL",failures);$finish;end
+ initial #100000 $fatal(1,"APPLICATION MUX TIMEOUT");
+endmodule
