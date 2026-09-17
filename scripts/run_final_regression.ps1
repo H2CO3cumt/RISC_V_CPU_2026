@@ -54,6 +54,7 @@ try {
   Run-Test 'Task 30 logic-analyzer MMIO' './scripts/run_logic_analyzer_tb.ps1'
   Run-Test 'Task 30 application MMIO mux' './scripts/run_application_mmio_mux_tb.ps1'
   Run-Test 'Task 30 interactive board-top/UART protocol' './scripts/run_task30_board_top_tb.ps1'
+  Run-Test 'Task 30 80 MHz PLL board-top/UART/capture' './scripts/run_task30_pll80_board_top_tb.ps1'
   Run-Test 'Task 30 software/SoC integration' './scripts/run_task30_logic_analyzer_soc_tb.ps1'
   Run-Test 'Task 30 Python/VCD tools' './scripts/run_logic_analyzer_python.ps1'
 
@@ -70,6 +71,12 @@ try {
 
   if(-not (Test-Path 'third_party/coremark/core_main.c')){throw 'Official CoreMark source is missing'}
   Require-Artifact 'Final MES50HP logic-analyzer bitstream' 'fpga/task30_logic_analyzer/generate_bitstream/mes50hp_logic_analyzer_top.sbit'
+  # 性能调优后新增交付物：80 MHz PLL 配置与调优归档（频率扫描结论的唯一证据来源）
+  Require-Artifact 'CoreMark 80 MHz PLL bitstream' 'fpga/task28_coremark_80m/generate_bitstream/mes50hp_coremark_pll_top.sbit'
+  Require-Artifact 'Logic analyzer 80 MHz PLL bitstream' 'fpga/task30_logic_analyzer_80m/generate_bitstream/mes50hp_logic_analyzer_pll_top.sbit'
+  Require-Artifact 'CoreMark 50 MHz optimized bitstream' 'release/artifacts/fmax_tuning_2026-09-17/coremark_50m_optimized.sbit'
+  Require-Artifact 'Logic analyzer 50 MHz optimized bitstream' 'release/artifacts/fmax_tuning_2026-09-17/la_50m_optimized.sbit'
+  Require-Artifact 'Pre-tuning logic analyzer bitstream archive' 'release/artifacts/fmax_tuning_2026-09-17/la_50m_pre_tuning_ARCHIVE.sbit'
 } catch {
   Write-Host $_
   $results | Set-Content tmp/final_regression_summary.txt

@@ -16,7 +16,7 @@ REQUIRED = (
 )
 
 
-def parse_coremark(text: str) -> dict[str, int | str]:
+def parse_coremark(text: str, clock_hz: int = 50_000_000) -> dict[str, int | str]:
     for marker in REQUIRED:
         if marker not in text:
             raise ValueError(f"missing CoreMark marker: {marker}")
@@ -46,12 +46,17 @@ def parse_coremark(text: str) -> dict[str, int | str]:
     ):
         fields[key] = int(value, 16)
     ticks = int(fields["ticks"])
+    # clock_hz 由 --clock-hz 给出；50 MHz 基线与 80 MHz 高频配置共用同一解析器。
+    # 保留 seconds_at_50mhz_x1000 字段以兼容已有消费者。
+    fields["clock_hz"] = clock_hz
+    fields["seconds_x1000"] = ticks * 1000 // clock_hz
     fields["seconds_at_50mhz_x1000"] = ticks * 1000 // 50_000_000
     fields["cpi_x1000"] = int(fields["cycles"]) * 1000 // int(fields["instret"])
     return fields
 
 
-def run_board(port: str, output: Path, summary: Path, timeout: float, baud: int) -> dict[str, int | str]:
+def run_board(port: str, output: Path, summary: Path, timeout: float, baud: int,
+              clock_hz: int = 50_000_000) -> dict[str, int | str]:
     try:
         import serial
     except ImportError as exc:
@@ -72,11 +77,12 @@ def run_board(port: str, output: Path, summary: Path, timeout: float, baud: int)
     text = data.decode("ascii", errors="replace")
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(text, encoding="utf-8")
-    result = parse_coremark(text)
-    if int(result["seconds_at_50mhz_x1000"]) < 10_000:
+    result = parse_coremark(text, clock_hz=clock_hz)
+    if int(result["seconds_x1000"]) < 10_000:
         raise ValueError("formal CoreMark interval is shorter than 10 seconds")
     summary.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    print(f"COREMARK BOARD PASS port={port} ticks={result['ticks']} score_x1000={result['score_x1000']}")
+    print(f"COREMARK BOARD PASS port={port} clock_hz={clock_hz} ticks={result['ticks']} "
+          f"seconds={int(result['seconds_x1000'])/1000:.3f} score_x1000={result['score_x1000']}")
     return result
 
 
@@ -85,10 +91,12 @@ def main() -> int:
     parser.add_argument("port")
     parser.add_argument("--output", type=Path, default=Path("release/evidence/coremark_uart.log"))
     parser.add_argument("--summary", type=Path, default=Path("release/evidence/coremark_board.json"))
-    parser.add_argument("--timeout", type=float, default=70.0)
+    parser.add_argument("--timeout", type=float, default=140.0)
     parser.add_argument("--baud", type=int, default=115200)
+    parser.add_argument("--clock-hz", type=int, default=50_000_000,
+                        help="CPU 时钟频率，用于把 ticks 换算成秒（80 MHz 配置传 80000000）")
     args = parser.parse_args()
-    run_board(args.port, args.output, args.summary, args.timeout, args.baud)
+    run_board(args.port, args.output, args.summary, args.timeout, args.baud, args.clock_hz)
     return 0
 
 

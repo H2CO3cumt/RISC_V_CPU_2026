@@ -1,7 +1,83 @@
 # Project Progress
 
-> 最后更新：2026-09-17
+> 最后更新：2026-09-17（性能调优轮）
 > 状态依据：`AGENTS.md`、`docs/competition_scoring.md`、`docs/roadmap.md`、`docs/architecture.md`、`docs/interfaces.md`、`docs/fpga_platform.md`、`docs/application_logic_analyzer.md` 与当前项目文件。聊天记录不作为任务完成证明。
+
+## 本次性能调优轮（2026-09-17，T0～T6）
+
+本轮在赛题一评分规则范围内对最终版做了频率扫描、CPI 归因、关键路径提取和一处 RTL 优化，
+并把 80 MHz PLL 配置做成可交付工程。完整数据见 `docs/performance_tuning.md`，
+逐条改动说明见 `docs/rtl_changes.md`，CPI 归因见 `docs/coremark_cpi_analysis.md`。
+
+### 关键结论（数据具体到数字）
+
+1. **"松约束下的估算 Fmax"确实只是下界**。同一份 RTL、同一套配方，只改 `.fdc` 的 `create_clock -period`：
+   50 MHz 约束报估算 Fmax 54.96 MHz，70 MHz 约束报 75.60 MHz，80 MHz 报 83.95 MHz，85 MHz 报 85.03 MHz。
+   **PDS 的 `Estimated Frequency` 是"约束下反推值"，不能当作芯片上限。**
+2. **真实天花板约 89～90 MHz**。优化前 90 MHz 失败（WNS −0.059 ns、TNS −0.455 ns、18 个失败端点），
+   85 MHz 恰好通过（WNS **+0.005 ns**）。优化后 90 MHz 仍失败（WNS −0.148 ns、113 个失败端点），
+   85 MHz 有 WNS **+0.246 ns**、80 MHz 有 +0.145 ns、70 MHz 有 +1.035 ns、50 MHz 有 +1.693 ns，
+   所有实测点 hold WHS ≥ +0.276 ns、THS = 0。**回答用户问题：70 MHz 与 80–85 MHz 都达到；90 MHz 不达到。**
+3. **公共瓶颈是性能计数器**。50 MHz 约束下最差 10 条路径有 8 条终点在 `perf/flush_count`，前 3 名全是
+   `core/rf/regs/iGopDrm → exalu → N161.eq_* (16 级相等比较) → perf_mispredict → perf_flush (fanout=46) → flush_count[24..60] (10 级 CECO 进位链)`，
+   26 级逻辑、arrival 22.789 ns。task30 逻辑分析仪配置是同一瓶颈（25 级、arrival 21.933 ns）。
+4. **已落地改动只有一处**：`rtl/perf_monitor.v` 把 9 个事件先锁一拍再驱动计数器，
+   切断"事件分类 → 64-bit 计数器进位链"的组合路径。效果：50 MHz 约束下 `perf/` 终点从最差 10 条中占 8 条降为 **0 条**，
+   最差路径逻辑级数 26 → 21、逻辑延迟 8.381 → 7.866 ns；85 MHz 的 WNS 从 +0.005 提到 **+0.246 ns**。
+   该模块是 Core 外只读统计逻辑，**端口与计数器宽度未变，不触及 Core/SoC 边界、流水线、Hazard、提交 trace 或 Reference Model**。
+5. **提频率不会提 Score**。`Score = Iterations/(Total_Time × Frequency)` 等价于 CoreMark/MHz，是频率归一化的；
+   提频率只服务于独立的第 (2) 项「时钟频率」。要提 Score 必须降 CPI。
+6. **CPI 最大单项优化空间是访存事务等待**：RTL 仿真（官方 CoreMark、Predictor On）CPI 2.3747 中，
+   访存相关合计约 **48% cycles、1.14 CPI**（理想执行 1.0000 / Hazard stall 0.2259 / 控制冒险 flush 0.2090 / 访存事务等待 0.9398）。
+   把数据事务 `dstate` 的 REQ→RSP 两拍压成一拍估计可回收约一半（CPI 约 −0.4，约 −17%），
+   但需要改动流水线访存时序，风险高于本轮改动，**本轮未做，作为下一轮明确建议**。
+   板级 `cycle_count/instret_count`（2.2719）不能当 CoreMark 内核 CPI——`ticks` 与 `cycle_count` 窗口相差 18.6%。
+
+### 80 MHz PLL 配置（新增可交付工程）
+
+P20 是 50 MHz 固定晶振，>50 MHz 必须倍频；PGL50H PLL 只能整数分频，**无法精确产生 85/90 MHz，但能精确产生 80 MHz**：
+`IDIV=1, FDIV=16, ODIV0=10 → PFD 50 MHz, VCO 800 MHz, 输出 80.000 MHz`（VCO 需在 600～1250 MHz 内）。
+
+| 工程 | 顶层 | 80 MHz 时序 | LUT | FF | DRM18K | 位流 SHA-256 |
+|---|---|---|---:|---:|---:|---|
+| `fpga/task28_coremark_80m` | `mes50hp_coremark_pll_top` | All Constraints Met，WNS +0.721 / WHS +0.312 | 3003 | 2593 | 33.0 | `3BF90440BDC9D2AB463B5D9E389107F846FB1A1A2972D81E03DA9070CC23948F` |
+| `fpga/task30_logic_analyzer_80m` | `mes50hp_logic_analyzer_pll_top` | All Constraints Met，WNS +0.652 / WHS +0.312 | 3781 | 3143 | 5.5 | `261D3989AC2D3EC686B9C740B42E988A96175B8534BE5F494D66573A1A54D898` |
+
+PLL 原语 `GTP_PLL_E3` 直接例化在 `fpga/task28_coremark_80m/rtl/pll_80m.v`，**不依赖外部 IP 文件**，完全位于 Core 之外。
+UART 波特率按新时钟重算：80e6/115200 = 694 → 实际 115274 baud（−0.064%，在容差内）。
+RTL 级闭环测试 `scripts/run_task30_pll80_board_top_tb.ps1`（`tb/pll_80m_model.v` 提供 PLL 行为模型）输出
+`PLL80 LOCK PASS` / `PLL80 FREQ PASS period_ps=12400` / `PLL80 UART PASS bytes=13` / `PLL80 CAPTURE PASS count=9` / `ALL TASK30 PLL80 BOARD TOP TEST PASS`。
+
+### 官方 50 MHz 工程已用优化后 RTL 重建
+
+| 工程 | 时序 | LUT | FF | 位流 SHA-256 |
+|---|---|---|---:|---:|---|
+| `fpga/task28_coremark` | All Constraints Met，WNS +1.693 / WHS +0.314 | 2709 | 2585 | `9F42B8F9720D70471F2479D7DAE4F702BF60A22365223207D0BEED68AB596B26` |
+| `fpga/task30_logic_analyzer` | All Constraints Met，WNS +2.257 / WHS +0.319 | 3458 | 3137 | `DB705898A42BA25628303017034DDB7531DBA44BDBB58574E5CAFC19AAA331E6` |
+
+调优前后位流与对应时序报告已归档到 `release/artifacts/fmax_tuning_2026-09-17/`（含调优前的逻辑分析仪位流存档 `la_50m_pre_tuning_ARCHIVE.sbit`，SHA-256 `2C09E690…`）。
+**注意**：`release/final_submission` 与 `release/artifacts` 顶层的位流仍是调优前版本（`2C09E690…`），
+其 `SHA256SUMS.txt` 因此仍然自洽；调优后位流是并存的新交付物，未静默替换发布清单。
+
+### 本轮验证结果
+
+| 验证 | 命令 | 结果 |
+|---|---|---|
+| 全套回归（20 个入口） | `scripts\run_final_regression.ps1 -Quick` | `ALL AUTOMATED FINAL REGRESSION PASS` |
+| 性能计数器定向 + MMIO | `run_perf_monitor_tb.ps1` / `run_perf_mmio_tb.ps1` | 13/13、8/8 PASS（含 clear/disable 边界） |
+| 官方 CoreMark RTL 仿真 | `run_coremark_pipeline_tb.ps1` | `cycles=1852156 retired=779952`，官方 CRC 全过，**与改动前逐字段一致** |
+| 频率扫描（优化前 5 点 / 优化后 7 点，隔离目录） | `scripts\run_fmax_sweep_rtl.ps1` | 见上 |
+| 80 MHz PLL 顶层 RTL 闭环 | `scripts\run_task30_pll80_board_top_tb.ps1` | `ALL TASK30 PLL80 BOARD TOP TEST PASS` |
+| 80 MHz 位流构建（两套工程） | PDS 完整流程 | `All Constraints Met`，0 失败端点 |
+
+### 本轮未完成：实体板验证（阻塞）
+
+**开发板 Pango JTAG 下载线在本轮执行期间未连接本机**（USB 枚举只有 CP2102 UART 桥 `COM11`，
+无 Pango 下载器；`cdt_cfg` 的 `cfg_scan_chain` 无响应并超时）。因此：
+- 优化后 50 MHz / 80 MHz 位流的实体板下载与 CoreMark 复测**未完成**；
+- PLL 在实体板上的锁定、80 MHz 稳定性与 UART 实际波特率**未验证**。
+
+恢复步骤见 `docs/performance_tuning.md` §5.4。**在补齐实体证据前，不宣称优化后位流"板上可用"。**
 
 ## 当前阶段
 
@@ -140,6 +216,16 @@ Task 20～32 的自动化 RTL/软件/PDS 证据已经通过，当前执行 Task 
 
 ## 当前已知问题
 
+- **实体板验证被阻塞（本轮新增）**：MES50HP 的 Pango JTAG 下载线未连接（USB 只见 CP2102 `COM11`），
+  无法下载调优后位流，也无法验证 PLL 80 MHz 实体行为。恢复步骤见 `docs/performance_tuning.md` §5.4。
+  在此之前 `competition_final` 不得冻结，调优后位流不得宣称板上可用。
+- **发布包与调优后位流并存**：`release/final_submission` 顶层仍指向调优前位流（`2C09E690…`），其清单自洽；
+  调优后位流归档在 `release/artifacts/fmax_tuning_2026-09-17/`。若要提升为正式发布版本，必须按顺序执行
+  `scripts\export_final_submission.ps1` → `scripts\create_release_manifest.ps1` → `scripts\audit_release_package.ps1`（均需 pwsh 7）。
+- **PDS 布局布线不具确定性**：同一 RTL 重复构建的 WNS 可差约 ±0.3 ns；所有 Before/After 结论都在同一批扫描内比较，
+  并记录 RTL/FDC SHA-256，禁止跨批次混用数值。
+- **85 MHz 零余量点**：调优前 85 MHz 的 WNS 仅 +0.005 ns，属"能过但不可用"；调优后为 +0.246 ns。
+  选用 85 MHz 实跑需先完成实体板验证（且需 PLL 或外部时钟源，因为 P20 固定 50 MHz）。
 - D3 硬件平台决策和 Task 10 Memory/FPGA Gate 已完成；MES50HP BRAM、`.fdc`、内部上电复位、JTAG 下载与 LED1 冒烟均已两次 PASS。SPI Flash 扫描/固化仍未完成，但它不是本次临时 JTAG 冒烟或 Task 10 Gate 的阻塞项。
 - 历史在线 DUT 的 `Top.fdc`、器件和报告仅作为旧平台实验归档，已不再写入 `docs/fpga_platform.md`，也不得用于当前 PDS 工程、约束或 Gate 结论。当前工程必须复核 `PGL50H-6IFBG484`，不得沿用旧平台器件或管脚。
 - PDS 批处理许可证路径可通过 `-LicenseFile` 或 `PANGO_LICENSE_FILE` 提供；当前四套工程均已完成批处理实现并生成 bitstream。许可证文件属于本机外部依赖，不进入仓库或发布包。
@@ -159,9 +245,19 @@ Task 20～32 的自动化 RTL/软件/PDS 证据已经通过，当前执行 Task 
 
 ## 下一目标
 
-Task 10 已正式关闭：MES50HP 迁移冒烟工程使用 `P20` 50 MHz 时钟、`B2` 高有效 `LED1`，复用已验证的 1024×32 同步 BRAM 自检；本地 Testbench 输出 `ALL MES50HP BRAM SMOKE TEST PASS`，同一 bitstream 已通过 JTAG 下载两次且 LED1 两次点亮。SPI Flash 固化暂缓，当前不要把它当作 CPU 学习阻塞项。
+**首要**：接上 MES50HP 的 Pango JTAG 下载线，补齐本轮调优后位流的实体验证——
+(1) 下载 `fpga/task28_coremark/generate_bitstream/mes50hp_coremark_top.sbit`（50 MHz 优化版）并复测 CoreMark，
+要求官方四 CRC 全过、`Correct operation validated.`、运行 ≥10 s；
+(2) 下载 `fpga/task28_coremark_80m/.../mes50hp_coremark_pll_top.sbit`（80 MHz PLL 版），
+用 `D:\Python313\python.exe python\coremark_serial.py COM11 --clock-hz 80000000` 采集，确认 PLL 锁定与 80 MHz 稳定；
+(3) 下载 `fpga/task30_logic_analyzer/.../mes50hp_logic_analyzer_top.sbit`（50 MHz 优化版）复测 J8 四模式物理回环。
+完成后按 `scripts\export_final_submission.ps1` → `create_release_manifest.ps1` → `audit_release_package.ps1` 顺序更新发布包。
 
-主线目标：Task 33～35。自动化总回归、唯一最终配置发布包（位流/时序/约束/固件/上位机/实体证据一致）和候选材料已完成；下一步仅在 MES50HP 连接后补齐实体 CoreMark 分数、Task 29 Fabric Debugger 波形与三轮断电压力证据（J8 隔行相邻脚对四模式 80/80 实体回环已完成），随后更新报告/PPT/视频真实素材并再次运行完整回归、发布清单和包审计。当前不得冻结 `competition_final`。
+**次要（可选，独立一轮）**：数据事务握手流水化（`rtl/pipeline_cpu.v` 的 `dstate` REQ→RSP），
+按 CPI 归因估计可降 CPI 约 0.4（约 −17%），是 Score 第 (1) 项唯一的显著提升空间；
+必须独立一轮做 Before/After 并重跑 Task 23/24 全套 + 提交级 trace 对比 + 实体板 CoreMark。
+
+主线目标：Task 33～35。自动化总回归、唯一最终配置发布包（位流/时序/约束/固件/上位机/实体证据一致）和候选材料已完成；下一步补齐实体 CoreMark 分数、Task 29 Fabric Debugger 波形与三轮断电压力证据，随后更新报告/PPT/视频真实素材并再次运行完整回归、发布清单和包审计。当前不得冻结 `competition_final`。
 
 学习方式：先评审 `valid/ready` 请求/响应语义、地址/字节写使能和一次请求一次副作用，再由学习者实现最小范围的 Core 访存端口 RTL；Agent 负责 adapter/互连/外设侧 Testbench、随机背压和地址译码验证。任何新接口必须保持 Core 不含设备地址或专用端口。
 
