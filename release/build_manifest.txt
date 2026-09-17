@@ -1,6 +1,6 @@
 release_id=competition_final_candidate
-generated=2026-09-17T14:16:30.7901408+08:00
-git=4af495e4710ccf3eded98dc04d837610f1d66f9f
+generated=2026-09-17T14:17:30.7446718+08:00
+git=62bb0d45f909f2720ab7f737c17eca13d566bbad
 git_dirty=dirty
 coremark_git=1f483d5b8316753a742cbf5590caf5bd0a4e4777
 pipeline_cpu_sha256=8E8EB3A69B2EF45EBC7A054199327C105E633535E6263625DD923179854548CE
