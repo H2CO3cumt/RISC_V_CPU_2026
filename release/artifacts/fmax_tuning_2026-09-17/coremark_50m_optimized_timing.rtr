@@ -1,7 +1,7 @@
 
 ----------------------------------------------------------------------------------------------------
 | Tool Version : Fabric Compiler (version 2024.2-SP2-EN <build 208883>)
-| Date         : Thu Sep 17 16:14:11 2026
+| Date         : Thu Sep 17 18:42:43 2026
 | Design       : mes50hp_coremark_top
 | Device       : PGL50H
 | Speed Grade  : -6
@@ -2260,7 +2260,7 @@ Inputs and Outputs :
 
 
 Flow Command: report_timing -force_to_run 
-Peak memory: 567 MB
-Total CPU time to report_timing completion : 0h:0m:5s
-Process Total CPU time to report_timing completion : 0h:0m:9s
+Peak memory: 552 MB
+Total CPU time to report_timing completion : 0h:0m:4s
+Process Total CPU time to report_timing completion : 0h:0m:8s
 Total real time to report_timing completion : 0h:0m:7s

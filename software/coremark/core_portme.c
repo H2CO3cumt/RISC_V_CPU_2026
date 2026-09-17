@@ -7,12 +7,18 @@
 #ifndef COREMARK_CLOCK_HZ
 #define COREMARK_CLOCK_HZ 50000000u
 #endif
+#ifndef PERF_WINDOW_ALIGN
+#define PERF_WINDOW_ALIGN 0
+#endif
 
 #define UART_TXDATA (*(volatile ee_u32 *)0x10000000u)
 #define UART_STATUS (*(volatile ee_u32 *)0x10000004u)
 #define UART_RXDATA (*(volatile ee_u32 *)0x10000008u)
 #define GPIO_OUTPUT (*(volatile ee_u32 *)0x10001000u)
 #define PERF_BASE ((volatile ee_u32 *)0x10002000u)
+/* perf_mmio 的 CONTROL 寄存器：offset 14 个 word -> 字节 0x38，写 bit0 产生一次 clear 脉冲。
+ * 用于把性能计数器窗口对齐到 CoreMark 计时窗口本身（见 start_time）。 */
+#define PERF_CONTROL (*(volatile ee_u32 *)0x10002038u)
 
 volatile ee_s32 seed1_volatile = 0;
 volatile ee_s32 seed2_volatile = 0;
@@ -42,7 +48,17 @@ CORETIMETYPE barebones_clock(void)
     return read_counter_low(0u);
 }
 
-void start_time(void) { start_time_val = barebones_clock(); }
+void start_time(void)
+{
+#if PERF_WINDOW_ALIGN
+    /* 在 CoreMark 计时窗口开始时清零性能计数器，使 cycle/instret/stall/flush 与
+     * ticks 覆盖同一段区间。否则计数窗口会包含 COREMARK_READY 的 UART 轮询等待，
+     * 那段繁忙等待会以 load/branch 为主并产生上亿次访存阻塞，完全淹没内核真实 CPI。
+     * 该语句只影响观测口径，不改变被测量的执行路径（clear 后立刻读计时器）。 */
+    PERF_CONTROL = 1u;
+#endif
+    start_time_val = barebones_clock();
+}
 void stop_time(void) { stop_time_val = barebones_clock(); }
 CORE_TICKS get_time(void) { return stop_time_val - start_time_val; }
 secs_ret time_in_secs(CORE_TICKS ticks)

@@ -1,7 +1,8 @@
-﻿param(
+param(
   [int]$Iterations = 1000,
   [int]$ClockHz = 50000000,
   [int]$AutoStart = 0,
+  [int]$PerfWindowAlign = 0,
   [string]$OutputFile = 'fpga/task28_coremark/rtl/coremark_program_memory.v',
   [string]$MemoryDirectory = 'fpga/task28_coremark/rtl'
 )
@@ -9,7 +10,7 @@ $ErrorActionPreference='Stop'
 if(-not $env:RISCV_PREFIX){$env:RISCV_PREFIX='riscv-none-elf-'}
 & make.exe -C software/coremark clean
 if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
-& make.exe -C software/coremark all "ITERATIONS=$Iterations" "CLOCK_HZ=$ClockHz" "AUTOSTART=$AutoStart"
+& make.exe -C software/coremark all "ITERATIONS=$Iterations" "CLOCK_HZ=$ClockHz" "AUTOSTART=$AutoStart" "PERF_WINDOW_ALIGN=$PerfWindowAlign"
 if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
 
 function Read-VerilogWords([string]$Path){

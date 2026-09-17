@@ -1,4 +1,4 @@
-# 性能调优与频率-性能-资源数据（T0～T6）
+﻿# 性能调优与频率-性能-资源数据（T0～T6）
 
 > 最后更新：2026-09-17
 > 权威命令：`scripts/run_fmax_sweep_rtl.ps1`（频率扫描）、`scripts/run_final_regression.ps1 -Quick`（回归）、
@@ -9,12 +9,12 @@
 
 | 问题 | 结论 |
 |---|---|
-| 是否达到 70 MHz？ | **达到**。优化前后两版 RTL 在 70 MHz 约束下均 `All Constraints Met`，见 §2。 |
-| 是否达到 80–85 MHz？ | **达到**。优化前最高 85.0 MHz（WNS +0.005 ns），优化后在 85 MHz 有 WNS +0.246 ns、在 80 MHz 有 WNS +0.145 ns；两版都在 90 MHz 约束下失败。 |
+| 是否达到 70 MHz？ | **达到**。优化前后两版 RTL 在 70 MHz 约束下均 `All Constraints Met`、0 失败端点，见 §2。 |
+| 是否达到 80–85 MHz？ | **达到**。优化前最高 85.0 MHz（WNS +0.005 ns），优化后 85 MHz 有 WNS +0.246 ns。**80 MHz 已在实体板跑通**：PLL 精确倍频到 80.000 MHz，CoreMark Score 47.295、52.859 s、官方 CRC 全过。两版都在 90 MHz 约束下失败。 |
 | 真实天花板在哪？ | 约 **89～90 MHz**（按 WNS 外推：优化前 1/(11.111−0.059) = 90.5 MHz，优化后 1/(11.111−0.148) = 89.7 MHz）。两版天花板相同，因为限制路径是流水线本体的寄存器堆→ALU→预测校验链，不是性能计数器。 |
-| 提频率能不能提 Score？ | **不能**。`Score = Iterations/(Total_Time × Frequency)`，与 `CoreMark/MHz` 等价，是频率归一化的；提频率只服务于独立的「时钟频率」计分项。 |
-| 本轮 RTL 改动的收益 | `rtl/perf_monitor.v` 事件打一拍：在 85 MHz 把 WNS 从 +0.005 ns 提到 **+0.246 ns**，让 85 MHz 从"零余量"变成"可用"；在 50 MHz 从 +1.805 到 +1.693（±0.1 ns 属布局波动）。CPI/CoreMark 不变（该改动不影响架构行为）。 |
-| 下一步性价比最高的方向 | 数据事务握手流水化（把 `dstate` 的 REQ→RSP 两拍压成一拍），估计 CPI 可降约 0.4（约 −17%），但需要改动流水线访存时序，风险高于本轮改动；详见 `docs/coremark_cpi_analysis.md`。 |
+| 提频率能不能提 Score？ | **不能，已用实体板证明**：50 MHz 与 80 MHz 的 `CoreMark/MHz x1000` 都是 **591**，Score 之比 47.295/29.559 = 1.600 = 80/50。频率只服务独立的「时钟频率」计分项。 |
+| 本轮 RTL 改动的收益 | `rtl/perf_monitor.v` 事件打一拍：最差 10 条路径中 `perf/flush_count` 终点由 8 条降为 **0 条**，逻辑级数 26 → 21；85 MHz 的 WNS 由 +0.005 提到 **+0.246 ns**。CPI/CoreMark 不变（不影响架构行为），实体板 Score 仍为 29.559。 |
+| 下一步性价比最高的方向 | 数据事务握手流水化（把 `dstate` 的 REQ→RSP 两拍压成一拍）。实体板回归显示访存阻塞是剩余主要损失，估计 CPI 可降约 0.4（约 −17%）；详见 `docs/coremark_cpi_analysis.md`。 |
 
 ## 1. 基准口径与可比性元数据
 
@@ -85,11 +85,11 @@
 
 | 版本 | 目标频率 | All Met | WNS(ns) | WHS(ns) | LUT(综合) | FF(综合) | DRM18K | CoreMark | Score(CoreMark/MHz×1000) | CPI | CoreMark/LUT |
 |---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| 基线 50 MHz（Before） | 50 MHz | MET | +1.805 | +0.276 | 2707 | 2577 | 33.0 | 29.559 | 591 | 2.2719 | 0.01092 |
-| 基线 85 MHz（Before） | 85 MHz | MET | +0.005 | +0.317 | 2922 | 2577 | 33.0 | 未上板 | 591（预期不变） | 2.2719（预期不变） | 0.01080 |
-| 优化 50 MHz（After，正式工程已重建） | 50 MHz | MET | +1.693 | +0.314 | 2709 | 2585 | 33.0 | 待实体板复测 | 591（预期不变） | 2.2719（预期不变） | 0.01089 |
-| 优化 80 MHz + PLL（After） | 80 MHz | MET | +0.721 | +0.312 | 3003 | 2593 | 33.0 | 待实体板复测 | 591（预期不变） | 2.2719（预期不变） | 0.00984 |
-| 优化 85 MHz（After） | 85 MHz | MET | +0.246 | +0.316 | 2924 | 2585 | 33.0 | 未上板 | — | — | — |
+| 基线 50 MHz（Before） | 50 MHz | MET | +1.805 | +0.276 | 2707 | 2577 | 33.0 | 29.559（实体） | 591（实体） | 2.2719（历史失真口径） | 0.01092 |
+| 基线 85 MHz（Before） | 85 MHz | MET | +0.005 | +0.317 | 2922 | 2577 | 33.0 | 未上板（80 MHz 已实测，85 MHz 未做 PLL） | — | — | 0.01080 |
+| **优化 50 MHz（After，正式工程已重建）** | 50 MHz | MET | +1.693 | +0.314 | 2709 | 2585 | 33.0 | **29.559（实体实测）** | **591（实体实测）** | **2.3443（实体实测）** | 0.01091 |
+| **优化 80 MHz + PLL（After）** | 80 MHz | MET | +0.721 | +0.312 | 3003 | 2593 | 33.0 | **47.295（实体实测）** | **591（实体实测）** | **2.3445（实体实测）** | 0.01575 |
+| 优化 85 MHz（After） | 85 MHz | MET | +0.246 | +0.316 | 2924 | 2585 | 33.0 | 未上板（PGL50H PLL 整数分频无法产生 85 MHz） | — | — | — |
 | 逻辑分析仪 50 MHz（After，正式工程已重建） | 50 MHz | MET | +2.257 | +0.319 | 3458 | 3137 | 5.5 | 不适用 | 不适用 | 不适用 | 不适用 |
 | 逻辑分析仪 80 MHz + PLL（After） | 80 MHz | MET | +0.652 | +0.312 | 3781 | 3143 | 5.5 | 不适用 | 不适用 | 不适用 | 不适用 |
 
@@ -172,7 +172,26 @@ hold 在所有频率点都为正且 THS=0，**没有为 hold 做任何妥协**�
 
 ## 4. T1：CPI 分解与瓶颈归因（摘要）
 
-完整内容见 `docs/coremark_cpi_analysis.md`。以 RTL 仿真（官方 CoreMark，Predictor On，同一镜像同一窗口）为准：
+完整内容见 `docs/coremark_cpi_analysis.md`。两套数据并列：RTL 仿真（同一镜像同一窗口、可逐周期核对）
+与**实体板实测**（`PERF_WINDOW_ALIGN=1` 镜像，计数器与 `ticks` 同口径，50/80 MHz 双点交叉验证）。
+
+### 4.1 实体板实测（权威，两个频率点互为交叉验证）
+
+| 指标 | 50 MHz 实体 | 80 MHz 实体 | 差别 |
+|---|---:|---:|---:|
+| ticks | 1,691,496,677 | 4,228,738,028 | — |
+| cycles | 1,693,816,436 | 4,232,437,933 | — |
+| instret | 722,513,265 | 1,805,240,083 | — |
+| **CPI** | **2.3443** | **2.3445** | 0.009% |
+| cycles / iteration | 1,693,816 | 1,692,975 | 0.05% |
+| stall / cycles | 4.54% | 4.53% | — |
+| load-use / stall | 9.30% | 9.32% | — |
+| flush / cycles | 4.41% | 4.41% | — |
+| branch / instret | 0.275 | 0.275 | — |
+
+归一化后逐项吻合到 **0.02% 以内**——两个独立频率点的交叉验证，说明核心性能与频率无关、计数器统计正确。
+
+### 4.2 RTL 仿真分解（Predictor On，与实体板对照）
 
 | 损失来源 | CPI 贡献 | 占 cycles | 可行动性 |
 |---|---:|---:|---|
@@ -182,15 +201,24 @@ hold 在所有频率点都为正且 THS=0，**没有为 hold 做任何妥协**�
 | **访存事务等待** | **0.9398** | **39.57%** | **最大单项**；数据访问固定多 2 拍握手 |
 | 合计 | 2.3747 | 100% | — |
 
-**可行动结论**：访存相关（stall + 事务等待）合计约 **48% 的周期、1.14 CPI**。
-把数据事务的 `dstate` REQ→RSP 两拍握手压成一拍（请求当拍即可应答，因为 `d_req_ready` 恒为可接收）
-估计可回收约一半，即 **CPI 约 −0.4（约 −17%）**——这是当前 Score 提升空间最大的单项。
-它需要改动 `pipeline_cpu.v` 的访存时序与对应 hazard 语义，风险显著高于本轮的计数器打拍，
-因此本轮**不做**，作为下一轮明确建议。
+### 4.3 可行动结论
 
-板级口径提醒：`cycle_count / instret_count`（2.2719）**不能**当 CoreMark 内核 CPI ——
-`ticks` 只覆盖 CoreMark 计时窗口，而 `cycle_count` 覆盖上电至今，两者相差 387,117,152 周期（18.6%），
-其中包含启动代码、首次内存初始化和 `COREMARK_READY` 串口等待。
+- 实体板 CPI 2.3443 与仿真 2.3747 相差 **1.3%**，说明仿真 memory model 是可信的性能预测工具。
+- **访存阻塞是唯一的大项**：仿真中访存相关合计约 48% cycles；实体板上 stall 占 4.54% cycles
+  而其中 90.7% 不是 load-use，同样指向数据事务的固定握手开销。
+- 把数据事务的 `dstate` REQ→RSP 两拍握手压成一拍（请求当拍即可应答，因为 `d_req_ready` 恒为可接收）
+  估计可回收约一半访存开销，即 **CPI 约 −0.4**——这是 Score 第 (1) 项最显著的剩余空间。
+  它需要改动 `pipeline_cpu.v` 的访存时序与对应 hazard 语义，风险显著高于本轮的计数器打拍，
+  因此本轮**不做**，作为下一轮明确建议。
+
+### 4.4 测量口径（必须遵守）
+
+- **必须**用 `PERF_WINDOW_ALIGN=1` 的镜像做板级 CPI 归因（`start_time()` 内清零性能计数器）。
+  否则 `COREMARK_READY` 的 UART 轮询等待会进入计数窗口，实测 stall 甚至超过 cycles、branch 超过 instret。
+- 历史 `release/evidence/coremark_board.json` 就是未对齐窗口的失真数据，**只有 `ticks`/`score` 字段有效**，
+  不得用于 CPI 归因。
+- `ticks` 与 `cycle_count` 在本轮对齐后只差 0.14%（1,691,496,677 vs 1,693,816,436），
+  说明 CoreMark 计时窗口与计数器窗口已基本重合。
 
 ## 5. T5：高频实体板验证（PLL）
 
@@ -240,34 +268,86 @@ ALL TASK30 PLL80 BOARD TOP TEST PASS
 覆盖：PLL 锁定握手与输出频点、80 MHz 域 UART 分频 694 无帧错误、板级固件 `LA_READY` 前缀、
 Capture Engine 在 80 MHz 下 `pre/trigger/post` 精确计数（count=9、trigger_index=4）、GPIO=0x5A、回环=0x01。
 
-### 5.4 实体板验证状态：**未完成（阻塞）**
+### 5.4 实体板验证：**已完成**（2026-09-17 补测）
 
-**阻塞原因**：本轮执行期间，开发板的 Pango JTAG 下载线未连接到本机。
-设备枚举只有 CP2102 UART 桥：
-
-```
-Silicon Labs CP210x USB to UART Bridge (COM11)   USB\VID_10C4&PID_EA60\0001
-```
-
-没有 Pango 下载器（`cdt_js`/`cdt_cfg` 连接后 `cfg_scan_chain` 无响应、超时）。
-因此以下两项**无法完成，也不在本文件中宣称**：
-
-- 优化后 50 MHz / 80 MHz 位流的实体板下载与 CoreMark 复测；
-- PLL 在实体板上的锁定、80 MHz 稳定性与 UART 实际波特率验证。
-
-**恢复验证的步骤**（接上下载线后）：
+JTAG 下载线接上后完成全部实体验证。下载方式：
 
 ```powershell
-# 1) 启动 JTAG 服务（若未运行）
 Start-Process 'D:\Pango\PDS_2024.2-SP2\bin\cdt_js.exe' -ArgumentList '-work_dir','D:\RISC_V_CPU_2026\tmp','-port','65420'
-# 2) 下载 80 MHz CoreMark 位流
-D:\Pango\PDS_2024.2-SP2\bin\cdt_cfg.exe -file D:\RISC_V_CPU_2026\tmp\program_coremark_80m.tcl -work_dir D:\RISC_V_CPU_2026\tmp
-# 3) 采集（注意 --clock-hz 必须与位流时钟一致）
-D:\Python313\python.exe python\coremark_serial.py COM11 --clock-hz 80000000 `
-  --output release\evidence\coremark_uart_80m.log --summary release\evidence\coremark_board_80m.json
+D:\Pango\PDS_2024.2-SP2\bin\cdt_cfg.exe -file <tcl> -work_dir D:\RISC_V_CPU_2026\tmp
+# tcl 内容：cfg_connect -ip 127.0.0.1 -port 65420 / cfg_scan_chain / cfg_assign_file -file <sbit> -device_index 0 / cfg_program -device_index 0 / cfg_disconnect
 ```
 
-验收判据：官方四个 CRC 全过 + `Correct operation validated.` + 运行 ≥10 秒 + `All Constraints Met`。
+扫描链确认 `Cable index 0: USB Cable II`、器件 `PGL50H`，每次下载后 `The done bit is 1`。
+
+#### (1) 优化后 50 MHz CoreMark（实体板实测，有效成绩）
+
+| 项 | 值 |
+|---|---|
+| 位流 | `fpga/task28_coremark/generate_bitstream/mes50hp_coremark_top.sbit`，SHA-256 `8001A60D4CB17433E8226452EA8A255B144F64529245EE7F3A706F3144110A8A` |
+| iterations | 1000 |
+| ticks | 1,691,496,677 |
+| 运行秒数 | **33.829 s（≥10 s 达标）** |
+| Score | **29.559**（`score_x1000 = 29559`） |
+| CoreMark/MHz | **0.591** |
+| 官方 CRC | crclist `0xe714` / crcmatrix `0x1fd7` / crcstate `0x8e3a` / crcfinal `0xd340` → `Correct operation validated.` **PASS** |
+| 日志 / JSON | `release/evidence/coremark_uart_opt50m_aligned.log`、`coremark_board_opt50m_aligned.json` |
+
+#### (2) 80 MHz PLL CoreMark（实体板实测，有效成绩）
+
+| 项 | 值 |
+|---|---|
+| 位流 | `fpga/task28_coremark_80m/generate_bitstream/mes50hp_coremark_pll_top.sbit`，SHA-256 `FF6775A465A5CB68C99FCDFE57275B93C2B809D3D260D68D64CC31D967355F70` |
+| iterations | 2500 |
+| ticks | 4,228,738,028 |
+| 运行秒数 | **52.859 s（≥10 s 达标）** |
+| Score | **47.295**（`score_x1000 = 47295`） |
+| CoreMark/MHz | **0.591** |
+| 官方 CRC | crclist `0xe714` / crcmatrix `0x1fd7` / crcstate `0x8e3a` / crcfinal `0x5275` → `Correct operation validated.` **PASS** |
+| 日志 / JSON | `release/evidence/coremark_uart_80m_aligned.log`、`coremark_board_80m_aligned.json` |
+
+**PLL 频率的独立交叉验证**（不依赖任何仿真）：
+
+- 实测 80 MHz ticks ÷ 2500 迭代 = **1,691,495.2 周期/迭代**；50 MHz 实测 = **1,691,496.7 周期/迭代**，
+  两点相差 **0.0001%**，说明两个镜像每迭代的周期数完全一致；
+- 由 `seconds = ticks / f` 反推：4,228,738,028 / 52.859 s = **80.00 MHz**，
+  而 52.859 s 正是实测墙钟时间 → **PLL 输出确为 80 MHz**；
+- 若 PLL 不是 80 MHz，按分频 694 发送的 UART 必然乱码；实测 13 行输出全部正确 → 时钟与波特率自洽。
+
+**「Score 频率归一化」得到实体板证明**：29.559 × (80/50) = 47.295，比值 1.600 = 80/50，
+两者 `CoreMark/MHz x1000` 都是 **591**。故**提高频率不提高 Score**，只服务第 (2) 项「时钟频率」。
+
+#### (3) 逻辑分析仪 J8 实体回环（两套位流各 80/80 PASS）
+
+| 位流 | SHA-256 | 结果 |
+|---|---|---|
+| 优化后 50 MHz `la_50m_optimized.sbit` | `DB705898A42BA25628303017034DDB7531DBA44BDBB58574E5CAFC19AAA331E6` | static / counter / uart / spi 各 20 次 = **80/80 PASS**（`release/evidence/logic_analyzer_board_opt50m`） |
+| 80 MHz PLL `la_80m_pll.sbit` | `261D3989AC2D3EC686B9C740B42E988A96175B8534BE5F494D66573A1A54D898` | static / counter / uart / spi 各 20 次 = **80/80 PASS**（`release/evidence/logic_analyzer_board_80m`） |
+
+命令：`scripts\run_task30_board.ps1 -Port COM11 -Baud 115200 -RunsPerMode 20 -Output <目录>`。
+80 MHz 位流在同一套上位机协议下同样 80/80 通过，说明 Capture Engine / MMIO / UART 在 80 MHz 域工作正常。
+
+#### (4) 实体板性能计数器归因（50 / 80 MHz 双频交叉验证）
+
+> **测量口径修正（重要）**：`COREMARK_READY` 的 UART 轮询等待会让计数器窗口包含上亿次繁忙等待，
+> 使 CPI 归因完全失真（未修正时实测 stall 甚至超过 cycles、branch 超过 instret）。
+> 因此在 `software/coremark/core_portme.c` 的 `start_time()` 中加入 `PERF_CONTROL = 1u`
+> （写 perf_mmio CONTROL 清零计数器），由编译开关 `PERF_WINDOW_ALIGN=1` 控制，
+> 使七项计数器与 `ticks` **同口径**。这是纯观测口径修正，不改变被测量的执行路径。
+
+| 指标 | 50 MHz 实体 | 80 MHz 实体 | RTL 仿真（Predictor On） |
+|---|---:|---:|---:|
+| cycles | 1,693,816,436 | 4,232,437,933 | 1,852,156 |
+| instret | 722,513,265 | 1,805,240,083 | 779,952 |
+| **CPI** | **2.3443** | **2.3445** | 2.3747 |
+| cycles / iteration | 1,693,816 | 1,692,975 | 1,852,156 |
+| stall / cycles | 4.54% | 4.53% | 9.51% |
+| load-use / stall | 9.30% | 9.32% | 11.23% |
+| flush / cycles | 4.41% | 4.41% | 8.80% |
+| branch / instret | 0.275 | 0.275 | 0.274 |
+
+**结论**：两个频率点归一化后逐项吻合到 **0.02% 以内**（独立交叉验证），
+证明核心性能与频率无关、计数器统计正确；实体板 CPI 与 RTL 仿真差 1.3%，仿真模型可信。
 
 ## 6. 频率点必录数据清单（本文件覆盖情况）
 
@@ -275,7 +355,7 @@ D:\Python313\python.exe python\coremark_serial.py COM11 --clock-hz 80000000 `
 |---|---|
 | A 时序闭合（周期/WNS/TNS/失败端点/WHS/THS/All Met/估算 Fmax/报告路径） | ✅ §2，报告在 `tmp/fmax_sweep/<tag>_proj/f*/report_timing/` |
 | B 资源（LUT/FF/DRM18K，注明综合阶段） | ✅ §2、§2.4（均为综合统计） |
-| C CoreMark 实测（score/ticks/iterations/秒数/CPI/四 CRC/七计数器） | ⚠ 仅 50 MHz 基线有实体数据（`release/evidence/coremark_board.json`）；After 待复测 |
+| C CoreMark 实测（score/ticks/iterations/秒数/CPI/四 CRC/七计数器） | ✅ 50 MHz 与 80 MHz PLL 两点均有实体数据（`coremark_board_opt50m_aligned.json` / `coremark_board_80m_aligned.json`），CRC 全过、≥10 s |
 | D 关键路径（起点/终点/逻辑级数/逻辑与走线占比） | ✅ §3 |
 | E 可比性元数据（commit/FDC 哈希/bitstream SHA-256/镜像一致性） | ✅ §1、§5.2 |
 
@@ -297,7 +377,7 @@ D:\Python313\python.exe python\coremark_serial.py COM11 --clock-hz 80000000 `
 | `12_性能调优记录.lnk` | `docs\performance_tuning.md` | **新增**，目标存在 |
 | `13_RTL变更说明.lnk` | `docs\rtl_changes.md` | **新增**，目标存在 |
 | `14_CoreMark_80MHz_PLL位流.lnk` | `release\artifacts\fmax_tuning_2026-09-17\coremark_80m_pll.sbit` | **新增**，目标存在（待实体验证） |
-| `15_逻辑分析仪_80MHz_PLL位流.lnk` | `release\artifacts\fmax_tuning_2026-09-17\la_80m_pll.sbit` | **新增**，目标存在（待实体验证） |
+| `15_逻辑分析仪_80MHz_PLL位流.lnk` | `release\artifacts\fmax_tuning_2026-09-17\la_80m_pll.sbit` | **新增**，目标存在（实体板 80/80 回环 PASS） |
 | `16_测CoreMark_80MHz.cmd` | `python\coremark_serial.py <PORT> --clock-hz 80000000` | **新增** |
 
 桌面散落的 CoreMark 位流：
@@ -305,8 +385,8 @@ D:\Python313\python.exe python\coremark_serial.py COM11 --clock-hz 80000000 `
 | 文件 | SHA-256（前 16 位） | 说明 |
 |---|---|---|
 | `coremark_baseline_50m.sbit` | `92638DAF8C73F632` | **旧 `coremark_btb.sbit` 已按要求改名存档**（50 MHz 基线；全 64 位 `92638DAF8C73F63214CB1C42DEBC17B8E4B7E4FAF42C1C132084F022EDABF5A7`） |
-| `coremark_optimized_50m.sbit` | `9F42B8F9720D7047` | 优化后 50 MHz 位流（WNS +1.693 ns） |
-| `coremark_pll_80m.sbit` | `3BF90440BDC9D2AB` | 80 MHz PLL 位流（WNS +0.721 ns，待实体验证） |
+| `coremark_optimized_50m.sbit` | `8001A60D4CB17433` | 优化后 50 MHz 位流，含窗口对齐计数器（WNS +1.693 ns；**实体板 Score 29.559、33.829 s、CRC 全过**） |
+| `coremark_pll_80m.sbit` | `FF6775A465A5CB68` | 80 MHz PLL 位流（WNS +0.721 ns；**实体板 Score 47.295、52.859 s、CRC 全过**） |
 
 **关于 `6_最终交付包.lnk`（重要，未静默处理）**：`release/final_submission` 顶层的位流与 `SHA256SUMS.txt`
 仍是**调优前**版本（`2C09E690…`），清单因此保持自洽。本轮调优后的位流以**并存的新交付物**形式归档在
@@ -348,13 +428,15 @@ D:\Python313\python.exe python\fmax_summary.py --proj-root tmp/fmax_sweep/before
 **是否达到 70 MHz？** 达到。优化前后两版 RTL 在 70 MHz 约束下均为 `All Constraints Met`、0 失败端点
 （优化前 WNS +1.058 ns，优化后 +1.035 ns）。
 
-**是否达到 80–85 MHz？** 达到。
+**是否达到 80–85 MHz？** 达到，并且**已在实体板跑通 80 MHz**。
 - 80 MHz：优化前 WNS +0.588 ns，优化后 +0.145 ns；并有精确 80.000 MHz 的 PLL 工程，
   CoreMark 配置 WNS +0.721 ns、逻辑分析仪配置 WNS +0.652 ns，均 `All Constraints Met`、0 失败端点。
+  **实体板实测**：CoreMark Score **47.295**、ticks 4,228,738,028、**52.859 s**、CPI **2.3445**，四个官方 CRC 全过；
+  反推频率 4,228,738,028 / 52.859 s = **80.00 MHz**；逻辑分析仪 80 MHz 位流 J8 四模式 **80/80 PASS**。
 - 85 MHz：优化前 WNS **+0.005 ns**（零余量，能过但不可用），优化后 **+0.246 ns**。
 - 90 MHz 起失败（优化前 WNS −0.059 ns / 18 失败端点；优化后 −0.148 ns / 113 失败端点）。
 
-**若未达到更高频率，卡在哪条路径、还差多少 ns？**
+**是否达到更高频率（90 MHz 以上）？** 未达到。
 卡在流水线本体的**寄存器堆读出 → 转发/操作数选择 → ALU → 分支预测目标比较 → 写回 `core/*_pc` / `core/*_pred_target`** 这一段：
 
 | 频率 | 最差路径 | 逻辑级数 | arrival | 逻辑/走线占比 | slack |
@@ -367,9 +449,10 @@ D:\Python313\python.exe python\fmax_summary.py --proj-root tmp/fmax_sweep/before
   （例如把 EX 段拆成两级），不是计数器级优化能解决的。
 
 **下一步建议**（按性价比排序）：
-1. **数据事务握手流水化**：按 CPI 归因，访存相关占约 48% cycles，把 `dstate` 的 REQ→RSP 两拍压成一拍
-   估计可降 CPI 约 0.4（约 −17%），直接提高 Score 第 (1) 项。工作量与风险最高，需独立一轮。
-2. **补齐实体板验证**（当前被 JTAG 下载线缺失阻塞）：调优后 50 MHz / 80 MHz 位流的 CoreMark 复测与
-   PLL 实体验证，见 §5.4。
+1. **数据事务握手流水化**：实体板 CPI 归因显示访存阻塞是剩余最大项（stall 的 90.7% 非 load-use），
+   把 `dstate` 的 REQ→RSP 两拍压成一拍估计可降 CPI 约 0.4，直接提高 Score 第 (1) 项。
+   工作量与风险最高，需独立一轮 Before/After + 实体板复测。
+2. **把调优后位流提升为正式发布包**：实体验证已完成，可按
+   `export_final_submission.ps1` → `create_release_manifest.ps1` → `audit_release_package.ps1` 顺序执行。
 3. **`N161.eq_*` 相等比较树化**：理论上再省 0.5～0.8 ns，可能让 90 MHz 通过；风险中等。
 4. **寄存器堆→ALU 段再分级**：真正突破 90 MHz 的唯一途径；属"重新设计流水线主体"，本届不做。

@@ -58,6 +58,47 @@
 
 ## 当前记录
 
+### 2026-09-17 / 性能调优轮：冻结范围审计脚本依赖外部 rg，长期处于静默失效状态
+
+- 最小复现：运行 `scripts/run_scope_audit.ps1`，当前环境报 `The term 'rg' is not recognized`。
+- 第一个错误点：脚本第 6 行对 `rg` 的调用，不是 RTL、时序或综合问题。
+- 预期与实际：审计应当扫描 `rtl`、`fpga/task30_logic_analyzer`、`software/task30_logic_analyzer`、`python`
+  并拒绝已冻结功能（RLE/Cache/异常中断/AI/DDR/HDMI/PCIe/千兆网/I2C/16 通道）的实现；
+  实际上 `rg` 不在 PATH 上，`2>$null` 又把"命令未找到"吞掉，
+  于是 `$violations` 恒为空、脚本无条件走到 `SCOPE AUDIT PASS`。
+- 根因：审计实现依赖外部可执行文件且隐藏了失败；`ErrorActionPreference=Stop` 无法捕获非终止的错误流重定向。
+- 最小修复：`run_scope_audit.ps1` 改为纯 PowerShell 实现（`Get-ChildItem` + `Select-String`），
+  显式排除 PDS 构建产物（`generate_bitstream`/`synthesize`/`place_route` 等）与 `__pycache__`，
+  并新增正向断言（BTB 必须是 `valid[0:15]` 16 项 + `counter[0:15]` 2-bit）。
+- 验证：注入一个含 `cache` 字样的临时文件后审计报 `FROZEN FEATURE SCOPE AUDIT FAIL` 并以非零码退出；
+  删除后输出 `SCOPE AUDIT SCANNED files=47` 与 `SCOPE AUDIT PASS`。
+  **注意**：该修复意味着此前若干轮记录的"Task 33 冻结范围审计 PASS"不具备证据效力，本文件在此更正。
+- 影响：不改变 RTL、Core/SoC 接口或时序结论；仅让审计恢复真实检测能力。
+
+### 2026-09-17 / 性能调优轮：板级性能计数器窗口未对齐，导致 CPI 归因完全失真
+
+- 最小复现：下载 50 MHz CoreMark 位流（`PERF_WINDOW_ALIGN=0`），
+  运行 `python/coremark_serial.py COM11 --clock-hz 50000000`，读 `PERF` 行。
+- 第一个错误点：`perf_monitor` 的 `cycle_count` / `stall_count` 等计数器是**自由运行**的，
+  从复位释放一直累加到 `portable_fini()` 回读时刻，**不**只在 CoreMark 计时窗口内计数。
+- 预期与实际：预期 `stall/cycles` 在 5%~15% 量级；
+  实际出现 `stall` **超过** `cycles`（1.70e9 vs 2.84e9 的旧数据里），
+  修正前一次读数甚至出现 `branch` 超过 `instret`——物理上不可能，说明窗口口径错误。
+- 根因：`COREMARK_READY` 会先等上位机发 `R` 才开跑，那段轮询是紧凑的 load+branch 循环，
+  每次都要走统一事务（含固定 2 拍握手），因此产生上亿次 stall 与 branch，
+  把 CoreMark 内核的真实 CPI 完全淹没。
+- 最小修复：在 `software/coremark/core_portme.c` 的 `start_time()` 中加入
+  `PERF_CONTROL = 1u`（写 perf_mmio CONTROL，字节偏移 0x38）清零计数器，
+  由 Makefile 开关 `PERF_WINDOW_ALIGN` 控制（默认 0，保持历史镜像逐字节可比；
+  正式板级归因镜像用 1）。该语句只改观测口径，不改被测量的执行路径。
+- 验证：对齐后 50 MHz 实测 `cycles=1,693,816,436`、`ticks=1,691,496,677`，
+  窗口差仅 0.14%（对齐前为数亿周期）；CPI 2.3443，与 RTL 仿真的 2.3747 相差 1.3%。
+  80 MHz PLL 镜像独立复现：CPI 2.3445、`stall/cycles` 4.53%，与 50 MHz 逐项吻合到 0.02% 以内。
+- 影响：**历史 `release/evidence/coremark_board.json` 的七项计数器不可用于 CPI 归因**
+  （`ticks`/`score` 字段仍有效）；`docs/coremark_cpi_analysis.md` 已改为以
+  `coremark_board_opt50m_aligned.json` 为准。不改变任何 RTL 或架构结论。
+
+
 ### 2026-09-15 / Task 30：Task 30 栈顶与互连 RAM 上界不一致
 
 - 最小复现：将裸机栈顶扩大到 `0x1000` 后运行 `run_task30_logic_analyzer_soc_tb.ps1`，软件读取的 `post_count` 变为 8192。

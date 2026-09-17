@@ -1,4 +1,4 @@
-﻿# RTL 变更说明（T3，逐改动记录）
+# RTL 变更说明（T3，逐改动记录）
 
 > 最后更新：2026-09-17
 > 本轮改动提交：`284f736`；改动前基线 commit：`fd5bb75ec2d33f67bdf06f0a2a1fed23d25c1896`
@@ -134,7 +134,8 @@ core/rf/regs/iGopDrm tco 2.286
 | 性能计数器 MMIO | `run_perf_mmio_tb.ps1` | 8/8 PASS |
 | 官方 CoreMark RTL 仿真 | `run_coremark_pipeline_tb.ps1` | `cycles=1852156 retired=779952`，官方 CRC 全过，**与改动前逐字段一致** |
 | 时序（50/70/80/85/90 MHz 五点） | `scripts\run_fmax_sweep_rtl.ps1 -Tag after` | 85 MHz `All Constraints Met`，90 MHz 起 VIOLATED |
-| 实体板 CoreMark 复测 | 需 JTAG 下载线 | **未完成**（下载线未连接，见 `docs/performance_tuning.md` §5.4） |
+| 实体板 CoreMark 复测 | `cdt_cfg` 下载 + `python\coremark_serial.py COM11` | **PASS**：50 MHz 优化版 Score 29.559、ticks 1,691,496,677、33.829 s、CPI 2.3443，四个官方 CRC 全过；80 MHz PLL 版 Score 47.295、52.859 s、CPI 2.3445 |
+| 实体板 J8 逻辑分析仪回环 | `scripts\run_task30_board.ps1 -Port COM11 -RunsPerMode 20` | 50 MHz 优化版与 80 MHz PLL 版**各 80/80 PASS** |
 
 ### 1.8 风险
 
@@ -142,8 +143,8 @@ core/rf/regs/iGopDrm tco 2.286
 |---|---|---|
 | 事件计数时刻晚一拍 | 低。只影响"哪一拍 +1"，不影响总数与任一架构行为 | 定向 TB 覆盖 clear/disable；CoreMark 仿真 cycles/retired 逐字段不变 |
 | 50/80 MHz 点 WNS 数值轻微下降 | 低。属 PDS 布局布线随机性（同一 RTL 重复构建实测差异约 ±0.3 ns） | 在 `docs/performance_tuning.md` 中如实列出，不宣称"整体提升" |
-| 重复运行不可复现 | 中。同一 RTL 三次构建的 WNS 分别为 +0.145 / +1.693（50 MHz 点）等不同值 | 所有结论都在同一批扫描内比较，并记录 RTL/FDC SHA-256 |
-| 实体板未验证 | **中高**。CTS 移除了真实延迟路径，工具时序通过不等于板上稳定 | **必须**在接上下载线后重跑 `run_final_regression.ps1 -Quick` + 实体 CoreMark；未完成前不宣称板上可用 |
+| 重复运行不可复现 | 中。同一 RTL 三次构建的 WNS 在两个频率点分别出现不同值 | 所有结论都在同一批扫描内比较，并记录 RTL/FDC SHA-256 |
+| 实体板稳定性 | 低（已实测）。原担心 CTS 移除真实延迟路径会导致板上不稳定 | **已消除**：50 MHz 与 80 MHz PLL 两套位流在实体板跑完 CoreMark 全程（33.8 s / 52.9 s）、CRC 全过；J8 四模式各 20 轮 80/80 通过 |
 
 ---
 

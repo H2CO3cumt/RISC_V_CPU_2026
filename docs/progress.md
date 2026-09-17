@@ -70,14 +70,31 @@ RTL 级闭环测试 `scripts/run_task30_pll80_board_top_tb.ps1`（`tb/pll_80m_mo
 | 80 MHz PLL 顶层 RTL 闭环 | `scripts\run_task30_pll80_board_top_tb.ps1` | `ALL TASK30 PLL80 BOARD TOP TEST PASS` |
 | 80 MHz 位流构建（两套工程） | PDS 完整流程 | `All Constraints Met`，0 失败端点 |
 
-### 本轮未完成：实体板验证（阻塞）
+### 实体板验证：**已完成**（2026-09-17 补测，JTAG 下载线接上后）
 
-**开发板 Pango JTAG 下载线在本轮执行期间未连接本机**（USB 枚举只有 CP2102 UART 桥 `COM11`，
-无 Pango 下载器；`cdt_cfg` 的 `cfg_scan_chain` 无响应并超时）。因此：
-- 优化后 50 MHz / 80 MHz 位流的实体板下载与 CoreMark 复测**未完成**；
-- PLL 在实体板上的锁定、80 MHz 稳定性与 UART 实际波特率**未验证**。
+扫描链确认 `Cable index 0: USB Cable II`、器件 `PGL50H`，每次下载 `The done bit is 1`。
 
-恢复步骤见 `docs/performance_tuning.md` §5.4。**在补齐实体证据前，不宣称优化后位流"板上可用"。**
+| 验证项 | 位流 SHA-256 | 结果 |
+|---|---|---|
+| 优化后 50 MHz CoreMark | `8001A60D4CB17433` | **Score 29.559**、ticks 1,691,496,677、**33.829 s**、CPI 2.3443，四个官方 CRC 全过 + `Correct operation validated.` |
+| 80 MHz PLL CoreMark | `FF6775A465A5CB68` | **Score 47.295**、ticks 4,228,738,028、**52.859 s**、CPI 2.3445，四个官方 CRC 全过 + `Correct operation validated.` |
+| 逻辑分析仪 50 MHz 优化版 J8 回环 | `DB705898A42BA256` | static/counter/uart/spi 各 20 次 = **80/80 PASS** |
+| 逻辑分析仪 80 MHz PLL 版 J8 回环 | `261D3989AC2D3EC6` | static/counter/uart/spi 各 20 次 = **80/80 PASS** |
+
+**PLL 80 MHz 的独立交叉验证**：80 MHz 实测 1,691,495.2 周期/迭代，50 MHz 实测 1,691,496.7 周期/迭代，
+相差 **0.0001%**；反推频率 4,228,738,028 / 52.859 s = **80.00 MHz**，与实测墙钟一致；
+UART 按分频 694 输出全部正确，排除时钟错配。
+
+**Score 频率归一化得到实体板证明**：29.559 × (80/50) = 47.295，两者 CoreMark/MHz 都是 **591**。
+
+**测量口径修正**：原板级计数器窗口包含 `COREMARK_READY` 的 UART 轮询等待，导致 CPI 归因失真
+（stall 甚至超过 cycles）。已在 `software/coremark/core_portme.c` 的 `start_time()` 加入
+`PERF_CONTROL = 1u` 清零（`PERF_WINDOW_ALIGN=1` 开关，纯观测口径修正，不改执行路径）。
+修正后 50/80 MHz 两点 CPI 分别为 2.3443 / 2.3445，逐项吻合到 0.02% 以内。
+
+证据：`release/evidence/coremark_uart_opt50m_aligned.log`、`coremark_board_opt50m_aligned.json`、
+`coremark_uart_80m_aligned.log`、`coremark_board_80m_aligned.json`、
+`release/evidence/logic_analyzer_board_opt50m`、`release/evidence/logic_analyzer_board_80m`。
 
 ## 当前阶段
 
@@ -216,12 +233,16 @@ Task 20～32 的自动化 RTL/软件/PDS 证据已经通过，当前执行 Task 
 
 ## 当前已知问题
 
-- **实体板验证被阻塞（本轮新增）**：MES50HP 的 Pango JTAG 下载线未连接（USB 只见 CP2102 `COM11`），
-  无法下载调优后位流，也无法验证 PLL 80 MHz 实体行为。恢复步骤见 `docs/performance_tuning.md` §5.4。
-  在此之前 `competition_final` 不得冻结，调优后位流不得宣称板上可用。
-- **发布包与调优后位流并存**：`release/final_submission` 顶层仍指向调优前位流（`2C09E690…`），其清单自洽；
-  调优后位流归档在 `release/artifacts/fmax_tuning_2026-09-17/`。若要提升为正式发布版本，必须按顺序执行
+- **实体板验证已完成（2026-09-17）**：JTAG 下载线接上后，优化后 50 MHz 与 80 MHz PLL 两套 CoreMark 位流
+  均已在实体板复测通过（Score 29.559 / 47.295，33.829 s / 52.859 s，CRC 全过），两套逻辑分析仪位流
+  各 80/80 J8 回环 PASS。详见上文「实体板验证」小节与 `docs/performance_tuning.md` §5.4。
+- **发布包仍是调优前位流**：`release/final_submission` 顶层指向 `2C09E690…`，其清单自洽；
+  调优后位流归档在 `release/artifacts/fmax_tuning_2026-09-17/` 并已通过实体验证。
+  若要提升为正式发布版本，必须按顺序执行
   `scripts\export_final_submission.ps1` → `scripts\create_release_manifest.ps1` → `scripts\audit_release_package.ps1`（均需 pwsh 7）。
+- **性能计数器窗口口径**：板级七项计数器必须用 `PERF_WINDOW_ALIGN=1` 镜像采集，否则 `COREMARK_READY`
+  的 UART 轮询等待会污染计数（stall 甚至超过 cycles）。历史 `release/evidence/coremark_board.json`
+  即为此种失真数据，仅 `ticks`/`score` 字段仍然有效，**不得**用它做 CPI 归因。
 - **PDS 布局布线不具确定性**：同一 RTL 重复构建的 WNS 可差约 ±0.3 ns；所有 Before/After 结论都在同一批扫描内比较，
   并记录 RTL/FDC SHA-256，禁止跨批次混用数值。
 - **85 MHz 零余量点**：调优前 85 MHz 的 WNS 仅 +0.005 ns，属"能过但不可用"；调优后为 +0.246 ns。
@@ -245,19 +266,16 @@ Task 20～32 的自动化 RTL/软件/PDS 证据已经通过，当前执行 Task 
 
 ## 下一目标
 
-**首要**：接上 MES50HP 的 Pango JTAG 下载线，补齐本轮调优后位流的实体验证——
-(1) 下载 `fpga/task28_coremark/generate_bitstream/mes50hp_coremark_top.sbit`（50 MHz 优化版）并复测 CoreMark，
-要求官方四 CRC 全过、`Correct operation validated.`、运行 ≥10 s；
-(2) 下载 `fpga/task28_coremark_80m/.../mes50hp_coremark_pll_top.sbit`（80 MHz PLL 版），
-用 `D:\Python313\python.exe python\coremark_serial.py COM11 --clock-hz 80000000` 采集，确认 PLL 锁定与 80 MHz 稳定；
-(3) 下载 `fpga/task30_logic_analyzer/.../mes50hp_logic_analyzer_top.sbit`（50 MHz 优化版）复测 J8 四模式物理回环。
-完成后按 `scripts\export_final_submission.ps1` → `create_release_manifest.ps1` → `audit_release_package.ps1` 顺序更新发布包。
+**已完成（2026-09-17）**：调优后两套 CoreMark 位流与两套逻辑分析仪位流均已在实体板验证通过
+（Score 29.559 @50 MHz / 47.295 @80 MHz PLL；两套 LA 各 80/80 J8 回环）。剩余动作是**把调优后位流提升为正式发布包**：
+按 `scripts\export_final_submission.ps1` → `create_release_manifest.ps1` → `audit_release_package.ps1` 顺序执行（均需 pwsh 7）。
 
 **次要（可选，独立一轮）**：数据事务握手流水化（`rtl/pipeline_cpu.v` 的 `dstate` REQ→RSP），
-按 CPI 归因估计可降 CPI 约 0.4（约 −17%），是 Score 第 (1) 项唯一的显著提升空间；
+按实体板 CPI 归因（访存相关约占 4.5% stall + 主体事务等待）估计可降 CPI 约 0.4（约 −17%），
+是 Score 第 (1) 项最显著的剩余空间；
 必须独立一轮做 Before/After 并重跑 Task 23/24 全套 + 提交级 trace 对比 + 实体板 CoreMark。
 
-主线目标：Task 33～35。自动化总回归、唯一最终配置发布包（位流/时序/约束/固件/上位机/实体证据一致）和候选材料已完成；下一步补齐实体 CoreMark 分数、Task 29 Fabric Debugger 波形与三轮断电压力证据，随后更新报告/PPT/视频真实素材并再次运行完整回归、发布清单和包审计。当前不得冻结 `competition_final`。
+主线目标：Task 33～35。自动化总回归、唯一最终配置发布包（位流/时序/约束/固件/上位机/实体证据一致）和候选材料已完成；实体 CoreMark 分数已补齐。下一步补齐 Task 29 Fabric Debugger 波形与三轮断电压力证据，随后更新报告/PPT/视频真实素材并再次运行完整回归、发布清单和包审计。
 
 学习方式：先评审 `valid/ready` 请求/响应语义、地址/字节写使能和一次请求一次副作用，再由学习者实现最小范围的 Core 访存端口 RTL；Agent 负责 adapter/互连/外设侧 Testbench、随机背压和地址译码验证。任何新接口必须保持 Core 不含设备地址或专用端口。
 

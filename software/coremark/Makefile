@@ -6,6 +6,9 @@ COREMARK_ROOT ?= ../../third_party/coremark
 ITERATIONS ?= 1000
 CLOCK_HZ ?= 50000000
 AUTOSTART ?= 0
+# 置 1 时在 start_time() 里清零性能计数器，使七项计数器与 CoreMark 计时窗口同口径。
+# 这是观测口径开关，不改变被测量的执行路径；默认关闭以保持与历史镜像逐字节可比。
+PERF_WINDOW_ALIGN ?= 0
 CC      := $(RISCV_PREFIX)gcc
 OBJDUMP := $(RISCV_PREFIX)objdump
 OBJCOPY := $(RISCV_PREFIX)objcopy
@@ -21,6 +24,7 @@ CFLAGS := -march=rv32i -mabi=ilp32 -O2 -ffreestanding -fno-builtin \
           -mstrict-align -ffunction-sections -fdata-sections -Wall -Wextra \
           -I. -I$(COREMARK_ROOT) -DITERATIONS=$(ITERATIONS) \
           -DCOREMARK_CLOCK_HZ=$(CLOCK_HZ) -DCOREMARK_AUTOSTART=$(AUTOSTART) \
+          -DPERF_WINDOW_ALIGN=$(PERF_WINDOW_ALIGN) \
           -DPERFORMANCE_RUN=1
 LDFLAGS := -nostdlib -nostartfiles -Wl,-T,link.ld -Wl,--gc-sections \
            -Wl,-Map,$(BUILD)/coremark.map

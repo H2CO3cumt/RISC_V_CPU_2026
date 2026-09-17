@@ -2,6 +2,7 @@ param(
   [int]$Iterations = 2500,
   [int]$ClockHz = 80000000,
   [int]$AutoStart = 0,
+  [int]$PerfWindowAlign = 0,
   [string]$ProjectDir = 'fpga/task28_coremark_80m'
 )
 # 生成 80 MHz CoreMark 板级程序镜像。
@@ -9,12 +10,14 @@ param(
 # 再把 IMEM/DROM/RAM 镜像和 coremark_program_memory.v 复制到 80 MHz 工程目录，
 # 并修正 `ifdef COREMARK_SIM 分支里指向 50 MHz 工程目录的 $readmemh 绝对路径，
 # 保证 RTL 仿真脚本在 80 MHz 工程上也能直接读镜像。
+# -PerfWindowAlign 1：在 start_time() 里清零性能计数器，使七项计数器与 ticks 同口径。
 $ErrorActionPreference='Stop'
 $repo=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 Push-Location $repo
 try{
   $src="fpga/task28_coremark/rtl"
   & (Join-Path $PSScriptRoot 'generate_coremark_fpga_memory.ps1') -Iterations $Iterations -ClockHz $ClockHz -AutoStart $AutoStart `
+      -PerfWindowAlign $PerfWindowAlign `
       -OutputFile "$src/coremark_program_memory.v" -MemoryDirectory $src
   if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
 
