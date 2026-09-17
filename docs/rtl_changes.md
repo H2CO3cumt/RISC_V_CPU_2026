@@ -1,7 +1,7 @@
-# RTL 变更说明（T3，逐改动记录）
+﻿# RTL 变更说明（T3，逐改动记录）
 
 > 最后更新：2026-09-17
-> 基线 commit：`fd5bb75ec2d33f67bdf06f0a2a1fed23d25c1896`
+> 本轮改动提交：`284f736`；改动前基线 commit：`fd5bb75ec2d33f67bdf06f0a2a1fed23d25c1896`
 > 配套数据：`docs/performance_tuning.md`（频率/资源/关键路径）、`docs/coremark_cpi_analysis.md`（CPI 归因）
 
 本文件按「一次只动一块」的规则逐条记录本轮 RTL 改动。每条都包含：

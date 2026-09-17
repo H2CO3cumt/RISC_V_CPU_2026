@@ -20,8 +20,8 @@
 
 | 项 | 值 |
 |---|---|
-| 源码 git commit | `fd5bb75ec2d33f67bdf06f0a2a1fed23d25c1896`（本轮 RTL 改动未提交，改动内容见 `docs/rtl_changes.md`） |
-| 优化前 `rtl/perf_monitor.v` SHA-256 | `9F5E0A06769DA0125C7CAC9DFD263038E480D2AAEC61298D088771F5662B25DC`（= git HEAD 内容） |
+| 源码 git commit | 本轮改动提交 `284f736`；改动前基线 commit `fd5bb75ec2d33f67bdf06f0a2a1fed23d25c1896`（本轮改动内容见 `docs/rtl_changes.md`） |
+| 优化前 `rtl/perf_monitor.v` SHA-256 | `9F5E0A06769DA0125C7CAC9DFD263038E480D2AAEC61298D088771F5662B25DC`（= 基线 commit 内容） |
 | 优化后 `rtl/perf_monitor.v` SHA-256 | `B9A41F8D23956422C531CA08C3C68F963635F40AD3441AE02C9B1A49346794FF` |
 | 其余 24 个 `rtl/*.v` | 两版完全相同（扫描脚本逐文件比对 SHA-256 一致） |
 | `fpga/task28_coremark/constraints/mes50hp_coremark.fdc` SHA-256 | `F535FD2475D77304AEA1BE7148E16AF5790089B15AAB446E08C6864C2E8BBB58`（优化前后共用，只改 `-period`） |
