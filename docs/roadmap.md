@@ -1,6 +1,8 @@
 # RISC-V CPU 2026 项目路线图
 
-本文档把两个月单人国赛冲刺计划固化为本届交付任务 0～30、33～35。任务 31～32 仅保留为赛后研究备忘，本届不启动、不验收、不进入最终配置。本文档不是进度记录，而是开发顺序、任务内容和验收条件的唯一依据。
+> 平台迁移（2026-09-09）：本届正式 FPGA 平台已由在线 DUT 迁移至盘古 50（MES50HP）`PGL50H-6IFBG484`。本文此前出现的 PG2L200H、S2/S3、27 MHz、在线下载和旧 UART 管脚描述均已失效；平台器件、时钟、UART、Reset、约束和上板验收以 `docs/fpga_platform.md` 为唯一准则。Core/SoC Gate、任务顺序和验收要求不变。
+
+本文档把两个月单人国赛冲刺计划固化为本届交付任务 0～30、Task 32、33～35。Task 31 RLE 仅保留为赛后研究；Task 32 BTB 按最终完善路线进入本届验证与配置。本文档不是进度记录，而是开发顺序、任务内容和验收条件的唯一依据。
 
 新聊天恢复项目时，按以下顺序读取：
 
@@ -8,7 +10,7 @@
 2. `docs/roadmap.md`：完整任务路线和 Gate 条件。
 3. `docs/progress.md`：当前任务、已通过测试和已知问题。
 4. `docs/competition_scoring.md`：官方要求映射、范围取舍和两个月止损线。
-5. `docs/architecture.md`、`docs/interfaces.md` 与 `docs/application_logic_analyzer.md`：已确定的架构决定、Core/SoC 接口契约和比赛应用规格。
+5. `docs/architecture.md`、`docs/interfaces.md`、`docs/fpga_platform.md` 与 `docs/application_logic_analyzer.md`：已确定的架构决定、Core/SoC 接口契约、MES50HP 平台契约和比赛应用规格。
 6. 当前 RTL、Testbench、软件和脚本：确认实际实现状态。
 
 聊天记录不能作为完成任务的证据。只有代码、自动化测试结果和项目文档可以证明当前状态。
@@ -54,8 +56,8 @@
   ↓
 任务 33～35：最终 Regression、材料与提交冻结
 
-赛后研究备忘：任务 31 RLE、任务 32 BTB 性能实验
-本届国赛冲刺不得插入任务 31～32；Task 30 通过后直接进入 Task 33。
+赛后研究备忘：任务 31 RLE
+最终完善项：任务 32 BTB 性能实验；Task 30 与 CoreMark 基线通过后进入 Task 32，再进入 Task 33。
 ```
 
 ### 通用通过规则
@@ -73,18 +75,18 @@
 
 ### Gate 规则
 
-- 当前 P0 任务未通过时，不得开始依赖它的后续 P0 任务；任务 31～32 不属于本届执行任务。
+- 当前 P0 任务未通过时，不得开始依赖它的后续 P0 任务；任务 31 不属于本届执行任务。
 - 单周期完整 Regression 未通过时，不得开始五级流水线 RTL。
 - 任务 13 只建立候选基线；稳定的单周期 CPU 必须在任务 17 正式 Regression 后冻结为最终 Reference Model。
 - Pipeline 与 Single Cycle 必须自动比较 `x1`～`x31`、关键 RAM 数据和按退休顺序生成的提交级 trace。
 - 目标 FPGA、PDS、时钟/复位和 BRAM 接口未通过早期可行性验证时，不得把仿真 RAM 行为直接当作可综合实现。
 - 最小性能计数器未通过定向测试时，不得开始正式 CoreMark 跑分。
-- 本届无论主线是否提前完成，均不得开始 RLE 或 BTB；提前产生的余量全部用于完整 Regression、Timing/CoreMark 复现、P0 稳定性、材料和答辩演练。
+- 本届不得开始 RLE；BTB 仅按 Task 32 冻结规格实现，不能扩展到 Cache 或异常/中断。
 - I/D Cache、burst、完整异常/中断、AI、外部 DDR、HDMI、PCIe、千兆网和自定义指令已从本届范围删除，即使有剩余时间也不得临时回加。
 - 任何性能优化都必须提供 Before/After 的功能、频率、资源与性能数据。
 - 外设、地址表或板级接口变化不得传播进 CPU Core；违反 `docs/interfaces.md` 的方案不得通过对应 Gate。
 - 逻辑分析仪是已选应用，但其规格不得覆盖 Core/SoC 接口契约；应用 RTL 只能在 Task 29 Baseline 冻结后按 Task 30 实现。
-- Task 30 的 Raw P0 闭环通过后必须直接进入 Task 33；RLE 和 BTB 不进入本届 Release。
+- Task 30 的 Raw P0 闭环通过后进入 Task 32 与 Task 33；RLE 不进入本届 Release。
 
 ### 60 天国赛冲刺时间盒与止损线
 
@@ -92,7 +94,7 @@
 
 | 硬节点 | 计划任务 | 必须达到 |
 |---|---|---|
-| D3 | 硬件平台决策 | 确定目标板卡/器件、PDS 工程路径、时钟/Reset、BRAM 冒烟验证方案；不要求提前跳过 Task 2 编写 CPU RTL |
+| D3 | 硬件平台决策 | 已冻结 MES50HP：`PGL50H-6IFBG484`、50 MHz、`.fdc`、CP2102 UART、按键/LED 及 8 通道逻辑分析仪管脚/电平；Task 10 再完成 BRAM 和实体板冒烟，不要求提前跳过 Task 2 编写 CPU RTL |
 | D12 | 2～13 | 完整单周期候选 Reference Model、指令定向测试和提交级接口 PASS |
 | D20 | 14～17 | GCC/SoC/UART/GPIO/正式单周期 Regression PASS，冻结 `single_cycle_stable` |
 | D35 | 18～25 | 五级流水线、Forwarding、Stall、Flush、复杂 Hazard、GCC Pipeline、性能计数器和提交级对比 PASS |
@@ -100,7 +102,7 @@
 | D52 | 30 | 8 通道 Raw 逻辑分析仪、UART/SPI 解析、Python/VCD 和物理回环端到端闭环 PASS |
 | D60 | 33～35 | 最终 Regression、报告、视频、答辩、故障恢复演练和 `competition_final` 冻结 |
 
-若未达到硬节点，按 `docs/competition_scoring.md` 的止损线处理，不得通过恢复 RLE/BTB、削减验证或过度宣称来掩盖延期。任务 34 的图表和证据允许在前序 Gate 完成时同步积累，但最终版本只能在任务 33 后冻结。
+若未达到硬节点，按 `docs/competition_scoring.md` 的止损线处理，不得通过恢复 RLE、扩展 BTB 范围、削减验证或过度宣称来掩盖延期。任务 32 只实现已冻结的 16 项直接映射 BTB；任务 34 的图表和证据允许在前序 Gate 完成时同步积累，但最终版本只能在任务 33 后冻结。
 
 ---
 
@@ -128,7 +130,7 @@
 #### 需要实现什么
 
 - 保留根目录 `AGENTS.md`。
-- 建立 `docs/roadmap.md`、`docs/progress.md`、`docs/architecture.md`、`docs/interfaces.md`、`docs/application_logic_analyzer.md`、`docs/debug_log.md`。
+- 建立 `docs/roadmap.md`、`docs/progress.md`、`docs/architecture.md`、`docs/interfaces.md`、`docs/fpga_platform.md`、`docs/application_logic_analyzer.md`、`docs/debug_log.md`。
 - 在 `docs/progress.md` 记录当前任务、稳定版本、已通过测试、已知问题和下一步。
 - 规划 RTL、Testbench、测试程序、软件、脚本和构建产物目录；实际目录可在首次使用时创建。
 - 检查并记录仿真器、波形工具、RISC-V GCC 工具链、GNU Make、Python 串口库和 PDS 版本；缺失项如实记录。
@@ -500,6 +502,8 @@ C 语言程序 -> 编译 -> RISC-V 指令 -> CPU 执行 -> RTL 硬件状态变�
 - 不实现 Cache、DDR 或复杂总线。
 - 明确区分 Reference Model 的行为级 memory 与 FPGA 同步 BRAM wrapper，不用仿真专用行为冒充可综合 BRAM。
 - 建立最小 PDS 冒烟工程，只验证目标器件、时钟/Reset、BRAM 读写与初始化；此步骤不提前实现 CPU RTL。
+- 目标工程固定使用 `docs/fpga_platform.md` 定义的 MES50HP `PGL50H-6IFBG484`、50 MHz 和默认内部上电复位路径；底板 `REST` 不作为 CPU Core Reset，人工复位只使用已确认的低有效用户按键。
+- 使用 MES50HP 手册已确认的 `FPGA_GCLK_50M`、按键/LED、UART、J8 与 PMOD 管脚及电平创建 `.fdc`；不得使用 TODO、旧平台或猜测管脚。
 - 记录实际 BRAM 读延迟、写使能粒度、初始化文件格式、资源推断结果和严重警告。
 
 #### 验收标准
@@ -509,13 +513,14 @@ C 语言程序 -> 编译 -> RISC-V 指令 -> CPU 执行 -> RTL 硬件状态变�
 - 初始化内容与读回内容一致。
 - 边界和越界行为有明确约定。
 - PDS 冒烟综合/实现能够完成，BRAM 行为与文档约定一致，且没有未解释的 Latch、多驱动或未约束时钟。
+- MES50HP 最小程序能够通过板载 CP2102 UART（参数由实测冻结）或已确认 LED 给出可重复结果；Reset 默认路径多次启动一致。
 
 #### 通过条件
 
 - IMEM、DMEM 独立 Testbench 全部 PASS。
 - 任务 4～10 基础模块 Regression 全部 PASS。
 - Reference Model 和 FPGA 两种内存时序模型均已记录。
-- 目标板卡或远程平台、PDS 版本、目标器件、时钟/Reset 和 BRAM 结果已写入 `docs/progress.md` 与 `docs/architecture.md`。
+- MES50HP、PDS 版本、完整目标器件、真实管脚、时钟/Reset 和 BRAM 结果已写入 `docs/progress.md`、`docs/architecture.md` 与 `docs/fpga_platform.md`。
 - 通过后才允许集成 CPU；未完成 FPGA 存储可行性验证时，本任务不得标记通过。
 
 ---
@@ -1167,7 +1172,7 @@ sw   x3, 0(x0)
 
 #### 目标
 
-证明包含外部性能监视器的流水线 SoC 在真实 FPGA 上能够 Reset、执行软件并通过参考 GPIO/UART 配置展示结果，同时保持 Core 与板级外设解耦。
+证明包含外部性能监视器的流水线 SoC 在 MES50HP 的 `PGL50H-6IFBG484` 上能够 Reset、执行软件并通过参考 GPIO/UART 配置展示结果，同时保持 Core 与板级外设解耦。
 
 #### 需要学什么
 
@@ -1179,6 +1184,8 @@ sw   x3, 0(x0)
 #### 需要实现什么
 
 - 建立 Reset -> 程序执行 -> GPIO -> UART 验证流程。
+- 使用 `USE_EXTERNAL_RESET=0` 的内部上电复位作为 MES50HP 默认路径；按键低有效、LED 高有效的转换在 board wrapper 完成。若需要 CPU 人工复位，只从手册已确认的低有效用户按键分配，不把 `REST` 固件重加载信号接入 Core。
+- UART 使用实体板已验证的 RX=`R8`、TX=`R9` 板载 CP2102 互连；按键/LED、J8、PMOD 和逻辑分析仪映射使用 `docs/fpga_platform.md` 已归档的板级数值。
 - 接入 ILA，观察 commit PC/instruction、RegWrite、rd、ALU result、stall、flush 和性能事件脉冲。
 - 通过软件和 ILA 检查性能计数器在板上的事件统计。
 - 保存关键板级程序和必要 ILA 证据。
@@ -1195,7 +1202,7 @@ sw   x3, 0(x0)
 #### 通过条件
 
 - GPIO、UART、性能计数器和 ILA 验证全部通过。
-- 已记录板卡、时钟、bitstream 和测试程序版本。
+- 已记录 MES50HP、`PGL50H-6IFBG484` 完整料号、50 MHz 时钟、Reset 模式、`.fdc`、bitstream 和测试程序版本。
 - 通过后才允许进入正式 CoreMark。
 
 ---
@@ -1277,7 +1284,7 @@ sw   x3, 0(x0)
 
 - `pipeline_coremark_stable` 可识别、可恢复、可复现。
 - Before 数据和基础赛题性能分析材料完整。
-- 未达到此条件时不得进入 Task 30；已冻结的 RLE/BTB 及已删减的 Cache、异常/中断和 AI 不因 Baseline 通过而恢复。
+- 未达到此条件时不得进入 Task 30；RLE 及已删减的 Cache、异常/中断和 AI 不因 Baseline 通过而恢复。16 项 BTB 只能在 Task 30 与 CoreMark 基线通过后按 Task 32 的冻结规格实现。
 
 ---
 
@@ -1367,11 +1374,11 @@ sw   x3, 0(x0)
 - Round-trip、完整 Regression 和板级演示全部 PASS，并形成 Before/After 数据时，RLE 才能进入赛后研究基线。
 - 任一条件失败时不得冻结赛后 RLE 研究基线；无论结果如何，均不得修改本届 `competition_final`。
 
-### 任务 32（赛后冻结）：16 项 BTB + 2-bit 预测性能实验
+### 任务 32：16 项 BTB + 2-bit 预测性能实验
 
-**优先级：赛后研究，不属于本届交付**
+**优先级：P0，最终完善项**
 
-**前置任务：本届 `competition_final` 已冻结并完成提交，且用户重新立项；不依赖任务 31**
+**前置任务：Task 28 CoreMark 基线和 Task 30 应用闭环；不依赖任务 31**
 
 #### 目标
 
@@ -1398,13 +1405,13 @@ sw   x3, 0(x0)
 
 #### 通过条件
 
-- 只有 Predictor On 的完整 Regression、Timing 和板级运行全部 PASS，且 CoreMark/MHz 有可复现正收益时，才允许进入赛后研究基线。
-- 否则赛后研究继续使用 Predictor Off Baseline，只保留实验记录；无论结果如何，均不得修改本届 `competition_final`。
+- Predictor On 的完整 Regression、Timing 和板级运行全部 PASS，且 CoreMark 周期具有可复现正收益时，才允许进入最终候选配置。
+- 任一条件失败则最终配置退回 Predictor Off Baseline，并保留实验记录。
 
 ### 任务 33：最终系统 Regression 与范围审计
 
 **优先级：P0**  
-**前置任务：任务 30；任务 31～32 本届固定跳过**
+**前置任务：任务 30 与任务 32；任务 31 本届固定跳过**
 
 #### 目标
 
@@ -1456,13 +1463,13 @@ sw   x3, 0(x0)
 
 #### 需要实现什么
 
-- 完成系统框图、五级流水数据通路、Core/SoC边界和逻辑分析仪数据流；不加入未实现的 BTB/RLE 结构图。
+- 完成系统框图、五级流水数据通路、Core/SoC边界、16 项 BTB 和逻辑分析仪数据流；不加入未实现的 RLE 结构图。
 - 整理模块层级、关键状态机与流水控制注释，解释时钟/Reset/IO 约束和主要时序路径，满足赛题的代码规范与时序约束说明要求。
 - 汇总RV32I覆盖、Regression、CoreMark/MHz、CPI、Fmax、Slack、LUT/FF/BRAM和CoreMark/LUT。
 - 加入 CoreMark 关键循环的 PDS ILA 波形，解释 Forwarding、Stall 和 Flush。
 - 汇总逻辑分析仪采样频率、触发延迟、Raw 深度、UART 吞吐及软硬件采样对比；不报告未实现的 RLE 压缩比。
 - 制作3分钟演示视频：作品定位、CPU证据、现场可变输入采样、协议解析、量化结果和解耦证明。
-- 准备答辩问题：RV32I、Hazard、Reference Model、CoreMark、Timing、MMIO 解耦和逻辑分析仪；对 RLE/BTB 只准确回答“本届为保证主线正确性和可复现性而冻结”。
+- 准备答辩问题：RV32I、Hazard、Reference Model、CoreMark、Timing、MMIO 解耦、逻辑分析仪和 BTB Before/After；明确 RLE 冻结为赛后研究，BTB 不等同于完整高级控制逻辑。
 - 所有材料明确列出删减项，不出现Cache、异常中断、AI等未实现功能的暗示。
 
 #### 验收标准

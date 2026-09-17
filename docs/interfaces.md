@@ -1,7 +1,7 @@
 # Core / SoC Interface Contract
 
-> 最后更新：2026-08-29  
-> 当前状态：架构语义已确定；尚未开始 RTL，模块名和逐根端口名在 Task 15（单周期）与 Task 18（流水线）分别评审后冻结。
+> 最后更新：2026-09-14
+> 当前状态：单周期与流水线 Core 都复用同一事务语义；流水线 `pipeline_cpu` 的逐根端口在 Task 18 冻结，Task 19～25 及 Task 30 回归与 PDS 已通过。应用 MMIO 子窗口和可编程激励发生器均位于 Core 外部。
 
 本文档定义 CPU Core 与 SoC、存储器、外设之间的稳定边界。目标是让 UART、GPIO、逻辑分析仪、传感器、SPI 或其他加速器可以在 Core 外部增加、删除或替换，而不重新设计 IF、ID、EX、MEM、WB、Hazard、Forwarding、Stall 或 Flush。
 
@@ -44,6 +44,7 @@
 - UART、GPIO、SPI、传感器、逻辑分析仪、加速器及其寄存器。
 - MMIO 地址表、设备片选、未映射地址响应和设备级等待状态。
 - 厂商总线/IP 接口、时钟域转换、引脚和板级顶层。
+- MES50HP 专用的 50 MHz 时钟、内部/外部 Reset 选择、按键/LED 极性转换、CP2102 UART/扩展口连接和 `.fdc` 约束；完整规则见 `docs/fpga_platform.md`。
 - 可由 Core 事件驱动、再通过 MMIO 读取的性能监视器。
 
 禁止在 Core 中出现 `uart_*`、`gpio_*`、`spi_*`、`sensor_*`、`capture_*` 或某个加速器专用端口、地址常量和状态机。外设变化只能影响 SoC 顶层、互连、外设 RTL、地址表和软件驱动。
@@ -69,6 +70,20 @@
 - 32-bit 指令 `data`。
 - `error`：未映射、访问错误或后续定义的取指故障。
 
+#### 2.1.1 Task 15 单周期取指端口命名冻结
+
+| 信号 | 方向 | 语义 |
+|---|---|---|
+| `i_req_valid` | Core → SoC | 当前 `PC` 的取指请求有效；`i_req_ready=0` 时 `i_req_addr` 保持稳定。 |
+| `i_req_ready` | SoC → Core | SoC 接收当前取指请求。 |
+| `i_req_addr[31:0]` | Core → SoC | 32-bit 字节取指地址；RV32I 正常路径按 4-byte 对齐。 |
+| `i_rsp_valid` | SoC → Core | 指令响应有效。 |
+| `i_rsp_ready` | Core → SoC | Core 准备接收一条指令响应。 |
+| `i_rsp_data[31:0]` | SoC → Core | 对齐的 32-bit 指令。 |
+| `i_rsp_error` | SoC → Core | 取指失败；当前过渡实现将其装载为零指令以禁止副作用，完整异常/Trap 不属于本届范围。 |
+
+`instruction_reg` 仅保存已经过 `i_rsp_valid && i_rsp_ready` 握手的指令。Core 在 `IF_REQ`、`IF_RSP`、`IF_DONE` 间运行，取指等待周期不得移动 PC、执行旧指令或生成提交事件。
+
 ### 2.2 数据事务
 
 请求至少包含：
@@ -85,6 +100,25 @@
 - 32-bit 读数据 `rdata`。
 - `error`：未映射、访问错误或后续定义的 Load/Store 故障。
 
+#### 2.2.1 Task 15 单周期数据端口命名冻结（进行中）
+
+当前 `rtl/single_cycle_cpu.v` 已使用以下逐根数据端口。方向均以 Core 为参照；这些名称由 Task 15 的外部 RAM、互连及 Testbench 使用，后续 UART/GPIO/Application wrapper 必须复用，不得把设备专用信号加入 Core。
+
+| 信号 | 方向 | 语义 |
+|---|---|---|
+| `d_req_valid` | Core → SoC | 数据请求有效；等待 `d_req_ready` 时请求字段稳定。 |
+| `d_req_ready` | SoC → Core | SoC 接收当前请求。 |
+| `d_req_addr[31:0]` | Core → SoC | 字节地址。 |
+| `d_req_write` | Core → SoC | `1` 为 Store，`0` 为 Load。 |
+| `d_req_wdata[31:0]` | Core → SoC | 按 byte lane 对齐的 Store 数据；Load 时忽略。 |
+| `d_req_wstrb[3:0]` | Core → SoC | Store byte enable；Load 时为零。 |
+| `d_rsp_valid` | SoC → Core | 已接受请求的唯一完成响应。 |
+| `d_rsp_ready` | Core → SoC | Core 接收响应。 |
+| `d_rsp_rdata[31:0]` | SoC → Core | 对齐 32-bit Load 数据；Store 时忽略。 |
+| `d_rsp_error` | SoC → Core | 访问失败；当前单周期过渡实现禁止 RegFile/Store 副作用并继续 PC，完整 Trap 不属于本届范围。 |
+
+Task 15 的取指/数据逐根端口名称和事务语义现已在单周期候选 Core 使用。仍需完成历史 Core Testbench 对外部 adapter 的统一适配，以及 Task 16 的真实 UART/GPIO wrapper；在这些验证完成前不得冻结 `single_cycle_stable`。
+
 数据采用 RV32I little-endian 语义。读响应返回包含目标地址的对齐 32-bit word，Core 根据 `addr[1:0]` 和 Load 类型完成 byte/halfword 选择与扩展；Store 时 Core 产生与 `SB/SH/SW` 对应的 `wstrb` 和按 byte lane 对齐的 `wdata`。下游不需要知道当前执行的是哪一种 RISC-V 指令。非对齐或跨 word 访问的支持策略由 Task 12 明确，接口本身不静默拆分事务。
 
 ## 3. 强制握手规则
@@ -99,6 +133,8 @@
 8. 请求和响应通路不得形成无法收敛的组合环；具体寄存切分在对应 Gate 结合时序报告决定。
 9. Reset 后不得残留有效请求、响应或设备写 side effect。
 
+流水线 IF 允许在旧取指响应完成握手的同一拍接受下一请求，以支持一拍一条的连续取指；这仍属于单 outstanding 的边界交接。若 Redirect 发生在一个已展示但尚未接受的请求期间，Core 不得撤回 `valid`，而是完成请求握手并丢弃对应错误路径响应。
+
 对首个行为级单周期 Reference Model，可使用始终就绪、固定零/一拍响应的 adapter；该简化只属于测试/存储 adapter，不能改变上述 Core 边界。流水线版本必须能通过可变延迟和随机背压测试。
 
 ## 4. MMIO、地址译码与外设替换
@@ -110,13 +146,18 @@
 - 替换或新增 SPI、传感器、逻辑分析仪或加速器时，只增加/替换目标 wrapper、地址区域和软件驱动；Core 源文件及其回归测试不得改动。
 - 当前比赛应用已经选定为可重构多协议逻辑分析仪，其 Capture Engine、Trigger、BRAM 和 MMIO wrapper 均属于外设层；本届冻结的 RLE 即使赛后研究也只能位于外设层。具体功能以 `docs/application_logic_analyzer.md` 为准，且该应用规格不得覆盖或削弱本文的 Core/SoC 契约。
 - MMIO 写必须精确且不可重复；具备 side effect 的读同样不得被预取、合并或重复。
+- Task 30 的 Application 子窗口由 SoC 外部 `application_mmio_mux` 汇合：性能计数器使用 `0x1000_2000..0x1000_20FF`，逻辑分析仪使用 `0x1000_2100..0x1000_21FF`；设备看到的地址是窗口内 byte offset，不含固定基地址。
+- 逻辑分析仪的 `READ_INDEX`/`READ_DATA` 是普通 MMIO 读写，`READ_DATA` 不隐式移动指针；Capture Engine 的采样输入和激励输出只存在于 board wrapper，绝不进入 `pipeline_cpu`。
+- 逻辑分析仪本地 offset `0x38` 为 pattern control，`0x3C` 为 16-bit divider，`0x40` 为 8-bit data，`0x44` 为只读 output。control `[1:0]` 选择 static/counter/UART/SPI，bit 2 产生一次 restart 脉冲。所有窄寄存器写入遵守 `wstrb`，零 strobe 无副作用。
+- Task 30 固件 RAM 地址上界为 `0x00000FFF`；IMEM 与 DMEM 均为 1024×32，同一链接镜像的栈顶为 `0x1000`。该 SoC 地址范围属于 wrapper 参数，未写入 Core。
 
 ## 5. 调试、性能与赛后扩展点
 
 - 本届不实现 I/D Cache 或 burst。未来赛后如研究，I-Cache 只能位于取指端口与下级存储之间，D-Cache 只能位于数据端口与 SoC 互连之间，且不得改变 Core 事务语义。
 - SoC 的地址属性表仍保留 cacheable/uncacheable 概念；所有 MMIO 区域始终为 uncacheable。
 - Core 输出统一提交级 trace。具体 ILA、波形采集器或调试桥只观察这些输出，不反向侵入流水级控制。
-- Core 输出 `retire`、`stall`、`load_stall`、`branch`、`branch_taken`、`flush` 等事件；外部性能监视器负责计数和 MMIO 映射。若后续有充分理由把计数寄存器放入 Core，仍不得引入任何外设专用依赖。
+- Core 输出 `retire`、`stall`、`load_stall`、`branch`、`branch_taken`、`flush`、`predict`、`btb_hit`、`mispredict`，以及 `illegal`、`misaligned`、`bus_error` 观察事件；外部性能监视器负责计数和 MMIO 映射。提交 trace 的 `trace_error` 标明该退休记录被错误抑制了架构副作用。
+- 性能 MMIO 在原有 `0x00..0x34` 七项计数器和 `0x38` 清零控制之后，新增 `predict=0x40/0x44`、`btb_hit=0x48/0x4C`、`mispredict=0x50/0x54` 的低/高 32-bit 只读寄存器。
 - 本届不实现异常/中断。赛后如研究，Core 仍只能接收通用中断源或聚合结果，不使用 UART/GPIO/SPI 专用中断端口；中断控制器和源映射属于 SoC。
 
 ## 6. 冻结与变更规则
@@ -124,8 +165,20 @@
 - 本文当前冻结的是边界、事务字段和握手语义，不虚构 RTL 已实现或验证。
 - Task 15 冻结单周期 Core adapter、地址表和互连的逐根信号名；Task 18 复核流水线是否复用同一语义，并冻结流水线 Core 顶层端口。
 - 后续允许在 adapter 后连接简单 RAM、BRAM、Cache、厂商总线或外设互连，但不得让这些变化传播进流水线主体。
+- MES50HP board wrapper 与 `.fdc` 使用 `docs/fpga_platform.md` 已归档的手册管脚和 3.3 V 电平；后续只允许补入实际使用信号，不得改变 Core 事务字段、握手语义或 Core 顶层设备无关性。辅助平台须另建 wrapper/约束，不覆盖 MES50HP 配置。
 - Task 15 只在 SoC 地址表中预留通用 Application MMIO 窗口；Task 30 才冻结逻辑分析仪具体寄存器 offset。两次冻结均不得改变 Core 端口。
 - 接口如需不兼容变更，必须先在 `docs/architecture.md` 记录原因、影响和迁移办法，并重跑 Core、互连和 SoC Regression。
+
+### 6.1 Task 18 流水线 Core 顶层端口冻结
+
+流水线顶层模块名为 `pipeline_cpu`。它复用 Task 15 的 `i_req_*`、`i_rsp_*`、`d_req_*`、`d_rsp_*` 字段、方向、单 outstanding 限制与 Reset 语义，逐根名称不另行变体。除了 `clk`、`reset` 与这两组通用事务端口，冻结的观测输出如下：
+
+| 信号组 | 字段 | 语义 |
+|---|---|---|
+| 提交 trace | `trace_valid`、`trace_pc`、`trace_instruction`、`trace_rd_we`、`trace_rd_addr`、`trace_rd_data`、`trace_mem_we`、`trace_mem_addr`、`trace_mem_data`、`trace_mem_wstrb` | 以退休顺序输出；Bubble、非法/访问错误和被 Flush 的路径不得形成副作用 trace。 |
+| 通用性能事件 | `event_stall`、`event_load_stall`、`event_branch`、`event_branch_taken`、`event_flush` | 单周期脉冲，仅描述流水线行为；计数、MMIO 映射和软件可见寄存器由 Core 外部性能监视器实现。 |
+
+禁止在该模块增加设备地址、片选或 UART/GPIO/逻辑分析仪专用端口。后续 SoC、BRAM、外设或 MES50HP board wrapper 只能消费上述通用端口。
 
 ## 7. 解耦验收矩阵
 
