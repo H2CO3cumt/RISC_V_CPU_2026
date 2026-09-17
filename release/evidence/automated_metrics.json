@@ -1,16 +1,16 @@
 {
   "board_evidence": "not claimed by this extractor",
   "final": {
-    "estimated_fmax_mhz": 57.6735,
-    "estimated_period_ns": 17.339,
-    "setup_wns_ns": 2.661,
-    "hold_whs_ns": 0.312,
-    "lut": 3459,
-    "ff": 3129,
+    "estimated_fmax_mhz": 56.3603,
+    "estimated_period_ns": 17.743,
+    "setup_wns_ns": 2.257,
+    "hold_whs_ns": 0.319,
+    "lut": 3458,
+    "ff": 3137,
     "drm": 5.5,
-    "ff_implemented": 3120,
+    "ff_implemented": 3128,
     "bitstream": "fpga/task30_logic_analyzer/generate_bitstream/mes50hp_logic_analyzer_top.sbit",
-    "bitstream_sha256": "2C09E6904A6C6238CF7158E907087F905C1B7DF46E6D2C9B665E1DE10964746E"
+    "bitstream_sha256": "DB705898A42BA25628303017034DDB7531DBA44BDBB58574E5CAFC19AAA331E6"
   },
   "coremark_predictor_on": {
     "source": "tmp/coremark/uart-random-0-predictor-1.log",
