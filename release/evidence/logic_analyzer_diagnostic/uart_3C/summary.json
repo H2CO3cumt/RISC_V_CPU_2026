@@ -1,0 +1,12 @@
+[
+  {
+    "run": 0,
+    "mode": "uart",
+    "value": 60,
+    "samples": 237,
+    "trigger": 16,
+    "uart": "3c",
+    "uart_errors": 0,
+    "spi": ""
+  }
+]

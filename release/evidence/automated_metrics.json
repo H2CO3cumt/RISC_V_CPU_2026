@@ -1,0 +1,51 @@
+{
+  "board_evidence": "not claimed by this extractor",
+  "final": {
+    "estimated_fmax_mhz": 57.6735,
+    "estimated_period_ns": 17.339,
+    "setup_wns_ns": 2.661,
+    "hold_whs_ns": 0.312,
+    "lut": 3459,
+    "ff": 3129,
+    "drm": 5.5,
+    "ff_implemented": 3120,
+    "bitstream": "fpga/task30_logic_analyzer/generate_bitstream/mes50hp_logic_analyzer_top.sbit",
+    "bitstream_sha256": "2C09E6904A6C6238CF7158E907087F905C1B7DF46E6D2C9B665E1DE10964746E"
+  },
+  "coremark_predictor_on": {
+    "source": "tmp/coremark/uart-random-0-predictor-1.log",
+    "validation": "official CRC validated in RTL simulation",
+    "ticks_per_iteration": 1709998,
+    "cycles": 1852156,
+    "instret": 779952,
+    "stall": 176170,
+    "load_stall": 19791,
+    "branch": 213756,
+    "branch_taken": 133273,
+    "flush": 81523,
+    "cpi": 2.3747051100580547,
+    "coremark_per_mhz": 0.5847960056093633,
+    "enabled": 1,
+    "predict": 213756,
+    "btb_hit": 203492,
+    "mispredict": 51908
+  },
+  "coremark_predictor_off": {
+    "source": "tmp/coremark/uart-random-0-predictor-0.log",
+    "validation": "official CRC validated in RTL simulation",
+    "ticks_per_iteration": 1955714,
+    "cycles": 2106042,
+    "instret": 775901,
+    "stall": 169091,
+    "load_stall": 14073,
+    "branch": 212399,
+    "branch_taken": 131903,
+    "flush": 161518,
+    "cpi": 2.714317934891178,
+    "coremark_per_mhz": 0.5113222076438579,
+    "enabled": 0,
+    "predict": 212399,
+    "btb_hit": 0,
+    "mispredict": 131903
+  }
+}

@@ -1,0 +1,13 @@
+release_id=competition_final_candidate
+generated=2026-09-17T14:16:30.7901408+08:00
+git=4af495e4710ccf3eded98dc04d837610f1d66f9f
+git_dirty=dirty
+coremark_git=1f483d5b8316753a742cbf5590caf5bd0a4e4777
+pipeline_cpu_sha256=8E8EB3A69B2EF45EBC7A054199327C105E633535E6263625DD923179854548CE
+pds=D:\Pango\PDS_2024.2-SP2
+iverilog=Icarus Verilog version 12.0 (devel) (s20150603-1539-g2693dd32b)
+gcc=riscv-none-elf-gcc.exe (xPack GNU RISC-V Embedded GCC x86_64) 15.2.0
+device=PGL50H-6IFBG484
+clock_hz=50000000
+scope=Task0-30,Task32,Task33-35;Task31 RLE frozen
+board_results=logic analyzer J8 physical loopback 80/80 PASS in release/evidence/logic_analyzer_board_final; other board results remain evidence-gated
