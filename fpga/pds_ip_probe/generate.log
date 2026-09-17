@@ -1,0 +1,427 @@
+
+IP Generator (Version 2024.2-SP2-EN build 208883)
+Check out license ...
+
+Start generating at 2026-09-15 21:49
+Pathname: D:\RISC_V_CPU_2026\fpga\pds_ip_probe\debug_core.ipc
+IP: DebugCore (1.4) (D:\Pango\PDS_2024.2-SP2\ip\system_ip\ips_debug_core\ips_debug_core_eval\ips_debug_core)
+Part: Logos-PGL50H-FBG484--6*
+
+Open IP instance 'debug_core'
+Save the IP instance
+Interface (10):
+    hub_tdi, input
+    hub_tdo, output
+    id_i[4:0], input
+    capt_i, input
+    shift_i, input
+    conf_sel, input
+    drck_in, input
+    clk, input
+    resetn_i, input
+    trig0_i[127:0], input
+Parameter (377):
+    ALL_DATA=1 
+    AREA_SPEED=0 
+    CLK_EDGE=1 
+    DATA_DEPTH=9 
+    DATA_SAME_AS_TRIG=true 
+    DATA_WIDTH=1 
+    EN_STOR_QUAL=false 
+    EN_TRIG_OUT=false 
+    EN_WINDOWS=false 
+    INIT_ENABLE=false 
+    INIT_M0_CONFIG=385'b0010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010010 
+    INIT_M10_CONFIG=0 
+    INIT_M11_CONFIG=0 
+    INIT_M12_CONFIG=0 
+    INIT_M13_CONFIG=0 
+    INIT_M14_CONFIG=0 
+    INIT_M15_CONFIG=0 
+    INIT_M1_CONFIG=0 
+    INIT_M2_CONFIG=0 
+    INIT_M3_CONFIG=0 
+    INIT_M4_CONFIG=0 
+    INIT_M5_CONFIG=0 
+    INIT_M6_CONFIG=0 
+    INIT_M7_CONFIG=0 
+    INIT_M8_CONFIG=0 
+    INIT_M9_CONFIG=0 
+    INIT_STOR_QUAL=2'b0 
+    INIT_STOR_TYPE=14'b00000000000000 
+    INIT_TRIG_COND=3'b010 
+    INIT_TRIG_OUT=3'b000 
+    MAX_SEQ_LEVEL=1 
+    MEM_STYLE=1 
+    STORE_POSITION=0 
+    STORE_TYPE=0 
+    STORE_TYPE_DIV=1 
+    STOR_MU_EN0=false 
+    STOR_MU_EN1=false 
+    STOR_MU_EN10=false 
+    STOR_MU_EN11=false 
+    STOR_MU_EN12=false 
+    STOR_MU_EN13=false 
+    STOR_MU_EN14=false 
+    STOR_MU_EN15=false 
+    STOR_MU_EN2=false 
+    STOR_MU_EN3=false 
+    STOR_MU_EN4=false 
+    STOR_MU_EN5=false 
+    STOR_MU_EN6=false 
+    STOR_MU_EN7=false 
+    STOR_MU_EN8=false 
+    STOR_MU_EN9=false 
+    STOR_MU_NEG0=false 
+    STOR_MU_NEG1=false 
+    STOR_MU_NEG10=false 
+    STOR_MU_NEG11=false 
+    STOR_MU_NEG12=false 
+    STOR_MU_NEG13=false 
+    STOR_MU_NEG14=false 
+    STOR_MU_NEG15=false 
+    STOR_MU_NEG2=false 
+    STOR_MU_NEG3=false 
+    STOR_MU_NEG4=false 
+    STOR_MU_NEG5=false 
+    STOR_MU_NEG6=false 
+    STOR_MU_NEG7=false 
+    STOR_MU_NEG8=false 
+    STOR_MU_NEG9=false 
+    STOR_NEG_WHOLE=false 
+    TRIG0_CNT_WIDTH=0 
+    TRIG0_EXCLUDE=false 
+    TRIG0_MATCH_TYPE=1 
+    TRIG0_MATCH_UNIT=1 
+    TRIG0_PORT_WIDTH=128 
+    TRIG10_CNT_WIDTH=0 
+    TRIG10_EXCLUDE=false 
+    TRIG10_MATCH_TYPE=1 
+    TRIG10_MATCH_UNIT=1 
+    TRIG10_PORT_WIDTH=8 
+    TRIG11_CNT_WIDTH=0 
+    TRIG11_EXCLUDE=false 
+    TRIG11_MATCH_TYPE=1 
+    TRIG11_MATCH_UNIT=1 
+    TRIG11_PORT_WIDTH=8 
+    TRIG12_CNT_WIDTH=0 
+    TRIG12_EXCLUDE=false 
+    TRIG12_MATCH_TYPE=1 
+    TRIG12_MATCH_UNIT=1 
+    TRIG12_PORT_WIDTH=8 
+    TRIG13_CNT_WIDTH=0 
+    TRIG13_EXCLUDE=false 
+    TRIG13_MATCH_TYPE=1 
+    TRIG13_MATCH_UNIT=1 
+    TRIG13_PORT_WIDTH=8 
+    TRIG14_CNT_WIDTH=0 
+    TRIG14_EXCLUDE=false 
+    TRIG14_MATCH_TYPE=1 
+    TRIG14_MATCH_UNIT=1 
+    TRIG14_PORT_WIDTH=8 
+    TRIG15_CNT_WIDTH=0 
+    TRIG15_EXCLUDE=false 
+    TRIG15_MATCH_TYPE=1 
+    TRIG15_MATCH_UNIT=1 
+    TRIG15_PORT_WIDTH=8 
+    TRIG1_CNT_WIDTH=0 
+    TRIG1_EXCLUDE=false 
+    TRIG1_MATCH_TYPE=1 
+    TRIG1_MATCH_UNIT=1 
+    TRIG1_PORT_WIDTH=8 
+    TRIG2_CNT_WIDTH=0 
+    TRIG2_EXCLUDE=false 
+    TRIG2_MATCH_TYPE=1 
+    TRIG2_MATCH_UNIT=1 
+    TRIG2_PORT_WIDTH=8 
+    TRIG3_CNT_WIDTH=0 
+    TRIG3_EXCLUDE=false 
+    TRIG3_MATCH_TYPE=1 
+    TRIG3_MATCH_UNIT=1 
+    TRIG3_PORT_WIDTH=8 
+    TRIG4_CNT_WIDTH=0 
+    TRIG4_EXCLUDE=false 
+    TRIG4_MATCH_TYPE=1 
+    TRIG4_MATCH_UNIT=1 
+    TRIG4_PORT_WIDTH=8 
+    TRIG5_CNT_WIDTH=0 
+    TRIG5_EXCLUDE=false 
+    TRIG5_MATCH_TYPE=1 
+    TRIG5_MATCH_UNIT=1 
+    TRIG5_PORT_WIDTH=8 
+    TRIG6_CNT_WIDTH=0 
+    TRIG6_EXCLUDE=false 
+    TRIG6_MATCH_TYPE=1 
+    TRIG6_MATCH_UNIT=1 
+    TRIG6_PORT_WIDTH=8 
+    TRIG7_CNT_WIDTH=0 
+    TRIG7_EXCLUDE=false 
+    TRIG7_MATCH_TYPE=1 
+    TRIG7_MATCH_UNIT=1 
+    TRIG7_PORT_WIDTH=8 
+    TRIG8_CNT_WIDTH=0 
+    TRIG8_EXCLUDE=false 
+    TRIG8_MATCH_TYPE=1 
+    TRIG8_MATCH_UNIT=1 
+    TRIG8_PORT_WIDTH=8 
+    TRIG9_CNT_WIDTH=0 
+    TRIG9_EXCLUDE=false 
+    TRIG9_MATCH_TYPE=1 
+    TRIG9_MATCH_UNIT=1 
+    TRIG9_PORT_WIDTH=8 
+    TRIG_CONTIGUOUS=false 
+    TRIG_MODE=0 
+    TRIG_MU_EN0=true 
+    TRIG_MU_EN1=false 
+    TRIG_MU_EN10=false 
+    TRIG_MU_EN11=false 
+    TRIG_MU_EN12=false 
+    TRIG_MU_EN13=false 
+    TRIG_MU_EN14=false 
+    TRIG_MU_EN15=false 
+    TRIG_MU_EN2=false 
+    TRIG_MU_EN3=false 
+    TRIG_MU_EN4=false 
+    TRIG_MU_EN5=false 
+    TRIG_MU_EN6=false 
+    TRIG_MU_EN7=false 
+    TRIG_MU_EN8=false 
+    TRIG_MU_EN9=false 
+    TRIG_MU_NEG0=false 
+    TRIG_MU_NEG1=false 
+    TRIG_MU_NEG10=false 
+    TRIG_MU_NEG11=false 
+    TRIG_MU_NEG12=false 
+    TRIG_MU_NEG13=false 
+    TRIG_MU_NEG14=false 
+    TRIG_MU_NEG15=false 
+    TRIG_MU_NEG2=false 
+    TRIG_MU_NEG3=false 
+    TRIG_MU_NEG4=false 
+    TRIG_MU_NEG5=false 
+    TRIG_MU_NEG6=false 
+    TRIG_MU_NEG7=false 
+    TRIG_MU_NEG8=false 
+    TRIG_MU_NEG9=false 
+    TRIG_NEG_WHOLE=false 
+    TRIG_PORT_NUM=1 
+    TRIG_SEQ_LEVEL=1 
+    TRIG_SEQ_NEG0=false 
+    TRIG_SEQ_NEG1=false 
+    TRIG_SEQ_NEG10=false 
+    TRIG_SEQ_NEG11=false 
+    TRIG_SEQ_NEG12=false 
+    TRIG_SEQ_NEG13=false 
+    TRIG_SEQ_NEG14=false 
+    TRIG_SEQ_NEG15=false 
+    TRIG_SEQ_NEG2=false 
+    TRIG_SEQ_NEG3=false 
+    TRIG_SEQ_NEG4=false 
+    TRIG_SEQ_NEG5=false 
+    TRIG_SEQ_NEG6=false 
+    TRIG_SEQ_NEG7=false 
+    TRIG_SEQ_NEG8=false 
+    TRIG_SEQ_NEG9=false 
+    TRIG_SEQ_SEL0=0 
+    TRIG_SEQ_SEL1=0 
+    TRIG_SEQ_SEL10=0 
+    TRIG_SEQ_SEL11=0 
+    TRIG_SEQ_SEL12=0 
+    TRIG_SEQ_SEL13=0 
+    TRIG_SEQ_SEL14=0 
+    TRIG_SEQ_SEL15=0 
+    TRIG_SEQ_SEL2=0 
+    TRIG_SEQ_SEL3=0 
+    TRIG_SEQ_SEL4=0 
+    TRIG_SEQ_SEL5=0 
+    TRIG_SEQ_SEL6=0 
+    TRIG_SEQ_SEL7=0 
+    TRIG_SEQ_SEL8=0 
+    TRIG_SEQ_SEL9=0 
+    TU0_CNT_MODE=00 
+    TU0_CNT_VALUE=1 
+    TU0_FUNCTION=000 
+    TU10_CNT_MODE=00 
+    TU10_CNT_VALUE=1 
+    TU10_FUNCTION=000 
+    TU11_CNT_MODE=00 
+    TU11_CNT_VALUE=1 
+    TU11_FUNCTION=000 
+    TU12_CNT_MODE=00 
+    TU12_CNT_VALUE=1 
+    TU12_FUNCTION=000 
+    TU13_CNT_MODE=00 
+    TU13_CNT_VALUE=1 
+    TU13_FUNCTION=000 
+    TU14_CNT_MODE=00 
+    TU14_CNT_VALUE=1 
+    TU14_FUNCTION=000 
+    TU15_CNT_MODE=00 
+    TU15_CNT_VALUE=1 
+    TU15_FUNCTION=000 
+    TU1_CNT_MODE=00 
+    TU1_CNT_VALUE=1 
+    TU1_FUNCTION=000 
+    TU2_CNT_MODE=00 
+    TU2_CNT_VALUE=1 
+    TU2_FUNCTION=000 
+    TU3_CNT_MODE=00 
+    TU3_CNT_VALUE=1 
+    TU3_FUNCTION=000 
+    TU4_CNT_MODE=00 
+    TU4_CNT_VALUE=1 
+    TU4_FUNCTION=000 
+    TU5_CNT_MODE=00 
+    TU5_CNT_VALUE=1 
+    TU5_FUNCTION=000 
+    TU6_CNT_MODE=00 
+    TU6_CNT_VALUE=1 
+    TU6_FUNCTION=000 
+    TU7_CNT_MODE=00 
+    TU7_CNT_VALUE=1 
+    TU7_FUNCTION=000 
+    TU8_CNT_MODE=00 
+    TU8_CNT_VALUE=1 
+    TU8_FUNCTION=000 
+    TU9_CNT_MODE=00 
+    TU9_CNT_VALUE=1 
+    TU9_FUNCTION=000 
+    V0_1RADIX=Bin 
+    V0_2RADIX=Bin 
+    V0_RADIX=Bin 
+    V10_1RADIX=Bin 
+    V10_2RADIX=Bin 
+    V10_RADIX=Bin 
+    V11_1RADIX=Bin 
+    V11_2RADIX=Bin 
+    V11_RADIX=Bin 
+    V12_1RADIX=Bin 
+    V12_2RADIX=Bin 
+    V12_RADIX=Bin 
+    V13_1RADIX=Bin 
+    V13_2RADIX=Bin 
+    V13_RADIX=Bin 
+    V14_1RADIX=Bin 
+    V14_2RADIX=Bin 
+    V14_RADIX=Bin 
+    V15_1RADIX=Bin 
+    V15_2RADIX=Bin 
+    V15_RADIX=Bin 
+    V1_1RADIX=Bin 
+    V1_2RADIX=Bin 
+    V1_RADIX=Bin 
+    V2_1RADIX=Bin 
+    V2_2RADIX=Bin 
+    V2_RADIX=Bin 
+    V3_1RADIX=Bin 
+    V3_2RADIX=Bin 
+    V3_RADIX=Bin 
+    V4_1RADIX=Bin 
+    V4_2RADIX=Bin 
+    V4_RADIX=Bin 
+    V5_1RADIX=Bin 
+    V5_2RADIX=Bin 
+    V5_RADIX=Bin 
+    V6_1RADIX=Bin 
+    V6_2RADIX=Bin 
+    V6_RADIX=Bin 
+    V7_1RADIX=Bin 
+    V7_2RADIX=Bin 
+    V7_RADIX=Bin 
+    V8_1RADIX=Bin 
+    V8_2RADIX=Bin 
+    V8_RADIX=Bin 
+    V9_1RADIX=Bin 
+    V9_2RADIX=Bin 
+    V9_RADIX=Bin 
+    VALUE0=0 
+    VALUE0_1=0 
+    VALUE0_2=0 
+    VALUE1=0 
+    VALUE10=0 
+    VALUE10_1=0 
+    VALUE10_2=0 
+    VALUE11=0 
+    VALUE11_1=0 
+    VALUE11_2=0 
+    VALUE12=0 
+    VALUE12_1=0 
+    VALUE12_2=0 
+    VALUE13=0 
+    VALUE13_1=0 
+    VALUE13_2=0 
+    VALUE14=0 
+    VALUE14_1=0 
+    VALUE14_2=0 
+    VALUE15=0 
+    VALUE15_1=0 
+    VALUE15_2=0 
+    VALUE1_1=0 
+    VALUE1_2=0 
+    VALUE2=0 
+    VALUE2_1=0 
+    VALUE2_2=0 
+    VALUE3=0 
+    VALUE3_1=0 
+    VALUE3_2=0 
+    VALUE4=0 
+    VALUE4_1=0 
+    VALUE4_2=0 
+    VALUE5=0 
+    VALUE5_1=0 
+    VALUE5_2=0 
+    VALUE6=0 
+    VALUE6_1=0 
+    VALUE6_2=0 
+    VALUE7=0 
+    VALUE7_1=0 
+    VALUE7_2=0 
+    VALUE8=0 
+    VALUE8_1=0 
+    VALUE8_2=0 
+    VALUE9=0 
+    VALUE9_1=0 
+    VALUE9_2=0 
+    c_Port0_EN=true 
+    c_Port10_EN=false 
+    c_Port11_EN=false 
+    c_Port12_EN=false 
+    c_Port13_EN=false 
+    c_Port14_EN=false 
+    c_Port15_EN=false 
+    c_Port1_EN=false 
+    c_Port2_EN=false 
+    c_Port3_EN=false 
+    c_Port4_EN=false 
+    c_Port5_EN=false 
+    c_Port6_EN=false 
+    c_Port7_EN=false 
+    c_Port8_EN=false 
+    c_Port9_EN=false 
+Create directory 'rtl\'
+Copy 'rtl\ips_dbc_cfg_reg_file_v1_0.v' to 'rtl\' 
+Copy 'rtl\ips_dbc_compare_256b_v1_0.v' to 'rtl\' 
+Copy 'rtl\ips_dbc_data_capture_mem_v1_1.v' to 'rtl\' 
+Copy 'rtl\ips_dbc_debug_core_v1_4.v' to 'rtl\' 
+Copy 'rtl\ips_dbc_hub_decode_v1_3.v' to 'rtl\' 
+Copy 'rtl\ips_dbc_rd_addr_gen_v1_4.v' to 'rtl\' 
+Copy 'rtl\ips_dbc_storage_condition_v1_3.v' to 'rtl\' 
+Copy 'rtl\ips_dbc_storage_qualification_v1_2.v' to 'rtl\' 
+Copy 'rtl\ips_dbc_trig_unit_v1_3.v' to 'rtl\' 
+Copy 'rtl\ips_dbc_trigger_condition_v1_3.v' to 'rtl\' 
+Copy 'rtl\ips_dbc_trigger_output_v1_2.v' to 'rtl\' 
+Copy 'ips_dbc_wrapper_v1_4.v.xml' 
+Copy 'ips_dbc_inst.fdc.xml' 
+Compile file 'ips_dbc_wrapper_v1_4.v.xml' to 'debug_core.v' ...
+Found top module 'debug_core' in file 'debug_core.v'.
+Compile file 'ips_dbc_inst.fdc.xml' to 'debug_core.fdc' ...
+Create template file 'debug_core_tmpl.v' ...
+Create template file 'debug_core_tmpl.vhdl' ...
+Collected 12 HDL file(s)
+Synthesize ...
+Invoke 'pds_shell.exe'
+Action 'synthesize': finished normally
+Read log 'D:\RISC_V_CPU_2026\fpga\pds_ip_probe\rev_1\run.log' for more details.
+Finished generating 'debug_core'
+
+Done: 0 error(s), 0 warning(s)

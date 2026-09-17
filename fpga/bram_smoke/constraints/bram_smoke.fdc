@@ -1,0 +1,18 @@
+# Online DUT / MES2L676-200HP: PG2L200H-6FBB676, all pins LVCMOS33.
+# Only the pins required by this smoke test are constrained.
+create_clock -name {clk_27m} [get_ports {clk}] -period {37.037} -waveform {0.000 18.518}
+
+define_attribute {p:clk} {PAP_IO_DIRECTION} {Input}
+define_attribute {p:clk} {PAP_IO_LOC} {D18}
+define_attribute {p:clk} {PAP_IO_VCCIO} {3.3}
+define_attribute {p:clk} {PAP_IO_STANDARD} {LVCMOS33}
+define_attribute {p:clk} {PAP_IO_NONE} {TRUE}
+
+# S3 LED[0], pin U16, active low.
+define_attribute {p:status_led_n} {PAP_IO_DIRECTION} {Output}
+define_attribute {p:status_led_n} {PAP_IO_LOC} {U16}
+define_attribute {p:status_led_n} {PAP_IO_VCCIO} {3.3}
+define_attribute {p:status_led_n} {PAP_IO_STANDARD} {LVCMOS33}
+define_attribute {p:status_led_n} {PAP_IO_DRIVE} {8}
+define_attribute {p:status_led_n} {PAP_IO_NONE} {TRUE}
+define_attribute {p:status_led_n} {PAP_IO_SLEW} {FAST}

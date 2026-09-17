@@ -1,0 +1,18 @@
+Designs:
+1. D:/RISC_V_CPU_2026/fpga/bram_smoke/rtl/bram_smoke_top.v
+Size: 3943bytes
+Last modified time: 2026/09/08 18:02:58
+2. D:/RISC_V_CPU_2026/fpga/mes50hp_bram_smoke/rtl/mes50hp_bram_smoke_top.v
+Size: 387bytes
+Last modified time: 2026/09/10 19:23:16
+
+Constraints:
+1. D:/RISC_V_CPU_2026/fpga/mes50hp_bram_smoke/constraints/mes50hp_bram_smoke.fdc
+Size: 786bytes
+Last modified time: 2026/09/10 19:23:18
+
+Physical Constraint Editor (Post-Map):
+1. D:/RISC_V_CPU_2026/fpga/mes50hp_bram_smoke/device_map/mes50hp_bram_smoke_top.pcf
+Size: 264bytes
+Last modified time: 2026/09/10 19:25:38
+
