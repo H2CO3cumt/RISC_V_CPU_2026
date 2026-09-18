@@ -65,6 +65,20 @@ fpga/**/bak/
 fpga/**/ip/
 *.smsk
 
+# PDS GUI/命令行工作期产物：工程锁与自动日志轮转备份。
+# 交付目录同样会被 PDS 直接打开，因此这里必须与 fpga/** 的规则保持一致；
+# 轮转出去的旧 pds.log 不参与交付，也不应反复进入版本库。
+release/final_submission/logbackup/
+release/final_submission/*.pds.lock
+release/final_submission/compile/
+release/final_submission/device_map/
+release/final_submission/generate_bitstream/
+release/final_submission/place_route/
+release/final_submission/report_timing/
+release/final_submission/synthesize/
+release/final_submission/results/
+*.pds.lock
+
 # Development-stage board validation bundle; the distributed form is
 # release/MES50HP_board_validation_package.zip
 release/board_validation/
