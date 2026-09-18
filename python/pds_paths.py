@@ -6,7 +6,7 @@
 路径属于 CPU Core、哪些只是可打拍的统计逻辑。
 
 用法：
-  D:\\Python313\\python.exe python\\pds_paths.py --report fpga/task28_coremark/report_timing/mes50hp_coremark_top.rtr --top 10
+  D:\\Python313\\python.exe python\\pds_paths.py --report fpga/coremark/report_timing/mes50hp_coremark_top.rtr --top 10
 """
 import argparse
 import os

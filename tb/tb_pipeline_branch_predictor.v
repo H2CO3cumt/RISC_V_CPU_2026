@@ -18,10 +18,10 @@ module tb_pipeline_branch_predictor;
   .i_req_valid(off_iv),.i_req_ready(off_ir),.i_req_addr(off_ia),.i_rsp_valid(off_rv),.i_rsp_ready(off_rr),.i_rsp_data(off_idata),.i_rsp_error(off_ie),
   .d_req_valid(off_dv),.d_req_ready(off_dr),.d_req_addr(off_da),.d_req_write(off_dw),.d_req_wdata(off_dwd),.d_req_wstrb(off_dst),.d_rsp_valid(off_dsv),.d_rsp_ready(off_dsr),.d_rsp_rdata(off_drd),.d_rsp_error(off_de),
   .event_stall(),.event_load_stall(),.event_branch(),.event_branch_taken(),.event_flush(),.event_predict(off_predict),.event_btb_hit(off_hit),.event_mispredict(off_miss),.event_illegal(),.event_misaligned(),.event_bus_error());
- task15_imem_adapter #(.DEPTH(8),.INIT_FILE("tmp/branch_predictor/loop.mem"),.RANDOM_DELAY(0)) on_im(.clk(clk),.reset(reset),.req_valid(on_iv),.req_ready(on_ir),.req_addr(on_ia),.rsp_valid(on_rv),.rsp_ready(on_rr),.rsp_data(on_idata),.rsp_error(on_ie));
- task15_imem_adapter #(.DEPTH(8),.INIT_FILE("tmp/branch_predictor/loop.mem"),.RANDOM_DELAY(0)) off_im(.clk(clk),.reset(reset),.req_valid(off_iv),.req_ready(off_ir),.req_addr(off_ia),.rsp_valid(off_rv),.rsp_ready(off_rr),.rsp_data(off_idata),.rsp_error(off_ie));
- task15_ram_adapter #(.DEPTH(4),.RANDOM_DELAY(0)) on_dm(.clk(clk),.reset(reset),.req_valid(on_dv),.req_ready(on_dr),.req_addr(on_da),.req_write(on_dw),.req_wdata(on_dwd),.req_wstrb(on_dst),.rsp_valid(on_dsv),.rsp_ready(on_dsr),.rsp_rdata(on_drd),.rsp_error(on_de),.write_side_effect_count());
- task15_ram_adapter #(.DEPTH(4),.RANDOM_DELAY(0)) off_dm(.clk(clk),.reset(reset),.req_valid(off_dv),.req_ready(off_dr),.req_addr(off_da),.req_write(off_dw),.req_wdata(off_dwd),.req_wstrb(off_dst),.rsp_valid(off_dsv),.rsp_ready(off_dsr),.rsp_rdata(off_drd),.rsp_error(off_de),.write_side_effect_count());
+ imem_adapter #(.DEPTH(8),.INIT_FILE("tmp/branch_predictor/loop.mem"),.RANDOM_DELAY(0)) on_im(.clk(clk),.reset(reset),.req_valid(on_iv),.req_ready(on_ir),.req_addr(on_ia),.rsp_valid(on_rv),.rsp_ready(on_rr),.rsp_data(on_idata),.rsp_error(on_ie));
+ imem_adapter #(.DEPTH(8),.INIT_FILE("tmp/branch_predictor/loop.mem"),.RANDOM_DELAY(0)) off_im(.clk(clk),.reset(reset),.req_valid(off_iv),.req_ready(off_ir),.req_addr(off_ia),.rsp_valid(off_rv),.rsp_ready(off_rr),.rsp_data(off_idata),.rsp_error(off_ie));
+ ram_adapter #(.DEPTH(4),.RANDOM_DELAY(0)) on_dm(.clk(clk),.reset(reset),.req_valid(on_dv),.req_ready(on_dr),.req_addr(on_da),.req_write(on_dw),.req_wdata(on_dwd),.req_wstrb(on_dst),.rsp_valid(on_dsv),.rsp_ready(on_dsr),.rsp_rdata(on_drd),.rsp_error(on_de),.write_side_effect_count());
+ ram_adapter #(.DEPTH(4),.RANDOM_DELAY(0)) off_dm(.clk(clk),.reset(reset),.req_valid(off_dv),.req_ready(off_dr),.req_addr(off_da),.req_write(off_dw),.req_wdata(off_dwd),.req_wstrb(off_dst),.rsp_valid(off_dsv),.rsp_ready(off_dsr),.rsp_rdata(off_drd),.rsp_error(off_de),.write_side_effect_count());
  always #5 clk=~clk;
  always @(posedge clk) if(!reset) begin
   cycles=cycles+1;

@@ -5,9 +5,9 @@ module tb_single_cycle_jalr;
     reg reset;
     integer failures;
 
-    task15_core_harness #(
+    core_harness #(
         .IMEM_DEPTH(9),
-        .IMEM_INIT_FILE("tb/data/task12_jalr_pc_align.mem")
+        .IMEM_INIT_FILE("tb/data/jalr_pc_align.mem")
     ) dut (
         .clk(clk),
         .reset(reset)

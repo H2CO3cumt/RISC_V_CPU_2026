@@ -12,9 +12,11 @@
 
 `RISC-V多协议逻辑分析仪`
 
-### 作品简介（410/500，按当前文本字符数）
+### 作品简介（436/500，按当前文本字符数）
 
-本作品面向RISC-V处理器设计与数字系统调试场景，拟采用Verilog自主实现支持RV32I指令集的五级流水线CPU，包含IF、ID、EX、MEM、WB五级数据通路，并通过数据前递、Load-Use暂停及分支跳转冲刷处理流水线冒险。CPU核心仅通过统一取指/数据事务接口连接SoC，地址译码、RAM、UART、GPIO及逻辑分析仪均位于核心外部，可独立替换而无需修改流水线。系统以单周期CPU作为参考模型，使用自动回归、提交级trace、CoreMark、性能计数器和PDS ILA验证正确性、性能及资源效率。应用端构建8通道可重构多协议逻辑分析仪，由FPGA Capture Engine完成数字采样、边沿/电平触发及触发前后BRAM缓存；RISC-V软件通过MMIO配置外设、读取数据并解析UART/SPI协议，结果经UART发送至Python上位机显示波形、故障标记并导出VCD，体现软硬件协同与模块化扩展能力。
+> 版本说明（2026-09-17）：报名页采用 **B 版叙事稿**——偏应用闭环叙事，不写入具体量化数字，量化成绩（CoreMark/MHz、CPI、Fmax、BTB 条目数、通道数等）在技术报告、答辩 PPT 与"技术指标"栏中给出。不得在本简介中出现 RLE、压缩、Cache、异常/中断等本届冻结内容，也不得把逻辑分析仪写成 CPU 内部功能。
+
+本作品面向RISC-V处理器设计与数字系统调试场景，用Verilog自主实现支持RV32I的五级流水线CPU，数据前递、Load-Use暂停、分支跳转冲刷与BTB动态分支预测共同处理流水线冒险；核心只通过统一的取指与数据事务接口连接SoC，低速外设统一以背压让核心等待，地址译码、RAM、UART、GPIO与逻辑分析仪全部位于核心之外，更换外设无需触碰流水线。正确性以单周期CPU为参考模型，由自动回归、提交级trace逐条比对与官方CoreMark校验守住，性能则靠性能计数器与PDS ILA实测波形解释流水线效率。应用端把可重构多协议逻辑分析仪做成完整闭环：FPGA采集引擎完成数字采样、电平与边沿触发和触发前后BRAM缓存，RISC-V软件经MMIO配置并读取原始采样，解析UART与SPI协议后由UART送往Python上位机，现场显示波形、触发位置与协议帧、标记帧错误并导出VCD，波形、速率与触发条件均可现场重构而无需重新综合，体现软硬件协同与模块化扩展能力。
 
 ## 1. 作品定位
 
@@ -199,9 +201,9 @@ logic inputs -> input register -> sample/trigger -> | logic_analyzer       |
 - `rtl/capture_engine.v`：8 通道 Raw、可调采样间隔、通道掩码、电平/上升沿/下降沿触发、环形 BRAM、触发前后计数、Overflow 和显式读指针。
 - `rtl/logic_analyzer_mmio.v`：Application-MMIO 寄存器窗口；请求接受时锁存响应，支持随机背压且无重复 side effect。
 - `rtl/application_mmio_mux.v`：性能计数器位于 Application `0x10002000..0x100020FF`，分析仪位于 `0x10002100..0x100021FF`，Core 源码不变。
-- `fpga/task30_logic_analyzer`：MES50HP P20/R8/R9 与 J8 隔行相邻脚对输入/输出的板级顶层与 `.fdc`；正式交互固件和 PDS bitstream 已生成。
+- `fpga/logic_analyzer`：MES50HP P20/R8/R9 与 J8 隔行相邻脚对输入/输出的板级顶层与 `.fdc`；正式交互固件和 PDS bitstream 已生成。
 - `rtl/logic_analyzer_pattern_gen.v`：软件可选 static、counter、UART 8N1、SPI mode 0，速率和数据运行时可改；发生器只驱动 J8，不在 FPGA 内回接 Capture Engine。
-- `software/task30_logic_analyzer`：13 字节带 XOR 校验配置协议、Arm/轮询/Raw 输出、UART/SPI 软件解析；`python/logic_analyzer.py` 与 `logic_analyzer_serial.py` 完成配置、重建、协议复核、VCD 和 JSON 证据。
+- `software/logic_analyzer`：13 字节带 XOR 校验配置协议、Arm/轮询/Raw 输出、UART/SPI 软件解析；`python/logic_analyzer.py` 与 `logic_analyzer_serial.py` 完成配置、重建、协议复核、VCD 和 JSON 证据。
 - Capture Engine 的 `capture_count` 精确定义为实际导出的 `pre + trigger + post` 样本数；`trigger_index` 是 Raw 流的逻辑索引。容量不足时先保留触发样本和 post，再截断 pre。
 - 已通过 Capture 独立边界测试、20 轮连续采集/每五轮 Reset、发生器独立测试、MMIO byte-enable、Application mux、交互式 board-top、软件 SoC 和 Python 六项测试。唯一最终配置（流水线 + BTB + UART/GPIO + 性能计数器 + 逻辑分析仪）在 PDS 50 MHz 下 All Constraints Met：setup WNS +2.661 ns、hold WHS +0.312 ns、3459 LUT、3129 FF、5.5 个 DRM18K 等效块。MES50HP 实体板 static、counter、UART、SPI 各 20 次，共 80/80 PASS。
 

@@ -5,9 +5,9 @@ module tb_single_cycle_cpu;
     reg reset;
     integer failures;
 
-    task15_core_harness #(
+    core_harness #(
         .IMEM_DEPTH(12),
-        .IMEM_INIT_FILE("tb/data/task11_single_cycle.mem")
+        .IMEM_INIT_FILE("tb/data/single_cycle_smoke.mem")
     ) dut (
         .clk(clk),
         .reset(reset)

@@ -8,7 +8,7 @@ module tb_rv32ui_core;
     reg reset;
     integer cycle_count;
 
-    task15_core_harness #(
+    core_harness #(
         .IMEM_DEPTH(8192),
         .DMEM_DEPTH(8192),
         .IMEM_INIT_FILE("tmp/rv32ui_current.mem")

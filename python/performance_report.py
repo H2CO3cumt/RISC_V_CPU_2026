@@ -11,7 +11,7 @@ def parse(path: Path):
             except ValueError: pass
     return values
 
-def report(directory="tmp/task24", output="tmp/performance_report.md"):
+def report(directory="tmp/gcc_pipeline", output="tmp/performance_report.md"):
     rows = []
     paths = sorted(Path(directory).glob("*-*.perf"))
     if not paths and (Path(directory) / "perf.actual").exists(): paths = [Path(directory) / "perf.actual"]

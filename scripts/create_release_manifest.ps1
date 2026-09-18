@@ -1,19 +1,19 @@
-﻿$ErrorActionPreference='Stop'
+$ErrorActionPreference='Stop'
 $releaseRoot=Join-Path (Resolve-Path '.').Path 'release'
 $artifactRoot=Join-Path $releaseRoot 'artifacts'
 New-Item -ItemType Directory -Force $artifactRoot | Out-Null
 
 # 最终交付只保留一套可下载配置；阶段性 bitstream 仍留在各自 FPGA
 # 工程目录作为开发证据，不再混入最终 artifacts。
-foreach($legacy in @('pipeline_soc.sbit','pipeline_soc_timing.rtr','coremark_stable.sbit','coremark_stable_timing.rtr','coremark_debug_ila.sbit','coremark_debug_ila_timing.rtr','logic_analyzer_p0.sbit','logic_analyzer_p0_timing.rtr','coremark_imem.mem','coremark_drom.mem','coremark_ram.mem','task30_program.mem')){
+foreach($legacy in @('pipeline_soc.sbit','pipeline_soc_timing.rtr','coremark_stable.sbit','coremark_stable_timing.rtr','coremark_debug_ila.sbit','coremark_debug_ila_timing.rtr','logic_analyzer_p0.sbit','logic_analyzer_p0_timing.rtr','coremark_imem.mem','coremark_drom.mem','coremark_ram.mem','logic_analyzer_program.mem')){
   $legacyPath=Join-Path $artifactRoot $legacy
   if(Test-Path -LiteralPath $legacyPath){Remove-Item -LiteralPath $legacyPath -Force}
 }
 
 $artifacts=@(
-  @('fpga/task30_logic_analyzer/generate_bitstream/mes50hp_logic_analyzer_top.sbit','mes50hp_riscv_logic_analyzer.sbit'),
-  @('fpga/task30_logic_analyzer/report_timing/mes50hp_logic_analyzer_top.rtr','mes50hp_riscv_logic_analyzer_timing.rtr'),
-  @('fpga/task30_logic_analyzer/rtl/task30_program.mem','logic_analyzer_firmware.mem')
+  @('fpga/logic_analyzer/generate_bitstream/mes50hp_logic_analyzer_top.sbit','mes50hp_riscv_logic_analyzer.sbit'),
+  @('fpga/logic_analyzer/report_timing/mes50hp_logic_analyzer_top.rtr','mes50hp_riscv_logic_analyzer_timing.rtr'),
+  @('fpga/logic_analyzer/rtl/logic_analyzer_program.mem','logic_analyzer_firmware.mem')
 )
 foreach($pair in $artifacts){
   if(-not (Test-Path -LiteralPath $pair[0])){throw "Release artifact missing: $($pair[0])"}
@@ -21,7 +21,7 @@ foreach($pair in $artifacts){
 }
 
 $roots=@('AGENTS.md','AGENTS.local.md','rtl','tb','scripts','python','software','docs','third_party/coremark',
-         'fpga/task26_pipeline_soc','fpga/task28_coremark','fpga/task29_coremark_ila','fpga/task30_logic_analyzer',
+         'fpga/pipeline_soc','fpga/coremark','fpga/coremark_ila','fpga/logic_analyzer',
          'release/materials','release/evidence','release/board_validation','release/HANDOFF.md')
 $files=foreach($root in $roots){
   if(Test-Path -LiteralPath $root -PathType Leaf){Get-Item -LiteralPath $root;continue}

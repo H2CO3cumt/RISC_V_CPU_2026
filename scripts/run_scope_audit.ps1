@@ -31,7 +31,7 @@ function Get-ScopedFiles([string]$root){
 
 $violations = New-Object System.Collections.Generic.List[string]
 $scanned = 0
-foreach($root in @('rtl','fpga/task30_logic_analyzer','software/task30_logic_analyzer','python')) {
+foreach($root in @('rtl','fpga/logic_analyzer','software/logic_analyzer','python')) {
   if(-not (Test-Path -LiteralPath $root)){ continue }
   foreach($file in (Get-ScopedFiles $root)){
     $scanned++
@@ -41,7 +41,7 @@ foreach($root in @('rtl','fpga/task30_logic_analyzer','software/task30_logic_ana
     }
   }
 }
-Write-Host "SCOPE AUDIT SCANNED files=$scanned roots=rtl,fpga/task30_logic_analyzer,software/task30_logic_analyzer,python"
+Write-Host "SCOPE AUDIT SCANNED files=$scanned roots=rtl,fpga/logic_analyzer,software/logic_analyzer,python"
 if($violations.Count -ne 0) {
   $violations | Tee-Object tmp/scope_audit_fail.txt
   throw 'FROZEN FEATURE SCOPE AUDIT FAIL'

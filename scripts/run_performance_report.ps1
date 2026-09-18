@@ -1,5 +1,5 @@
 $ErrorActionPreference='Stop'
-./scripts/run_task24_gcc_pipeline.ps1
+./scripts/run_gcc_pipeline_equivalence.ps1
 if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
 python python/performance_report.py
 if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}

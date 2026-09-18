@@ -8,10 +8,10 @@ $required = @(
   'bitstreams/coremark_debug_ila.sbit','bitstreams/logic_analyzer_p0.sbit',
   'pyui/pyUI.py','pyui/mes50hp_validation_ui.py','pyui/coremark_serial.py',
   'pyui/logic_analyzer_serial.py','pyui/logic_analyzer.py','pyui/pyUI_requirements.txt',
-  'projects/task26_pipeline_soc/impl.pds','projects/task26_pipeline_soc/task26_generated.pds',
-  'projects/task28_coremark/task28_generated.pds',
-  'projects/task29_coremark_ila/task29_coremark_ila.pds',
-  'projects/task30_logic_analyzer/task30_generated.pds'
+  'projects/pipeline_soc/impl.pds','projects/pipeline_soc/pipeline_soc_generated.pds',
+  'projects/coremark/coremark_generated.pds',
+  'projects/coremark_ila/coremark_ila.pds',
+  'projects/logic_analyzer/logic_analyzer_generated.pds'
 )
 foreach($relative in $required){
   $path=Join-Path $packageRoot $relative

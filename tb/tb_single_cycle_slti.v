@@ -5,9 +5,9 @@ module tb_single_cycle_slti;
     reg reset;
     integer failures;
 
-    task15_core_harness #(
+    core_harness #(
         .IMEM_DEPTH(5),
-        .IMEM_INIT_FILE("tb/data/task12_slti.mem")
+        .IMEM_INIT_FILE("tb/data/slti.mem")
     ) dut (
         .clk(clk),
         .reset(reset)

@@ -83,7 +83,7 @@ cycles 2344.3  =  理想 1000（42.7%） + stall 106.4（4.5%） + flush 103.3�
 - 机制假设（**待第 3 节实验证实，不许直接当结论**）：`rtl/pipeline_cpu.v` 的数据事务会让
   `dstate` 走 `D_REQ → D_RSP` 两拍，期间 `mem_block` 拉高，EX/MEM 持有、ID/EX 保持、
   IF 也停——**一次访存不是让这一条等，而是把它后面整条流水线一起冻住**。
-- 在**零等待**的 RTL 仿真 memory model 下（`tb/task15_ram_adapter.v`）这条路几乎不花钱，
+- 在**零等待**的 RTL 仿真 memory model 下（`tb/ram_adapter.v`）这条路几乎不花钱，
   所以仿真 CPI 2.37 看起来正常，**实体板却只能到 0.591 CoreMark/MHz**。
   这解释了"仿真好看、板上难看"的现象。
 
@@ -104,7 +104,7 @@ cycles 2344.3  =  理想 1000（42.7%） + stall 106.4（4.5%） + flush 103.3�
 而不是继续用"访存大概很贵"这种猜测。遵守项目规矩：先定位第一个错误周期和第一个错误信号。
 
 **做法**（建议，可自行改进但要能复现）：在 `tb/` 下新建一个**只读观测**的 Testbench
-（不改 RTL、不动被测接口），用 `tb/task15_ram_adapter.v` 但把**数据侧延迟设成与实体板一致的 2 拍**
+（不改 RTL、不动被测接口），用 `tb/ram_adapter.v` 但把**数据侧延迟设成与实体板一致的 2 拍**
 （关键！仿真默认零等待是失真的根源），并在每个周期采样：
 
 - `core.dstate`、`core.mem_block`、`core.mem_done`、`d_req_valid`/`d_req_ready`/`d_rsp_valid`/`d_rsp_ready`
@@ -188,7 +188,7 @@ $pwsh7 = 'C:\Users\xwc\.cache\codex-runtimes\codex-primary-runtime\dependencies\
 & $pwsh7 -NoProfile -File scripts\generate_coremark_fpga_memory.ps1 -Iterations 1000 -ClockHz 50000000 -AutoStart 0 -PerfWindowAlign 1
 
 # 重建 50 MHz 位流
-& $pwsh7 -NoProfile -Command "cd fpga\task28_coremark; & 'D:\Pango\PDS_2024.2-SP2\bin\pds_shell.exe' -file pds_recipe.tcl -project_name task28_generated"
+& $pwsh7 -NoProfile -Command "cd fpga\coremark; & 'D:\Pango\PDS_2024.2-SP2\bin\pds_shell.exe' -file pds_recipe.tcl -project_name coremark_generated"
 
 # 下载 + 采集（约 40 秒）
 & 'D:\Pango\PDS_2024.2-SP2\bin\cdt_cfg.exe' -file tmp\program_coremark_wa.tcl -work_dir D:\RISC_V_CPU_2026\tmp

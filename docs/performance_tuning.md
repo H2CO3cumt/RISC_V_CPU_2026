@@ -1,6 +1,6 @@
-﻿# 性能调优与频率-性能-资源数据（T0～T6）
+# 性能调优与频率-性能-资源数据（T0～T6 + CPI 专项）
 
-> 最后更新：2026-09-17
+> 最后更新：2026-09-17（CPI 优化专项轮，见文末 §10）
 > 权威命令：`scripts/run_fmax_sweep_rtl.ps1`（频率扫描）、`scripts/run_final_regression.ps1 -Quick`（回归）、
 > `python/fmax_report.py` / `python/pds_paths.py` / `python/coremark_cpi_analysis.py`（数据提取）。
 > 所有数字都注明来源阶段（RTL 仿真 / PDS 综合 / PDS 布局布线 / 实体板），不同阶段不得混用。
@@ -10,11 +10,12 @@
 | 问题 | 结论 |
 |---|---|
 | 是否达到 70 MHz？ | **达到**。优化前后两版 RTL 在 70 MHz 约束下均 `All Constraints Met`、0 失败端点，见 §2。 |
-| 是否达到 80–85 MHz？ | **达到**。优化前最高 85.0 MHz（WNS +0.005 ns），优化后 85 MHz 有 WNS +0.246 ns。**80 MHz 已在实体板跑通**：PLL 精确倍频到 80.000 MHz，CoreMark Score 47.295、52.859 s、官方 CRC 全过。两版都在 90 MHz 约束下失败。 |
-| 真实天花板在哪？ | 约 **89～90 MHz**（按 WNS 外推：优化前 1/(11.111−0.059) = 90.5 MHz，优化后 1/(11.111−0.148) = 89.7 MHz）。两版天花板相同，因为限制路径是流水线本体的寄存器堆→ALU→预测校验链，不是性能计数器。 |
-| 提频率能不能提 Score？ | **不能，已用实体板证明**：50 MHz 与 80 MHz 的 `CoreMark/MHz x1000` 都是 **591**，Score 之比 47.295/29.559 = 1.600 = 80/50。频率只服务独立的「时钟频率」计分项。 |
-| 本轮 RTL 改动的收益 | `rtl/perf_monitor.v` 事件打一拍：最差 10 条路径中 `perf/flush_count` 终点由 8 条降为 **0 条**，逻辑级数 26 → 21；85 MHz 的 WNS 由 +0.005 提到 **+0.246 ns**。CPI/CoreMark 不变（不影响架构行为），实体板 Score 仍为 29.559。 |
-| 下一步性价比最高的方向 | 数据事务握手流水化（把 `dstate` 的 REQ→RSP 两拍压成一拍）。实体板回归显示访存阻塞是剩余主要损失，估计 CPI 可降约 0.4（约 −17%）；详见 `docs/coremark_cpi_analysis.md`。 |
+| 是否达到 80–85 MHz？ | **达到**。优化前最高 85.0 MHz（WNS +0.005 ns），优化后 85 MHz 有 WNS +0.246 ns。**80 MHz 已在实体板跑通**：PLL 精确倍频到 80.000 MHz，CoreMark 官方 CRC 全过。CPI 专项后 80 MHz WNS 升至 **+0.667 ns**（估计 Fmax 84.51 MHz），Score 72.081、34.682 s。两版都在 90 MHz 约束下失败。 |
+| 真实天花板在哪？ | 约 **89～90 MHz**（按 WNS 外推）。限制路径是流水线本体的寄存器堆→ALU→预测校验链，不是性能计数器、也不是 CPI 专项新增的取指链（取指链在 80 MHz 仍有 +0.667 ns 余量）。 |
+| 提频率能不能提 Score？ | **不能，已用实体板证明**：提频率只服务独立的「时钟频率」计分项。 |
+| CPI 专项（本轮）的收益 | `rtl/pipeline_cpu.v` 取指满速交接（`if_arm`）+ 取指存储器 `req_ready` 策略：实体板 50 MHz Score **29.559 → 45.051**、CPI **2.3443 → 1.5388**、`CoreMark/MHz x1000` **591 → 901**；80 MHz PLL Score 47.295 → **72.081**。详见 §10。 |
+| 上一轮 RTL 改动的收益 | `rtl/perf_monitor.v` 事件打一拍：最差 10 条路径中 `perf/flush_count` 终点由 8 条降为 **0 条**，逻辑级数 26 → 21；85 MHz 的 WNS 由 +0.005 提到 **+0.246 ns**。CPI/CoreMark 不变。 |
+| 下一步性价比最高的方向 | 正确预测的跳转不再 Redirect（板级约 28,500 次/迭代 ≈ 7.7% cycles）；其次是与取指重叠的数据访问阻塞。详见 `docs/rtl_changes.md`「下一轮候选」。 |
 
 ## 1. 基准口径与可比性元数据
 
@@ -24,7 +25,7 @@
 | 优化前 `rtl/perf_monitor.v` SHA-256 | `9F5E0A06769DA0125C7CAC9DFD263038E480D2AAEC61298D088771F5662B25DC`（= 基线 commit 内容） |
 | 优化后 `rtl/perf_monitor.v` SHA-256 | `B9A41F8D23956422C531CA08C3C68F963635F40AD3441AE02C9B1A49346794FF` |
 | 其余 24 个 `rtl/*.v` | 两版完全相同（扫描脚本逐文件比对 SHA-256 一致） |
-| `fpga/task28_coremark/constraints/mes50hp_coremark.fdc` SHA-256 | `F535FD2475D77304AEA1BE7148E16AF5790089B15AAB446E08C6864C2E8BBB58`（优化前后共用，只改 `-period`） |
+| `fpga/coremark/constraints/mes50hp_coremark.fdc` SHA-256 | `F535FD2475D77304AEA1BE7148E16AF5790089B15AAB446E08C6864C2E8BBB58`（优化前后共用，只改 `-period`） |
 | 频率扫描 RTL 快照 | `tmp/fmax_sweep/before_rtl/`（优化前）、`tmp/fmax_sweep/after_rtl/`（优化后），各自附 `*_rtl_sha256.txt` |
 | 器件/工具 | PGL50H-6IFBG484，PDS 2024.2-SP2-EN build 208883 |
 | 固定流程 | `compile → synthesize(ads,opt2) → dev_map → place(-optimize_multi_corner_timing) → route → route_optimize(-fix_hold_violation) → report_timing → gen_bit_stream` |
@@ -106,7 +107,7 @@
 D:\Python313\python.exe python\pds_paths.py --report <报告.rtr> --top 10 --out <输出.md>
 ```
 
-### 3.1 优化前 50 MHz 约束（`fpga/task28_coremark/report_timing/*.rtr`，26 级，WNS +1.805）
+### 3.1 优化前 50 MHz 约束（`fpga/coremark/report_timing/*.rtr`，26 级，WNS +1.805）
 
 | # | 起点 | 终点 | 逻辑级数 | 逻辑(ns/%) | 走线(ns) | slack(ns) | 归属 |
 |---:|---|---|---:|---:|---:|---:|---|
@@ -234,10 +235,10 @@ PFD 5～320 MHz，VCO 600～1250 MHz，输出 ≤625 MHz。因此**无法精确�
 | 70 MHz | 1 | 14 | 10 | 50 MHz | 700 MHz | 70.000 MHz |
 
 实施：
-- `fpga/task28_coremark_80m/rtl/pll_80m.v`：直接例化原语 `GTP_PLL_E3`（与 PDS 自带例子 `PGL25G_lvds4to1/ip/pll_tx` 同源），
+- `fpga/coremark_80m/rtl/pll_80m.v`：直接例化原语 `GTP_PLL_E3`（与 PDS 自带例子 `PGL25G_lvds4to1/ip/pll_tx` 同源），
   **不引入外部 IP 文件依赖**，配方只依赖仓库内源码。PLL 完全位于 Core 之外（board wrapper 层）。
-- `fpga/task28_coremark_80m/rtl/mes50hp_coremark_pll_top.v`：CoreMark 80 MHz 顶层，逻辑与 50 MHz 版一致，只换时钟与波特率常数。
-- `fpga/task30_logic_analyzer_80m/rtl/mes50hp_logic_analyzer_pll_top.v`：逻辑分析仪 80 MHz 顶层，内部例化**未修改**的
+- `fpga/coremark_80m/rtl/mes50hp_coremark_pll_top.v`：CoreMark 80 MHz 顶层，逻辑与 50 MHz 版一致，只换时钟与波特率常数。
+- `fpga/logic_analyzer_80m/rtl/mes50hp_logic_analyzer_pll_top.v`：逻辑分析仪 80 MHz 顶层，内部例化**未修改**的
   `mes50hp_logic_analyzer_top`，只把 `clk_50m` 端口接 80 MHz 并传入 `UART_BAUD_CYCLES`。
 - 复位：先等 `pll_locked`，再用 POR 计数器释放；`USE_EXTERNAL_RESET=0` 的内部上电复位契约保持不变。
 - **UART 波特率重算**：80e6/115200 = 694.44 → 取 694 → 实际 115274 baud（−0.064%，在 UART 容差内）；
@@ -255,7 +256,7 @@ PFD 5～320 MHz，VCO 600～1250 MHz，输出 ≤625 MHz。因此**无法精确�
 
 ### 5.3 RTL 级验证（已完成）
 
-`scripts/run_task30_pll80_board_top_tb.ps1`（Icarus，`tb/pll_80m_model.v` 提供 `GTP_PLL_E3` 行为模型）：
+`scripts/run_logic_analyzer_pll80_board_top_tb.ps1`（Icarus，`tb/pll_80m_model.v` 提供 `GTP_PLL_E3` 行为模型）：
 
 ```
 PLL80 LOCK PASS
@@ -284,7 +285,7 @@ D:\Pango\PDS_2024.2-SP2\bin\cdt_cfg.exe -file <tcl> -work_dir D:\RISC_V_CPU_2026
 
 | 项 | 值 |
 |---|---|
-| 位流 | `fpga/task28_coremark/generate_bitstream/mes50hp_coremark_top.sbit`，SHA-256 `8001A60D4CB17433E8226452EA8A255B144F64529245EE7F3A706F3144110A8A` |
+| 位流 | `fpga/coremark/generate_bitstream/mes50hp_coremark_top.sbit`，SHA-256 `8001A60D4CB17433E8226452EA8A255B144F64529245EE7F3A706F3144110A8A` |
 | iterations | 1000 |
 | ticks | 1,691,496,677 |
 | 运行秒数 | **33.829 s（≥10 s 达标）** |
@@ -297,7 +298,7 @@ D:\Pango\PDS_2024.2-SP2\bin\cdt_cfg.exe -file <tcl> -work_dir D:\RISC_V_CPU_2026
 
 | 项 | 值 |
 |---|---|
-| 位流 | `fpga/task28_coremark_80m/generate_bitstream/mes50hp_coremark_pll_top.sbit`，SHA-256 `FF6775A465A5CB68C99FCDFE57275B93C2B809D3D260D68D64CC31D967355F70` |
+| 位流 | `fpga/coremark_80m/generate_bitstream/mes50hp_coremark_pll_top.sbit`，SHA-256 `FF6775A465A5CB68C99FCDFE57275B93C2B809D3D260D68D64CC31D967355F70` |
 | iterations | 2500 |
 | ticks | 4,228,738,028 |
 | 运行秒数 | **52.859 s（≥10 s 达标）** |
@@ -324,7 +325,7 @@ D:\Pango\PDS_2024.2-SP2\bin\cdt_cfg.exe -file <tcl> -work_dir D:\RISC_V_CPU_2026
 | 优化后 50 MHz `la_50m_optimized.sbit` | `DB705898A42BA25628303017034DDB7531DBA44BDBB58574E5CAFC19AAA331E6` | static / counter / uart / spi 各 20 次 = **80/80 PASS**（`release/evidence/logic_analyzer_board_opt50m`） |
 | 80 MHz PLL `la_80m_pll.sbit` | `261D3989AC2D3EC686B9C740B42E988A96175B8534BE5F494D66573A1A54D898` | static / counter / uart / spi 各 20 次 = **80/80 PASS**（`release/evidence/logic_analyzer_board_80m`） |
 
-命令：`scripts\run_task30_board.ps1 -Port COM11 -Baud 115200 -RunsPerMode 20 -Output <目录>`。
+命令：`scripts\run_logic_analyzer_board.ps1 -Port COM11 -Baud 115200 -RunsPerMode 20 -Output <目录>`。
 80 MHz 位流在同一套上位机协议下同样 80/80 通过，说明 Capture Engine / MMIO / UART 在 80 MHz 域工作正常。
 
 #### (4) 实体板性能计数器归因（50 / 80 MHz 双频交叉验证）
@@ -365,7 +366,7 @@ D:\Pango\PDS_2024.2-SP2\bin\cdt_cfg.exe -file <tcl> -work_dir D:\RISC_V_CPU_2026
 
 | 桌面入口 | 目标 | 状态 |
 |---|---|---|
-| `1_FPGA工程_最新.lnk` | `fpga\task30_logic_analyzer\task30_generated.pds`（**优化后 RTL 重建**，WNS +2.257 ns） | 已刷新，目标存在 |
+| `1_FPGA工程_最新.lnk` | `fpga\logic_analyzer\logic_analyzer_generated.pds`（**优化后 RTL 重建**，WNS +2.257 ns） | 已刷新，目标存在 |
 | `2_最终位流_下载用.lnk` | `release\artifacts\fmax_tuning_2026-09-17\la_50m_optimized.sbit`（逻辑分析仪 50 MHz 优化版） | **已替换**，目标存在 |
 | `3_逻辑分析仪上位机.lnk` | `release\final_submission\启动逻辑分析仪.cmd` | 路径不变，保留 |
 | `4_逻辑分析仪使用说明.lnk` | `docs\logic_analyzer_quick_start.md` | 路径不变，保留 |
@@ -412,11 +413,11 @@ D:\Python313\python.exe python\fmax_report.py --tag after --out tmp\fmax_after.m
 & '<pwsh7>' -NoProfile -File scripts\run_final_regression.ps1 -Quick
 
 # 80 MHz PLL 顶层 RTL 闭环
-& '<pwsh7>' -NoProfile -File scripts\run_task30_pll80_board_top_tb.ps1
+& '<pwsh7>' -NoProfile -File scripts\run_logic_analyzer_pll80_board_top_tb.ps1
 
 # 80 MHz 位流构建
-& '<pwsh7>' -NoProfile -Command "cd fpga\task28_coremark_80m; & 'D:\Pango\PDS_2024.2-SP2\bin\pds_shell.exe' -file pds_recipe.tcl -project_name coremark_80m"
-& '<pwsh7>' -NoProfile -Command "cd fpga\task30_logic_analyzer_80m; & 'D:\Pango\PDS_2024.2-SP2\bin\pds_shell.exe' -file pds_recipe.tcl -project_name la80m"
+& '<pwsh7>' -NoProfile -Command "cd fpga\coremark_80m; & 'D:\Pango\PDS_2024.2-SP2\bin\pds_shell.exe' -file pds_recipe.tcl -project_name coremark_80m"
+& '<pwsh7>' -NoProfile -Command "cd fpga\logic_analyzer_80m; & 'D:\Pango\PDS_2024.2-SP2\bin\pds_shell.exe' -file pds_recipe.tcl -project_name la80m"
 
 # 从已有扫描目录重新提取时序汇总（无需重跑 PDS）
 D:\Python313\python.exe python\fmax_summary.py --proj-root tmp/fmax_sweep/after_proj --tag after
@@ -448,11 +449,82 @@ D:\Python313\python.exe python\fmax_summary.py --proj-root tmp/fmax_sweep/before
 - 要上 **100 MHz**（10 ns 周期），最差路径必须从约 16.0 ns 砍到 10 ns 以下，**必须动流水线本体的分级**
   （例如把 EX 段拆成两级），不是计数器级优化能解决的。
 
-**下一步建议**（按性价比排序）：
-1. **数据事务握手流水化**：实体板 CPI 归因显示访存阻塞是剩余最大项（stall 的 90.7% 非 load-use），
-   把 `dstate` 的 REQ→RSP 两拍压成一拍估计可降 CPI 约 0.4，直接提高 Score 第 (1) 项。
-   工作量与风险最高，需独立一轮 Before/After + 实体板复测。
-2. **把调优后位流提升为正式发布包**：实体验证已完成，可按
-   `export_final_submission.ps1` → `create_release_manifest.ps1` → `audit_release_package.ps1` 顺序执行。
+**下一步建议**（按性价比排序，2026-09-17 CPI 专项后更新）：
+1. **正确预测的跳转不再 Redirect**（CPI 侧当前最大项，≈7.7% cycles）：
+   `ex_redirect` 对 `idex_jump` 无条件成立，而板级有约 28,500 次/迭代属于“BTB 已预测正确仍被重取”。
+   前置条件：BTB 对 jump 的 `update_taken` 目前取自对 JAL/JALR 无意义的 `branch_unit`，需先改成恒 taken。
+   预期 CPI 1.5388 → 约 1.42、Score 45.05 → 约 48.8。详见 `docs/rtl_changes.md`「下一轮候选 A」。
+2. **数据访问阻塞与取指重叠**：板级 `mem_block` 79,960 拍/迭代（7.2%），取指满速后它不再能藏在取指空洞里；
+   上界约 7%，但需改 hazard/提交时序，风险高。
 3. **`N161.eq_*` 相等比较树化**：理论上再省 0.5～0.8 ns，可能让 90 MHz 通过；风险中等。
 4. **寄存器堆→ALU 段再分级**：真正突破 90 MHz 的唯一途径；属"重新设计流水线主体"，本届不做。
+5. **把 CPI 专项位流提升为正式发布包**：实体验证已完成，可按
+   `export_final_submission.ps1` → `create_release_manifest.ps1` → `audit_release_package.ps1` 顺序执行。
+
+---
+
+## 10. CPI 优化专项（2026-09-17，Score 29.559 → 45.051）
+
+战略前提：`Score = Iterations/(Total_Time × Frequency)` 等价于 CoreMark/MHz，是频率归一化的，
+**提频率不提高 Score**，唯一出路是降 CPI。
+
+### 10.1 改动与收益
+
+| 项 | 内容 |
+|---|---|
+| RTL 改动 | `rtl/pipeline_cpu.v`：取指满速交接（新增 `if_arm`，接受请求当拍立即武装下一笔请求） |
+| Core 外改动 | 取指存储器 `req_ready`：`!rsp_valid` → `!rsp_valid||rsp_ready`（CoreMark 50/80 MHz、逻辑分析仪 50/80 MHz 四处镜像） |
+| 依据 | `docs/coremark_cpi_analysis.md` §2：改动前 `i_req_valid` 有 51.5% 的周期为低、相邻 IF/ID 写入间隔=2 占 86.7%，1,788,110 拍里有 768,832 拍（43.0%）纯属取指串行化损失 |
+| 逐条说明 | `docs/rtl_changes.md` 改动 2 |
+
+### 10.2 时序与资源（四点全部重综合，`All Constraints Met`）
+
+| 工程 | WNS | WHS | 估计 Fmax | 最差路径 |
+|---|---:|---:|---:|---|
+| CoreMark 50 MHz | +2.349 ns | — | — | `core/rf/regs/iGopDrm/CLKB → imem/mem_7/iGopDrm/RSTA[0]` |
+| CoreMark 80 MHz PLL | **+0.667 ns** | +0.312 ns | **84.51 MHz** | `core/memwb_pc[3] → core/fetch_pc[2]` |
+| 逻辑分析仪 50 MHz | +2.812 ns | — | — | `core/rf/regs/iGopDrm/CLKB` |
+| 逻辑分析仪 80 MHz PLL | **+0.789 ns** | — | **85.39 MHz** | — |
+
+新增的“下一取指 PC → BTB 查询 → `if_req_pred_*`”组合链确实成为 80 MHz 的最差路径，
+但余量（+0.667 ns）比上一轮的 80 MHz（+0.145 ns）**更大**，90 MHz 天花板未被本次改动拉低。
+
+### 10.2.1 频率扫描复核（CPI 优化后 RTL，隔离目录，`.rtr` 为准）
+
+命令：`scripts\run_fmax_sweep_rtl.ps1 -Tag cpi3 -Periods '11.765,11.111'`
+（RTL 快照 `tmp/fmax_sweep/cpi_rtl_sha256.txt`，FDC SHA-256 `F535FD2475D77304…`）
+
+| 约束 | 结果 | WNS | 失败端点 | 估计 Fmax | LUT / FF |
+|---:|---|---:|---:|---:|---|
+| **85 MHz** | **All Constraints Met** | **+0.393 ns** | 0 | 87.94 MHz | 3037 / 2586 |
+| 90 MHz | VIOLATED | −0.374 ns | 102 | 87.07 MHz | 3029 / 2586 |
+
+**改动前 85 MHz 的 WNS 是 +0.246 ns，改动后提升到 +0.393 ns**；
+90 MHz 仍失败（WNS 由 −0.148 ns 变为 −0.374 ns，失败端点数 113 → 102），
+**芯片天花板仍约 88～90 MHz**，与上一轮结论一致。
+
+> 口径提醒：85 MHz 是「满足时序约束的最高工作频率」（时序证据），
+> **实体板上跑通并计入 Score 的是 80 MHz PLL**（两套配置均 All Constraints Met 且实机 CRC 全过）。
+
+### 10.3 实体板实测（权威数据）
+
+| 指标 | Before 50 MHz | **After 50 MHz** | After 80 MHz PLL |
+|---|---:|---:|---:|
+| Score | 29.559 | **45.051** | **72.081** |
+| CoreMark/MHz x1000 | 591 | **901** | **901** |
+| CPI | 2.3443 | **1.5388** | 1.5387 |
+| cycles / iteration | 1,693,816 | 1,112,165 | 1,111,327 |
+| 运行秒数 | 33.829 | 22.196 | 34.682（2500 迭代） |
+| 官方 CRC | 全过 `0xd340` | 全过 `0xd340` | 全过 `0x5275` |
+
+逻辑分析仪应用：50 MHz 与 80 MHz PLL 两套新位流各 **80/80** 回环 PASS。
+
+### 10.4 复现
+
+```powershell
+& '<pwsh7>' -NoProfile -File scripts\run_cpi_attribution_tb.ps1 -AllowHandoff   # T1 观测台
+& '<pwsh7>' -NoProfile -File scripts\generate_coremark_fpga_memory.ps1 -Iterations 1000 -ClockHz 50000000 -AutoStart 0 -PerfWindowAlign 1
+cd fpga\coremark; & 'D:\Pango\PDS_2024.2-SP2\bin\pds_shell.exe' -file pds_recipe.tcl -project_name coremark_generated
+D:\Python313\python.exe python\coremark_serial.py COM11 --clock-hz 50000000 --timeout 200 `
+  --output release\evidence\coremark_uart_cpi50m.log --summary release\evidence\coremark_board_cpi50m.json
+```

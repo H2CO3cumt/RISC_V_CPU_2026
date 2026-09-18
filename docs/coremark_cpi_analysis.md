@@ -1,6 +1,9 @@
-# CoreMark CPI 归因分析（T1）
+# CoreMark CPI 归因分析（T1 → T2 → T3）
 
-> 由 `python/coremark_cpi_analysis.py` 自动生成；数据源为板级实测 JSON 与 RTL 仿真日志。
+> 数据源：板级实测 JSON（`release/evidence/coremark_board_cpi50m.json`、`coremark_board_cpi80m.json`）、
+> T1 只读观测台（`scripts/run_cpi_attribution_tb.ps1`）、RTL 仿真日志（`scripts/run_coremark_pipeline_tb.ps1`）。
+> 历史基线（改动前）：`release/evidence/coremark_board_opt50m_aligned.json`、`coremark_board_80m_aligned.json`。
+> 自动生成部分由 `python/coremark_cpi_analysis.py` 产生；T1 归因与结论由 T2/T3 手工维护。
 
 ## 1. 口径说明（先对齐再归因）
 
@@ -11,59 +14,139 @@
 - `ticks`（CoreMark 计时窗口）< `cycle_count`（上电至今），因为 CoreMark 的计时窗口
   只覆盖 benchmark 主体；串口等待/回读与启动代码不计入 `ticks`，但计入 `cycle_count`。
 
-本次板级实测口径对照：
+本次板级实测口径对照（50 MHz，CPI 优化后）：
 
 | 量 | 值 | 说明 |
 |---|---:|---|
-| ticks（Score 分子口径） | 1,691,496,677 | CoreMark 计时窗口内的周期数 |
-| cycle_count（CPI 分母） | 1,693,816,436 | 上电至今全窗口周期数 |
-| instret_count | 722,513,265 | 提交指令数 |
+| ticks（Score 分子口径） | 1,109,848,679 | CoreMark 计时窗口内的周期数 |
+| cycle_count（CPI 分母） | 1,112,164,751 | 同一次清零之后至今 |
+| instret_count | 722,746,356 | 提交指令数 |
 | iterations | 1,000 | CoreMark 迭代次数 |
-| CPI = cycle/instret | 2.3443 | 全窗口 CPI |
-| cycles/iteration（Score 口径） | 1,691,496.7 | 每迭代周期数 |
+| CPI = cycle/instret | 1.5388 | 全窗口 CPI |
+| cycles/iteration | 1,112,164.8 | 每迭代周期数 |
 
-窗口差 = cycle_count − ticks = 2,319,759（占 cycle_count 0.1%），来自启动代码、串口等待与回读。
+窗口差 = cycle_count − ticks = 2,316,072（占 cycle_count 0.2%），来自启动代码、串口等待与回读。
 
-## 2. RTL 仿真归因（Predictor On / Off，官方 CoreMark 一次迭代）
+## 2. T1：把「剩余 1134 拍」定位到取指握手（**本次优化的起点**）
+
+### 2.1 方法是先建一个与实体板同源的观测台
+
+历史上 RTL 仿真用的是 `tb/ram_adapter.v` / `tb/pipeline_imem_adapter.v`，
+两者的 `req_ready` 策略与响应延迟和板上**不一致**（数据侧多一拍、取指侧允许交接当拍接收），
+所以“仿真 CPI 2.37、板上 CPI 2.34”只能算巧合，不能用来归因。
+
+T1 因此新建：
+
+- `tb/cpi_board_memory_model.v`：与 `fpga/coremark/rtl/coremark_program_memory.v` 的
+  `coremark_imem` / `coremark_dmem` **逐拍一致**的存储器行为模型（含 `ALLOW_HANDOFF` 开关）。
+- `tb/tb_cpi_attribution.v`：**只读**观测台，不改被测 RTL、不改接口，只用分层引用采样
+  `if_req/if_rsp/if_discard/dstate/mem_block/mem_done/exmem_*/id_advance/…` 并逐拍分类统计。
+- 统计窗口与板上同口径：由 `start_time()` 写 `PERF_CONTROL` 产生的 `perf_clear` 脉冲界定。
+
+**口径自证**：观测台窗口 CPI = **2.342**，实体板 = **2.3443**，相差 0.1% —— 归因结论可直接搬到板上。
+
+### 2.2 第一个错误信号：取指通道一半的周期没有请求在场
+
+| 证据（改动前，Predictor On，一次官方迭代） | 值 | 含义 |
+|---|---:|---|
+| 窗口 cycles / retired | 1,788,110 / 763,176 | CPI 2.342 |
+| `i_req_valid` 为低的拍数 | **920,207（51.5%）** | 一半周期取指端口根本没有请求 |
+| `i_req_valid && i_req_ready` 次数 | 844,672 | 每笔取指平均 2.12 拍 |
+| IF/ID 写入次数（非 discard） | 766,004 | 每条指令平均 **2.334 拍**才取到 |
+| 相邻 IF/ID 写入间隔直方图 | 间隔 1：**1 次**；间隔 2：**664,411 次（86.7%）** | 取指只能每两拍一条 |
+| 数据阻塞 `mem_block` | 78,158 拍（4.4%） | 不是主因 |
+| 访存阻塞期间取指响应被扣住 | 23,231 拍 | 放大效应存在但很小 |
+
+### 2.3 根因：`pipeline_cpu.v` 在“请求被接受”的下一拍没有任何请求对外可见
+
+```verilog
+if(if_request_accept) begin
+ if_req<=0; ...; if_rsp<=1; ...          // 接受当拍清掉 if_req
+end
+if(!if_req&&!ex_redirect)begin if_req<=1;if_req_addr_reg<=fetch_pc;...;end  // 要等到下一拍结尾才重新登记
+```
+
+于是时序固定成：T 拍发请求 → T+1 拍**空**（无请求）→ T+2 拍发下一笔请求……
+“旧响应接收 + 新请求接受”的交接永远无法发生。同时实体板取指存储器
+`assign req_ready=!rsp_valid` 在“响应被接收”那一拍也恰好是 0，两边一起把取指钉在 2 拍/条。
+
+**严格对账**（每 1000 条指令，板级口径）：
+
+```text
+cycles 2344.3 = 理想 1000（42.7%） + stall 106.4 + flush 103.3 + 剩余 1134.6（48.4%）
+```
+
+观测台把“剩余 1134.6”拆开：`2 × 766,004 = 1,532,008 拍（占窗口 85.7%）`是取指串行化底座，
+其中超出理想执行的 **768,832 拍（43.0%）纯属取指每两拍一条的损失**；
+`mem_block` 只占 78,158 拍，而且大多正好落在取指空洞里（每笔访存 1 拍阻塞）。
+
+**结论**：T2 候选里的「store 提前退休」「REQ→RSP 压一拍」「访存地址提前产生」都不是主要矛盾；
+唯一值得做的是**恢复 `docs/interfaces.md` §3 已经写明的取指满速交接**。
+
+### 2.4 T2 实施（一轮一块）
+
+| 块 | 内容 | 单独收益（观测台） |
+|---|---|---:|
+| A. SoC 侧取指 ready 策略 | `req_ready` 由 `!rsp_valid` 改为 `!rsp_valid||rsp_ready`（交接当拍可接收新请求） | 2.342 → 2.321（−0.9%，单独无用） |
+| B. Core 侧 `if_arm` | 接受请求当拍立即武装下一笔请求（详见 `docs/rtl_changes.md` 改动 2） | 2.321 → **1.550（−33%）** |
+
+A 单独做**几乎没有收益**，这正好证明瓶颈在 Core 而不在存储器——两者必须一起改才有效，
+因此按同一个逻辑改动记录、分别给出证据。
+
+### 2.5 T1 观测台 Before / After（同源窗口）
+
+| 指标 | 改动前 | 改动后 | 变化 |
+|---|---:|---:|---:|
+| 窗口 cycles | 1,788,110 | **1,191,965** | −33.3% |
+| retired | 763,176 | 768,610 | +0.7% |
+| CPI | 2.342 | **1.550** | −33.8% |
+| `i_req_valid` 为低的拍数 | 920,207（51.5%） | 187,749（15.8%） | — |
+| IF/ID 写入次数 | 766,004 | 847,146 | +10.6% |
+| 相邻写入间隔 = 1 | 1 | **692,507（81.7%）** | 满速取指 |
+| 间隔 = 2 | 664,411 | 46,850 | — |
+| 间隔 = 3 | 23,077 | 28,004 | — |
+| 间隔 = 4 | 2,827 | 77,179 | Redirect 重取 |
+| 间隔 = 5 | 75,534 | 2,606 | — |
+| `mem_block` 拍数 | 78,158 | 79,960 | 与访存次数 1:1 |
+| d_req 接受（load/store） | 78,159 | 79,961（64,283 / 15,677） | 每笔访存正好 1 拍阻塞 |
+| redirect | 78,515 | 78,535 | 不变 |
+| load-use stall | 7,156 | **30,504** | 真实冒险现在被正确检出 |
+| `exmem_busy` | 78,158 | 79,960 | — |
+
+**逐笔取指代价的严格分解**（间隔直方图与总周期精确相等）：
+
+| 项 | 改动前 | 改动后 |
+|---|---:|---:|
+| 窗口 cycles | 1,788,110 | 1,191,965 |
+| 理想（retired × 1） | 763,176 | 768,610 |
+| 取指串行化底座（每笔取指 N 拍，N=2→1） | 1,532,008 | 847,146 |
+| 其中超出理想的部分 | **768,832（43.0%）** | **78,536（6.6%）** |
+| 额外间隔（stall / Redirect 重取） | 256,103（14.3%） | 344,819（28.9%） |
+| 对账 | 1,788,110 ✓ | 1,191,965 ✓ |
+
+即：**取指串行化损失被压掉了 90%**，代价是额外间隔（Redirect 重取与数据阻塞）
+在总周期中的占比从 14.3% 升到 28.9% —— 它们从“藏在取指空洞里”变成“真实花钱”。
+
+## 3. RTL 仿真归因（Predictor On / Off，官方 CoreMark 一次迭代）
 
 命令：`scripts/run_coremark_pipeline_tb.ps1`（On）与 `-DisablePredictor`（Off）
 
-### Predictor On（最终配置）
+| 配置 | cycles | retired | CPI | stall | load-use | flush | mispredict |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Predictor On（改动前） | 1,852,156 | 779,952 | 2.3747 | 176,170 | 19,791 | 81,523 | 51,908 |
+| **Predictor On（改动后）** | **1,295,932** | 783,550 | **1.6539** | 186,129 | 28,489 | 81,562 | 51,947 |
+| Predictor Off（改动前） | 2,106,042 | 775,901 | 2.7143 | n/a | n/a | n/a | 131,903 |
+| **Predictor Off（改动后）** | **1,604,264** | 776,138 | **2.0670** | n/a | n/a | n/a | 132,127 |
 
-| 项目 | 周期数 | CPI 贡献 | 占 cycles |
-|---|---:|---:|---:|
-| 理想执行（retired × 1） | 779,952 | 1.0000 | 42.11% |
-| Hazard stall | 176,170 | 0.2259 | 9.51% |
-| 控制冒险 flush（81,523 次 × 2 拍） | 163,046 | 0.2090 | 8.80% |
-| 其余（访存事务等待/取指交接） | 732,988 | 0.9398 | 39.57% |
-| **合计** | **1,852,156** | **2.3747** | 100.00% |
+- On：cycles −30.0%，CPI −30.4%；Off：cycles −23.8%，CPI −23.8%。
+- BTB 收益（On 相对 Off）由 253,886 拍缩小到 308,332 拍，但**两条基线都整体下移**：
+  BTB 是在更快的基线之上继续省周期。
+- 该仿真用的是 `pipeline_imem_adapter` / `ram_adapter`（非板级同源），
+  因此其 CPI 略高于板级 1.5388；板级同源口径见 §2.5 与 §4。
 
-- load-use stall = 19,791，占全部 stall 的 11.23%
-- 分支事件 = 213,756，taken = 133,273，predict = 213,756，BTB hit = 203,492，mispredict = 51,908
-- 预测命中率 = 95.20%，综合正确率 = 75.72%
+## 4. 板级测量：双频交叉验证
 
-### Predictor Off（Before 基线）
-
-| 项目 | 周期数 | CPI 贡献 | 占 cycles |
-|---|---:|---:|---:|
-| 理想执行（retired × 1） | 775,901 | 1.0000 | 36.84% |
-| 其余（访存事务等待/取指交接） | 1,330,141 | 1.7143 | 63.16% |
-| **合计** | **2,106,042** | **2.7143** | 100.00% |
-
-- mispredict = 131,903
-
-### Predictor Before / After
-
-| 配置 | cycles | retired | CPI | flush | mispredict | flush 周期成本 |
-|---|---:|---:|---:|---:|---:|---:|
-| Predictor Off | 2,106,042 | 775,901 | 2.7143 | n/a | 131,903 | n/a |
-| Predictor On | 1,852,156 | 779,952 | 2.3747 | 81,523 | 51,908 | 163,046 |
-
-BTB 减少 cycles 253,886（12.06%），CPI 从 2.7143 降到 2.3747。
-
-## 3. 板级测量：口径修正与双频交叉验证
-
-### 3.1 为什么必须做窗口对齐
+### 4.1 为什么必须做窗口对齐
 
 板级七项计数器是**自由运行**的：从复位释放一直数到回读时刻。而 `COREMARK_READY` 会先等上位机发 `R` 才开跑，那段轮询是一个紧凑的 load + branch 循环，每个循环都要走统一事务（含访存阻塞），会产生上亿次 stall 与 branch。
 
@@ -71,69 +154,98 @@ BTB 减少 cycles 253,886（12.06%），CPI 从 2.7143 降到 2.3747。
 
 修正方式：在 `software/coremark/core_portme.c` 的 `start_time()` 中加入 `PERF_CONTROL = 1u`（写 perf_mmio CONTROL，offset 0x38），由编译开关 `PERF_WINDOW_ALIGN=1` 控制。清零紧接在读计时器之前，使七项计数器与 `ticks` **同口径**。该语句只改观测口径，不改被测量的执行路径。
 
-### 3.2 对齐后的板级数据（本 JSON）
+### 4.2 板级 Before / After（实体板实测）
 
-| 量 | 值 | 窗口 |
-|---|---:|---|
-| ticks | 1,691,496,677 | CoreMark 计时窗口（`start_time()`→`stop_time()`） |
-| cycle_count | 1,693,816,436 | 同一次清零之后至今 |
-| instret_count | 722,513,265 | 同上 |
-| 窗口差 cycle−ticks | 2,319,759（0.14%） | 对齐残差 |
+| 指标 | 改动前 50 MHz | **改动后 50 MHz** | 改动后 80 MHz PLL |
+|---|---:|---:|---:|
+| Score | 29.559 | **45.051** | **72.081** |
+| CoreMark/MHz x1000 | 591 | **901** | **901** |
+| CPI | 2.3443 | **1.5388** | **1.5387** |
+| ticks | 1,691,496,677 | 1,109,848,679 | 2,774,618,621（2500 iter） |
+| cycle_count | 1,693,816,436 | 1,112,164,751 | 2,778,317,919 |
+| instret_count | 722,513,265 | 722,746,356 | 1,805,613,110 |
+| cycles / iteration | 1,693,816 | 1,112,165 | 1,111,327 |
+| 运行秒数 | 33.829 | 22.196 | 34.682 |
+| stall / cycles | 4.54% | 8.18% | 8.16% |
+| load-use / stall | 9.30% | 23.27% | 23.18% |
+| flush / cycles | 4.41% | 6.71% | 6.71% |
+| branch / instret | 0.275 | 0.2747 | 0.2747 |
+| 官方 CRC | 全过 `0xd340` | 全过 `0xd340` | 全过 `0x5275` |
 
-**板级 CPI = 2.3443**（cycles/instret），cycles/iteration = 1,693,816.4，ticks/iteration = 1,691,496.7。
+### 4.3 板级 CPI 分解（每 1000 条指令，计数器占用口径）
 
-### 3.3 双频交叉验证
+```text
+改动前：2344.3 = 理想 1000（42.7%） + stall 106.4（4.5%） + flush 103.3（4.4%） + 剩余 1134.6（48.4%）
+改动后：1538.8 = 理想 1000（65.0%） + stall 125.9（8.2%） + flush 103.2（6.7%） + 剩余  309.7（20.1%）
+```
 
-同一份 RTL、同一份 CoreMark 源，分别在 50 MHz 与 80 MHz（PLL）上实测：
+- 「剩余」由 1134.6 掉到 309.7（−72.7%），正是 §2 定位到的取指串行化损失，**归因闭环**。
+- 注意这是**事件当拍的占用**口径，不是“每次事件的代价”：
+  flush 74,613 次/迭代各花约 3 拍，真实代价约 20% cycles（见 §2.5 的额外间隔 344,819 拍）。
+- `stall/cycles` 与 `flush/cycles` 占比升高只因分母变小；stall 的绝对量上升
+  （76,919 → 90,967 拍/迭代）是真实 load-use 冒险现在被正确检出（见 `docs/rtl_changes.md` §2.8）。
+
+### 4.4 双频交叉验证
 
 | 指标 | 50 MHz | 80 MHz | 差别 |
 |---|---:|---:|---:|
-| cycles / iteration | 1,693,816 | 1,692,975 | 0.05% |
-| CPI | 2.3443 | 2.3445 | 0.009% |
-| stall / cycles | 4.54% | 4.53% | — |
-| load-use / stall | 9.30% | 9.32% | — |
-| flush / cycles | 4.41% | 4.41% | — |
-| branch / instret | 0.275 | 0.275 | — |
+| cycles / iteration | 1,112,165 | 1,111,327 | 0.075% |
+| CPI | 1.5388 | 1.5387 | 0.006% |
+| stall / cycles | 8.18% | 8.16% | — |
+| load-use / stall | 23.27% | 23.18% | — |
+| flush / cycles | 6.71% | 6.71% | — |
+| branch / instret | 0.2747 | 0.2747 | — |
+| CoreMark/MHz x1000 | 901 | 901 | 0% |
 
-归一化后逐项吻合到 **0.02% 以内**：两个独立频率点互为交叉验证，证明核心性能与频率无关、计数器统计正确。
+两个独立频率点归一化后逐项吻合到 0.08% 以内：核心性能与频率无关、计数器统计正确。
 
-对照 RTL 仿真（Predictor On）：CPI 2.3747、cycles/iteration 1,852,156、stall/cycles 9.51%、flush/cycles 8.80%。板级 CPI 与仿真相差 **1.3%**，说明仿真 memory model 是可信的性能预测工具（差异来自板级 BRAM 实现与仿真零等待模型的细微不同）。
+## 5. 可行动结论：还能再压多少、卡在哪
 
-对齐残差（`cycle_count − ticks`）仅 2,319,759 周期（0.14%），来自启动代码、CoreMark 首次内存初始化与结果回读；对齐前该差值曾达数亿周期。
+以板级 50 MHz 为准，CPI = 1.5388。剩余可压缩空间与门槛：
 
-## 4. 可行动结论
-
-以 RTL 仿真（官方 CoreMark 一次迭代、Predictor On）为准，CPI = 2.3747：
-
-| 损失来源 | CPI 贡献 | 占 cycles | 可行动性 |
+| 损失来源 | 板级规模（每迭代） | 占 cycles | 可行动性 |
 |---|---:|---:|---|
-| Hazard stall | 0.2259 | 9.51% | 其中 load-use 只有 19,791（占 stall 11.23%），其余是访存阻塞——与下一行同源 |
-| 控制冒险 flush | 0.2090 | 8.80% | 81,523 次跳转 × 2 拍；BTB 已把 mispredict 从 131,903 降到 51,908 |
-| 访存事务等待 | 0.9398 | 39.57% | **最大单项**：每次数据访问固定多 2 拍握手，改为「请求即应答」可省 1 拍/次 |
-| 理想执行 | 1.0000 | 42.11% | 不可压缩 |
+| 理想执行 | 722,746 拍 | 65.0% | 不可压缩（每指令至少 1 拍） |
+| 正确预测的跳转仍被 Redirect | 约 28,500 次 × 3 拍 ≈ 85,500 拍 | ≈ 7.7% | **候选 A，收益最大**：`ex_redirect` 对 `idex_jump` 无条件成立 |
+| 数据访问固定 1 拍阻塞 | 79,960 拍 | 7.2% | 候选 B：需把 `mem_block` 与取指重叠，改动 hazard/提交时序，风险高 |
+| load-use 气泡 | 已含在 stall 90,967 拍内（23%） | 1.9% | 需要 MEM→EX 转发或 1 拍前递，属流水线主体改造 |
+| control-mispredict | 50,022 次 × 3 拍 ≈ 150,000 拍 | 13.5% | 需要更大/更准的预测器（16 项 BTB 已饱和），属增强项 |
 
-访存相关合计 889,367 拍 = 48.02% cycles （1.1403 CPI）。
+**下一轮建议**：候选 A（“BTB 对 jump 恒 taken” + “正确预测不 Redirect”），
+预期 CPI 1.5388 → 约 1.42、Score 45.05 → 约 48.8。理由、前置条件与风险见
+`docs/rtl_changes.md`「下一轮候选」。
 
-**实体板印证**：50/80 MHz 两点 `stall/cycles` 为 4.54% / 4.53%，其中 load-use 只占 stall 的 9.30% / 9.32%，即 **90.7% 的 stall 不是 load-use**，同样指向数据事务的固定握手开销，而不是 Hazard 逻辑。
+**当前门槛**：90 MHz 以上的瓶颈已回到流水线本体
+（`core/rf/regs` → ALU → 预测校验 → `core/*_pc`），不是本次改动的取指链
+（取指链在 80 MHz 仍有 +0.667 ns 余量）。CPI 侧的门槛则是“每指令取指 1 拍 + 每指令提交 1 拍”
+这条硬底，以及 3 拍/次的 Redirect 代价。
 
-**因此下一轮唯一值得做的大项是数据事务握手流水化**：把 `pipeline_cpu.v` 里 `dstate` 的 REQ→RSP 两拍握手压成一拍（`d_req_ready` 恒为可接收，请求当拍即可应答），估计可回收约一半访存开销，即 **CPI 约 −0.4（约 −17%）**，直接提高 Score 第 (1) 项。风险与工作量显著高于本轮 perf 计数器打拍（要改流水线访存时序与 hazard 语义），必须独立一轮做 Before/After 并重跑 Task 23/24 全套 + 提交级 trace + 实体板 CoreMark。
+## 6. 历史结论（改动 1：`perf_monitor.v` 事件打一拍）
 
-## 5. 本轮已落地的优化与 CPI 关系
+`rtl/perf_monitor.v` 事件打一拍**不改变任何架构行为**，因此 CPI / CoreMark 分数不变；
+它的收益全部体现在 Fmax：最差 10 条路径中 `perf/flush_count` 终点由 8 条降为 0 条、
+逻辑级数 26 → 21、85 MHz 的 WNS 由 +0.005 ns 提升到 +0.246 ns（见 `docs/performance_tuning.md`）。
+实体板也已证实：该改动前后 50 MHz 位流的 Score 均为 **29.559**、CPI 均为 **2.3443**。
+**提 Score 必须降 CPI，提频率只服务于独立的「时钟频率」计分项。**
 
-本轮 RTL 改动（`rtl/perf_monitor.v` 事件打一拍）**不改变任何架构行为**，因此 CPI / CoreMark 分数不变；它的收益全部体现在 Fmax：最差 10 条路径中 `perf/flush_count` 终点由 8 条降为 0 条、逻辑级数 26 → 21、85 MHz 的 WNS 由 +0.005 ns 提升到 +0.246 ns（见 `docs/performance_tuning.md`）。
-
-实体板已证实这一点：优化后 50 MHz 位流的 Score 仍为 **29.559**、CPI **2.3443**，与优化前一致；而在 80 MHz PLL 下 Score 为 **47.295**、`CoreMark/MHz` 仍是 **0.591**——**提 Score 必须降 CPI，提频率只服务于独立的「时钟频率」计分项**。
-
-## 6. 复现方式
+## 7. 复现方式
 
 ```powershell
+# T1 归因观测台（与实体板同源存储器时序；-AllowHandoff 为改动后配置）
+& '<pwsh7>' -NoProfile -File scripts\run_cpi_attribution_tb.ps1 -AllowHandoff
+& '<pwsh7>' -NoProfile -File scripts\run_cpi_attribution_tb.ps1          # 改动前配置（无交接）
+
+# 官方 CoreMark RTL 仿真（Predictor On / Off）
 & '<pwsh7>' -NoProfile -File scripts\run_coremark_pipeline_tb.ps1
 & '<pwsh7>' -NoProfile -File scripts\run_coremark_pipeline_tb.ps1 -DisablePredictor
+
+# 板级同源存储器模型的官方 CRC 自检
+& '<pwsh7>' -NoProfile -File scripts\run_coremark_fpga_tb.ps1
+
 # 板级采集（必须用 PERF_WINDOW_ALIGN=1 的镜像，否则计数器窗口被 UART 轮询污染）
 D:\Python313\python.exe python\coremark_serial.py COM11 --clock-hz 50000000 `
-  --output release\evidence\coremark_uart_opt50m_aligned.log `
-  --summary release\evidence\coremark_board_opt50m_aligned.json
+  --output release\evidence\coremark_uart_cpi50m.log `
+  --summary release\evidence\coremark_board_cpi50m.json
 D:\Python313\python.exe python\coremark_cpi_analysis.py `
-  --board release/evidence/coremark_board_opt50m_aligned.json
+  --board release/evidence/coremark_board_cpi50m.json
 ```
-

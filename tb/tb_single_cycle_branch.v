@@ -6,9 +6,9 @@ module tb_single_cycle_branch;
     integer failures;
     integer i;
 
-    task15_core_harness #(
+    core_harness #(
         .IMEM_DEPTH(30),
-        .IMEM_INIT_FILE("tb/data/task12_branch.mem")
+        .IMEM_INIT_FILE("tb/data/branch.mem")
     ) dut (
         .clk(clk),
         .reset(reset)

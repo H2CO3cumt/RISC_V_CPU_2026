@@ -1,0 +1,111 @@
+Designs:
+1. D:/RISC_V_CPU_2026/rtl/pipeline_cpu.v
+Size: 14438bytes
+Last modified time: 2026/09/17 19:19:38
+2. D:/RISC_V_CPU_2026/rtl/branch_predictor.v
+Size: 2300bytes
+Last modified time: 2026/09/16 15:16:10
+3. D:/RISC_V_CPU_2026/rtl/forward_unit.v
+Size: 1266bytes
+Last modified time: 2026/09/14 13:02:44
+4. D:/RISC_V_CPU_2026/rtl/hazard_unit.v
+Size: 1298bytes
+Last modified time: 2026/09/14 13:07:41
+5. D:/RISC_V_CPU_2026/rtl/perf_monitor.v
+Size: 3522bytes
+Last modified time: 2026/09/17 15:24:54
+6. D:/RISC_V_CPU_2026/rtl/perf_mmio.v
+Size: 2698bytes
+Last modified time: 2026/09/16 15:20:47
+7. D:/RISC_V_CPU_2026/rtl/regfile.v
+Size: 437bytes
+Last modified time: 2026/09/03 18:20:26
+8. D:/RISC_V_CPU_2026/rtl/alu.v
+Size: 1059bytes
+Last modified time: 2026/09/16 15:14:28
+9. D:/RISC_V_CPU_2026/rtl/imm_gen.v
+Size: 1077bytes
+Last modified time: 2026/09/04 16:53:34
+10. D:/RISC_V_CPU_2026/rtl/decoder.v
+Size: 8391bytes
+Last modified time: 2026/09/12 15:07:15
+11. D:/RISC_V_CPU_2026/rtl/branch_unit.v
+Size: 666bytes
+Last modified time: 2026/09/07 14:03:26
+12. D:/RISC_V_CPU_2026/rtl/load_store_unit.v
+Size: 4011bytes
+Last modified time: 2026/09/07 16:09:20
+13. D:/RISC_V_CPU_2026/rtl/soc_data_interconnect.v
+Size: 7060bytes
+Last modified time: 2026/09/16 20:17:03
+14. D:/RISC_V_CPU_2026/rtl/uart_tx.v
+Size: 3854bytes
+Last modified time: 2026/09/14 16:24:25
+15. D:/RISC_V_CPU_2026/rtl/uart_rx.v
+Size: 3799bytes
+Last modified time: 2026/09/13 14:29:51
+16. D:/RISC_V_CPU_2026/rtl/uart_mmio.v
+Size: 7310bytes
+Last modified time: 2026/09/13 14:32:38
+17. D:/RISC_V_CPU_2026/rtl/gpio_mmio.v
+Size: 2796bytes
+Last modified time: 2026/09/13 13:34:49
+18. D:/RISC_V_CPU_2026/fpga/task29_coremark_ila/rtl/coremark_program_memory.v
+Size: 2884bytes
+Last modified time: 2026/09/17 20:42:14
+19. D:/RISC_V_CPU_2026/fpga/task29_coremark_ila/rtl/mes50hp_coremark_ila_top.v
+Size: 85bytes
+Last modified time: 2026/09/15 21:50:36
+20. D:/RISC_V_CPU_2026/fpga/task29_coremark_ila/ip/coremark_ila/rtl/ips_dbc_cfg_reg_file_v1_0.v
+Size: 4823bytes
+Last modified time: 2025/12/20 14:29:32
+21. D:/RISC_V_CPU_2026/fpga/task29_coremark_ila/ip/coremark_ila/rtl/ips_dbc_compare_256b_v1_0.v
+Size: 21418bytes
+Last modified time: 2025/12/20 14:29:32
+22. D:/RISC_V_CPU_2026/fpga/task29_coremark_ila/ip/coremark_ila/rtl/ips_dbc_data_capture_mem_v1_1.v
+Size: 4434bytes
+Last modified time: 2025/12/20 14:29:32
+23. D:/RISC_V_CPU_2026/fpga/task29_coremark_ila/ip/coremark_ila/rtl/ips_dbc_debug_core_v1_4.v
+Size: 214157bytes
+Last modified time: 2025/12/20 14:29:32
+24. D:/RISC_V_CPU_2026/fpga/task29_coremark_ila/ip/coremark_ila/rtl/ips_dbc_hub_decode_v1_3.v
+Size: 18481bytes
+Last modified time: 2025/12/20 14:29:32
+25. D:/RISC_V_CPU_2026/fpga/task29_coremark_ila/ip/coremark_ila/rtl/ips_dbc_rd_addr_gen_v1_4.v
+Size: 16921bytes
+Last modified time: 2025/12/20 14:29:32
+26. D:/RISC_V_CPU_2026/fpga/task29_coremark_ila/ip/coremark_ila/rtl/ips_dbc_storage_condition_v1_3.v
+Size: 35322bytes
+Last modified time: 2025/12/20 14:29:32
+27. D:/RISC_V_CPU_2026/fpga/task29_coremark_ila/ip/coremark_ila/rtl/ips_dbc_storage_qualification_v1_2.v
+Size: 11121bytes
+Last modified time: 2025/12/20 14:29:32
+28. D:/RISC_V_CPU_2026/fpga/task29_coremark_ila/ip/coremark_ila/rtl/ips_dbc_trig_unit_v1_3.v
+Size: 28952bytes
+Last modified time: 2025/12/20 14:29:32
+29. D:/RISC_V_CPU_2026/fpga/task29_coremark_ila/ip/coremark_ila/rtl/ips_dbc_trigger_condition_v1_3.v
+Size: 18916bytes
+Last modified time: 2025/12/20 14:29:32
+30. D:/RISC_V_CPU_2026/fpga/task29_coremark_ila/ip/coremark_ila/rtl/ips_dbc_trigger_output_v1_2.v
+Size: 8518bytes
+Last modified time: 2025/12/20 14:29:32
+31. D:/RISC_V_CPU_2026/fpga/task29_coremark_ila/ip/coremark_ila/coremark_ila.v
+Size: 34197bytes
+Last modified time: 2026/09/17 20:42:17
+32. D:/RISC_V_CPU_2026/fpga/task29_coremark_ila/ip/coremark_jtag_hub/rtl/ips_jtag_hub_v1_5.v
+Size: 18919bytes
+Last modified time: 2025/12/20 14:29:32
+33. D:/RISC_V_CPU_2026/fpga/task29_coremark_ila/ip/coremark_jtag_hub/coremark_jtag_hub.v
+Size: 3500bytes
+Last modified time: 2026/09/17 20:42:33
+
+Constraints:
+1. D:/RISC_V_CPU_2026/fpga/task29_coremark_ila/constraints/mes50hp_coremark_ila.fdc
+Size: 2400bytes
+Last modified time: 2026/09/14 22:04:49
+
+Physical Constraint Editor (Post-Map):
+1. D:/RISC_V_CPU_2026/fpga/task29_coremark_ila/device_map/mes50hp_coremark_top.pcf
+Size: 724bytes
+Last modified time: 2026/09/17 20:43:15
+

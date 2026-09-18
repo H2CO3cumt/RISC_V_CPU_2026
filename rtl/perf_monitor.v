@@ -2,7 +2,7 @@
 // 或外设状态；SoC 若需要软件读取，可在外部把这些只读计数器映射为寄存器。
 //
 // 【T3-1 优化：事件打一拍再做累加】
-// 为什么改：task28/task30 布局布线后最差 setup 路径全部是
+// 为什么改：CoreMark/逻辑分析仪 布局布线后最差 setup 路径全部是
 // `core/rf/regs/iGopDrm -> core/exalu -> ex_result -> N161.eq_* (16 级相等比较)
 // -> N164/perf_mispredict -> N172/perf_flush (fanout=46) -> flush_count[24..60]
 // 的 10 级进位链`，26 级逻辑、arrival 22.789 ns、slack +1.805 ns（50 MHz 约束）。

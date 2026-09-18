@@ -21,12 +21,12 @@ $pds = Join-Path $PdsRoot 'bin/pds_shell.exe'
 if(-not (Test-Path -LiteralPath $pds)){throw "PDS not found: $pds"}
 $env:PANGO_LICENSE_FILE = (Resolve-Path -LiteralPath $LicenseFile).Path
 $fpgas = Join-Path $SweepRoot 'fpga'
-$template = Join-Path $fpgas 'task28_coremark_f050'
+$template = Join-Path $fpgas 'coremark_f050'
 if(-not (Test-Path -LiteralPath $template)){throw "Template project missing: $template"}
 $jobs=@()
 foreach($p in $sweepPeriods){
   $mhz = [int][Math]::Round(1000.0/$p)
-  $nm = 'task28_coremark_{0}{1}' -f $Tag,([int][Math]::Round(1000000.0/$p)).ToString('00000')
+  $nm = 'coremark_{0}{1}' -f $Tag,([int][Math]::Round(1000000.0/$p)).ToString('00000')
   $d = Join-Path $fpgas $nm
   if(Test-Path -LiteralPath $d){Remove-Item -LiteralPath $d -Recurse -Force}
   New-Item -ItemType Directory -Path $d -Force | Out-Null

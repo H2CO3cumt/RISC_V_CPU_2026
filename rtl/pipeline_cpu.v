@@ -14,7 +14,7 @@ module pipeline_cpu #(
  output wire event_predict,output wire event_btb_hit,output wire event_mispredict,
  output wire event_illegal,output wire event_misaligned,output wire event_bus_error);
 
- reg [31:0] fetch_pc,fetch_req_pc,if_req_addr_reg; reg if_req,if_rsp,if_discard,if_req_discard;
+ reg [31:0] fetch_pc,fetch_req_pc,if_req_addr_reg; reg if_req,if_arm,if_rsp,if_discard,if_req_discard;
  reg if_req_pred_hit,if_req_pred_taken,fetch_req_pred_hit,fetch_req_pred_taken;
  reg [31:0] if_req_pred_target,fetch_req_pred_target;
  reg ifid_valid,ifid_pred_hit,ifid_pred_taken,ifid_error; reg [31:0] ifid_pc,ifid_inst,ifid_pred_target;
@@ -70,6 +70,18 @@ module pipeline_cpu #(
   .clk(clk),.reset(reset),.enable(ENABLE_BRANCH_PREDICTOR!=0),
   .query_pc(fetch_pc),.query_hit(predictor_hit),.predicted_taken(predictor_taken),.predicted_target(predictor_target),
   .update_valid(branch_resolve),.update_pc(idex_pc),.update_taken(branch_taken),.update_target(ex_target));
+ // 取指请求的展示形式有两种，二者在对外语义上完全等价（都是一个单 outstanding 的取指事务）：
+ //  - if_req：请求已冻结在 if_req_addr_reg 中，等待下游 ready；
+ //  - if_arm：刚刚接受完上一笔请求，本拍直接用已经寄存的 fetch_pc 展示下一笔请求。
+ // if_arm 的存在是为了消除“接受后一拍没有请求在场”的空洞：旧请求的响应在 T 拍被接收时，
+ // 新请求已经在本拍展示，因此可以在同一拍完成“旧响应接收 + 新请求接受”的交接，
+ // 达到 docs/interfaces.md §3 要求的每拍一条连续取指。展示地址直接来自 fetch_pc 寄存器，
+ // 不引入额外的地址寄存级，因此不改变“valid 且 !ready 时地址保持稳定”的契约。
+ wire if_present=if_req||if_arm;
+ wire [31:0] if_present_addr=if_req?if_req_addr_reg:fetch_pc;
+ wire if_present_pred_hit=if_req?if_req_pred_hit:predictor_hit;
+ wire if_present_pred_taken=if_req?if_req_pred_taken:predictor_taken;
+ wire [31:0] if_present_pred_target=if_req?if_req_pred_target:predictor_target;
  // A held EX/MEM entry owns the external request.  Once accepted, valid drops
  // while the entry remains until the one matching response is consumed.
  assign d_req_valid=exmem_valid&&exmem_access&&!ls_misaligned&&(dstate==D_REQ);
@@ -83,10 +95,11 @@ module pipeline_cpu #(
  wire ifid_available=!ifid_valid||id_advance||ex_redirect;
  assign i_rsp_ready=if_rsp&&!mem_block&&(if_discard||ex_redirect||ifid_available);
  wire if_accept=i_rsp_valid&&i_rsp_ready;
- // if_req 一旦对外可见，即使随后发生 Stall/Redirect 也不能撤回；Redirect
- // 只把该请求标成错误路径，待其正常握手并返回后丢弃。
- assign i_req_valid=if_req&&(!if_rsp||if_accept);
- assign i_req_addr=if_req_addr_reg;
+ // if_req/if_arm 一旦对外可见，即使随后发生 Stall/Redirect 也不能撤回；Redirect
+ // 只把该请求标成错误路径，待其正常握手并返回后丢弃。因此只有在下游明确
+ // 未接收（!if_accept 且无 if_rsp 未完成响应）时才允许展示新请求。
+ assign i_req_valid=if_present&&(!if_rsp||if_accept);
+ assign i_req_addr=if_present_addr;
  wire if_request_accept=i_req_valid&&i_req_ready;
  wire front_hold=mem_block||load_use;
  assign event_stall=front_hold; assign event_load_stall=load_use&&!mem_block; assign event_branch=branch_resolve; assign event_branch_taken=branch_resolve&&branch_taken; assign event_flush=ex_redirect;
@@ -96,7 +109,7 @@ module pipeline_cpu #(
  assign event_bus_error=(if_accept&&i_rsp_error)||(mem_done&&exmem_access&&!ls_misaligned&&d_rsp_error);
 
  always @(posedge clk) begin
-  if(reset) begin fetch_pc<=0;fetch_req_pc<=0;if_req_addr_reg<=0;if_req<=0;if_rsp<=0;if_discard<=0;if_req_discard<=0;if_req_pred_hit<=0;if_req_pred_taken<=0;if_req_pred_target<=0;fetch_req_pred_hit<=0;fetch_req_pred_taken<=0;fetch_req_pred_target<=0;ifid_valid<=0;ifid_pred_hit<=0;ifid_pred_taken<=0;ifid_pred_target<=0;ifid_error<=0;idex_valid<=0;idex_pred_hit<=0;idex_pred_taken<=0;idex_pred_target<=0;idex_error<=0;exmem_valid<=0;exmem_error<=0;dstate<=D_IDLE;memwb_valid<=0; end else begin
+  if(reset) begin fetch_pc<=0;fetch_req_pc<=0;if_req_addr_reg<=0;if_req<=0;if_arm<=0;if_rsp<=0;if_discard<=0;if_req_discard<=0;if_req_pred_hit<=0;if_req_pred_taken<=0;if_req_pred_target<=0;fetch_req_pred_hit<=0;fetch_req_pred_taken<=0;fetch_req_pred_target<=0;ifid_valid<=0;ifid_pred_hit<=0;ifid_pred_taken<=0;ifid_pred_target<=0;ifid_error<=0;idex_valid<=0;idex_pred_hit<=0;idex_pred_taken<=0;idex_pred_target<=0;idex_error<=0;exmem_valid<=0;exmem_error<=0;dstate<=D_IDLE;memwb_valid<=0; end else begin
    // WB is single-cycle: a retired valid record must not be replayed.
    memwb_valid<=0;
    if(mem_done) begin memwb_valid<=exmem_valid; memwb_pc<=exmem_pc;memwb_inst<=exmem_inst;memwb_alu<=exmem_alu;memwb_imm<=exmem_imm;memwb_rd<=exmem_rd;memwb_result<=exmem_result;memwb_regwrite<=exmem_regwrite;memwb_memwrite<=exmem_memwrite;memwb_sdata<=ls_store;memwb_wstrb<=ls_wstrb;memwb_mem<=ls_load;memwb_error<=exmem_error||(exmem_access&&(ls_misaligned||d_rsp_error)); end
@@ -111,16 +124,21 @@ module pipeline_cpu #(
    if(exmem_valid&&exmem_access) begin if(dstate==D_REQ&&d_req_ready)dstate<=D_RSP; if(dstate==D_RSP&&d_rsp_valid&&d_rsp_ready)dstate<=D_IDLE; end
    if(!mem_block) begin
     if(mem_done||!exmem_valid) begin exmem_valid<=idex_valid;exmem_error<=idex_error;exmem_pc<=idex_pc;exmem_inst<=idex_inst;exmem_alu<=ex_result;exmem_store<=srcb0;exmem_imm<=idex_imm;exmem_rd<=idex_rd;exmem_f3<=idex_f3;exmem_regwrite<=idex_regwrite;exmem_memread<=idex_memread;exmem_memwrite<=idex_memwrite;exmem_result<=idex_result;if(idex_valid&&(idex_memread||idex_memwrite))dstate<=D_REQ; end
-    if(ex_redirect) begin idex_valid<=0;ifid_valid<=0;fetch_pc<=redirect_pc;if(if_rsp&&!if_accept)if_discard<=1;if(if_req)if_req_discard<=1; end else if(load_use) begin idex_valid<=0; end else begin idex_valid<=ifid_valid; idex_error<=ifid_error||dec_illegal;idex_pc<=ifid_pc;idex_inst<=ifid_inst;idex_a<=id_a;idex_b<=id_b;idex_imm<=dec_imm;idex_rs1<=dec_rs1;idex_rs2<=dec_rs2;idex_rd<=dec_rd;idex_f3<=dec_f3;idex_pred_hit<=ifid_pred_hit;idex_pred_taken<=ifid_pred_taken;idex_pred_target<=ifid_pred_target;idex_regwrite<=dec_rw&&!dec_illegal;idex_memread<=dec_mr&&!dec_illegal;idex_memwrite<=dec_mw&&!dec_illegal;idex_branch<=dec_br&&!dec_illegal;idex_jump<=dec_jmp&&!dec_illegal;idex_jalr<=dec_jalr&&!dec_illegal;idex_asa<=dec_asa;idex_asb<=dec_asb;idex_alu<=dec_alu;idex_result<=dec_result;ifid_valid<=0; end
+    if(ex_redirect) begin idex_valid<=0;ifid_valid<=0;fetch_pc<=redirect_pc;if(if_rsp&&!if_accept)if_discard<=1;if(if_arm&&!if_request_accept)begin if_req<=1;if_req_addr_reg<=fetch_pc;if_req_pred_hit<=predictor_hit;if_req_pred_taken<=predictor_taken;if_req_pred_target<=predictor_target;end if(if_arm)if_arm<=0;if(if_req||if_arm)if_req_discard<=1; end else if(load_use) begin idex_valid<=0; end else begin idex_valid<=ifid_valid; idex_error<=ifid_error||dec_illegal;idex_pc<=ifid_pc;idex_inst<=ifid_inst;idex_a<=id_a;idex_b<=id_b;idex_imm<=dec_imm;idex_rs1<=dec_rs1;idex_rs2<=dec_rs2;idex_rd<=dec_rd;idex_f3<=dec_f3;idex_pred_hit<=ifid_pred_hit;idex_pred_taken<=ifid_pred_taken;idex_pred_target<=ifid_pred_target;idex_regwrite<=dec_rw&&!dec_illegal;idex_memread<=dec_mr&&!dec_illegal;idex_memwrite<=dec_mw&&!dec_illegal;idex_branch<=dec_br&&!dec_illegal;idex_jump<=dec_jmp&&!dec_illegal;idex_jalr<=dec_jalr&&!dec_illegal;idex_asa<=dec_asa;idex_asb<=dec_asb;idex_alu<=dec_alu;idex_result<=dec_result;ifid_valid<=0; end
    end
    if(if_accept) begin if_rsp<=0;if(if_discard||ex_redirect)if_discard<=0;else begin ifid_valid<=1;ifid_error<=i_rsp_error;ifid_pc<=fetch_req_pc;ifid_inst<=i_rsp_error?0:i_rsp_data;ifid_pred_hit<=fetch_req_pred_hit;ifid_pred_taken<=fetch_req_pred_taken;ifid_pred_target<=fetch_req_pred_target;end end
    if(if_request_accept) begin
-    if_req<=0;fetch_req_pc<=if_req_addr_reg;fetch_req_pred_hit<=if_req_pred_hit;fetch_req_pred_taken<=if_req_pred_taken;fetch_req_pred_target<=if_req_pred_target;if_rsp<=1;
+    if_req<=0;if_arm<=0;fetch_req_pc<=if_present_addr;fetch_req_pred_hit<=if_present_pred_hit;fetch_req_pred_taken<=if_present_pred_taken;fetch_req_pred_target<=if_present_pred_target;if_rsp<=1;
     if(if_req_discard||ex_redirect)begin if_discard<=1;if_req_discard<=0;end
-    else fetch_pc<=if_req_pred_taken?if_req_pred_target:(if_req_addr_reg+4);
+    else begin
+     fetch_pc<=if_present_pred_taken?if_present_pred_target:(if_present_addr+4);
+     // 关键：请求被接收的当拍立刻武装下一笔请求，使下一拍直接以 fetch_pc 展示它。
+     // 这样“旧响应被接收”的那一拍同时就是“新请求被接收”的那一拍，取指达到每拍一条。
+     if_arm<=1;
+    end
    end
-   // 在旧事务等待响应期间预登记下一 PC；真正的 valid 仅在旧响应完成时放行。
-   if(!if_req&&!ex_redirect)begin if_req<=1;if_req_addr_reg<=fetch_pc;if_req_pred_hit<=predictor_hit;if_req_pred_taken<=predictor_taken;if_req_pred_target<=predictor_target;if_req_discard<=0;end
+   // 冷启动/Redirect 后的重新登记：没有请求在场时，下一拍用 fetch_pc 建立请求。
+   if(!if_req&&!if_arm&&!ex_redirect)begin if_req<=1;if_req_addr_reg<=fetch_pc;if_req_pred_hit<=predictor_hit;if_req_pred_taken<=predictor_taken;if_req_pred_target<=predictor_target;if_req_discard<=0;end
   end
  end
  assign trace_valid=wb_fire;assign trace_error=wb_fire&&memwb_error;assign trace_pc=wb_fire?memwb_pc:0;assign trace_instruction=wb_fire?memwb_inst:0;assign trace_rd_we=wb_fire&&memwb_regwrite&&!memwb_error&&memwb_rd!=0;assign trace_rd_addr=trace_rd_we?memwb_rd:0;assign trace_rd_data=trace_rd_we?wb_value:0;assign trace_mem_we=wb_fire&&memwb_memwrite&&!memwb_error;assign trace_mem_addr=trace_mem_we?memwb_alu:0;assign trace_mem_data=trace_mem_we?memwb_sdata:0;assign trace_mem_wstrb=trace_mem_we?memwb_wstrb:0;

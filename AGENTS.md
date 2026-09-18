@@ -136,6 +136,7 @@ RISC-V 基础 -> RV32I ISA -> 单周期模块 -> 单周期 CPU
 - 开发 Gate 和验收条件以 `docs/roadmap.md` 为准。
 - MES50HP 的器件、时钟、Reset、有效电平、UART、J8、PMOD 和约束纪律以 `docs/fpga_platform.md` 为准。
 - CoreMark 关键循环的 ILA 波形、CPI 分解和资源/时序数据必须形成可提交的性能分析材料。
+- 学习者掌握工程的阅读与追问计划写入 `docs/learning_plan.md`；该文件只记录学习进度与自检结果，不作为项目完成度证据，也不得替代 `docs/progress.md`。
 - 不得将历史聊天作为唯一项目记录。
 
 ## 11. 协作与变更要求

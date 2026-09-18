@@ -7,7 +7,7 @@
 
 ## 1. ISA 与软件约束
 
-- 处理器目标固定为 RISC-V Unprivileged ISA `v20240411` 的 RV32I Base Integer ISA `Version 2.1`；本届仅实现本文件和 `docs/task12_instruction_coverage.md` 明确的范围。
+- 处理器目标固定为 RISC-V Unprivileged ISA `v20240411` 的 RV32I Base Integer ISA `Version 2.1`；本届仅实现本文件和 `docs/rv32i_instruction_coverage.md` 明确的范围。
 - GCC 固定使用 `-march=rv32i -mabi=ilp32`；Windows 当前采用 xPack `riscv-none-elf-` 前缀，并通过 `RISCV_PREFIX` 引用。优化级别、链接选项和 `libgcc` 使用情况随测试镜像一并记录。
 - 未声明支持 `M`、`C` 或其他扩展；反汇编出现相关指令时不得由 Testbench 或软件静默绕过。
 - 非对齐访问、`FENCE`、`ECALL`、`EBREAK` 等行为在 Task 12 的指令覆盖表中明确。
@@ -92,6 +92,26 @@
 
 Task 18 只冻结以上结构和时序边界。现有候选 RTL 中的 Forwarding、Load-Use Stall 和 Flush 控制不得提前宣称通过；这些功能分别由 Task 20、21、22 的独立定向回归验收。
 
+### 5.2 取指满速交接约定（2026-09-17 CPI 专项冻结）
+
+`docs/interfaces.md` §3 早已要求「流水线 IF 允许在旧取指响应完成握手的同一拍接受下一请求，
+以支持一拍一条的连续取指」。CPI 专项实测发现原实现**没有做到**：请求被接受的下一拍没有任何请求对外可见，
+每笔取指固定占 2 拍，CPI 被钉在 2.34（见 `docs/coremark_cpi_analysis.md` §2、`docs/rtl_changes.md` 改动 2）。
+
+现在冻结如下约定，后续任何 IF 改动都必须保持：
+
+1. **Core 侧**：接受一笔取指请求的**当拍**就必须武装下一笔请求（`if_arm`），使下一拍
+   （即旧响应被接收的那一拍）新请求已经在场，可以同拍完成“旧响应接收 + 新请求接受”的交接。
+2. **SoC 侧**：取指存储器的 `req_ready` 必须允许在“响应被接收”的同一拍接收新请求
+   （`!rsp_valid||rsp_ready`）；交接当拍 `rsp_valid` 保持为 1、`rsp_data` 换成新请求的数据。
+3. **单 outstanding 语义不变**：`*_ready` 策略保证“存在未完成、未被接收的响应时下游不接受新请求”，
+   任意时刻仍然只有一笔未完成事务。
+4. **字段稳定不变**：`valid && !ready` 时请求地址必须保持；因此 `if_arm` 的展示地址直接取自
+   `fetch_pc` 寄存器（不新增寄存级），Redirect 当拍先把在场请求冻结进 `if_req_addr_reg` 再改 `fetch_pc`。
+5. **数据端口不需要该策略**：`dstate`（`D_IDLE/D_REQ/D_RSP`）已把数据事务串行化，没有交接场景。
+
+这组约定属于 Core 内部时序 + Core 外部 adapter 的 ready 策略，**不改变任何端口、事务字段或 trace 语义**。
+
 ## 6. 本届评分范围、高阶功能与删减边界
 
 - 评分主线及取舍以 `docs/competition_scoring.md` 为准：完整 RV32I、五级流水线与 Hazard、UART/GPIO、CoreMark 三项性能指标、实际应用、ILA 分析和规范材料全部为 P0。
@@ -118,6 +138,6 @@ Task 18 只冻结以上结构和时序边界。现有候选 RTL 中的 Forwardin
 - `application_mmio_mux` 将通用 Application 窗口分为性能计数器 `0x1000_2000..0x1000_20FF` 和逻辑分析仪 `0x1000_2100..0x1000_21FF`。两个设备均以单 outstanding `valid/ready` 响应，地址在设备接受请求时转成本地 offset。
 - 逻辑分析仪读取采用显式 `READ_INDEX` + `READ_DATA`，不使用读后自增 side effect；因此随机响应背压不会重复或跳过样本。
 - MES50HP 应用顶层的 `capture_ch`/`loopback_tx`、UART、LED 和内部上电复位均为 Core 外部板级端口。软件只访问普通 MMIO，Pipeline Core 源文件与基础 SoC 复用不变。
-- PDS 顶层使用同步数组和固定深度 `.mem` 初始化 Task 30 IMEM/DMEM，PDS 将其映射到 DRM；`TASK30_SIM` 只改变相对文件路径，不改变存储器时序。正式固件为 `AUTOSTART=0` 的 UART 交互版本。
+- PDS 顶层使用同步数组和固定深度 `.mem` 初始化 Task 30 IMEM/DMEM，PDS 将其映射到 DRM；`LOGIC_ANALYZER_SIM` 只改变相对文件路径，不改变存储器时序。正式固件为 `AUTOSTART=0` 的 UART 交互版本。
 - `logic_analyzer_pattern_gen` 位于 Core 外，产生静态、计数器、UART 8N1 或 SPI mode 0 激励并送往 J8。采样输入也来自 J8 的相邻输入脚，实体演示用 8 根跳线逐对闭合输出/输入脚。
 - Task 28 CoreMark 将 8192-word IMEM、4096-word只读数据和4096-word运行 RAM 分离成同步初始化 DRM。上电等待 `R` 再进入计时区间，避免串口连接延迟进入 CoreMark 时间。

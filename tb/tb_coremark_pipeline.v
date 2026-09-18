@@ -82,7 +82,7 @@ module tb_coremark_pipeline;
   .uart_rsp_error(uart_se),.gpio_rsp_valid(gpio_sv),.gpio_rsp_ready(gpio_sr),
   .gpio_rsp_rdata(gpio_rd),.gpio_rsp_error(gpio_se),.app_rsp_valid(app_sv),
   .app_rsp_ready(app_sr),.app_rsp_rdata(app_rd),.app_rsp_error(app_se));
- task15_ram_adapter #(.DEPTH(16384),
+ ram_adapter #(.DEPTH(16384),
   .INIT_FILE("software/coremark/build/coremark_dmem.mem"),
   .RANDOM_DELAY(RANDOM_DELAY)) ram(
   .clk(clk),.reset(reset),.req_valid(ram_v),.req_ready(ram_r),.req_addr(ta),

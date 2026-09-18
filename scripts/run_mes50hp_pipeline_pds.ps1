@@ -23,15 +23,15 @@ if(-not $env:PANGO_LICENSE_FILE){
   }}
 }
 if(-not $env:PANGO_LICENSE_FILE){Write-Warning 'PANGO_LICENSE_FILE is unset and no standard Pango license path was discovered; PDS will report Flow-0183.'}
-$projectDir=(Resolve-Path (Join-Path $PSScriptRoot '../fpga/task26_pipeline_soc')).Path
+$projectDir=(Resolve-Path (Join-Path $PSScriptRoot '../fpga/pipeline_soc')).Path
 Push-Location $projectDir
 try {
   $started=Get-Date
   $recipeHash=(Get-FileHash -LiteralPath pds_recipe.tcl -Algorithm SHA256).Hash
-  $runRecipe=Join-Path $projectDir '.pds_task26_run.tcl'
+  $runRecipe=Join-Path $projectDir '.pds_pipeline_soc_run.tcl'
   Copy-Item -LiteralPath pds_recipe.tcl -Destination $runRecipe -Force
   try {
-    $output=& $pds -file $runRecipe -project_name task26_generated 2>&1
+    $output=& $pds -file $runRecipe -project_name pipeline_soc_generated 2>&1
     $code=$LASTEXITCODE
     $output | Tee-Object pds_pipeline_build.log
     $joined=$output -join "`n"

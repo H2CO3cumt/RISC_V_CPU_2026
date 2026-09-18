@@ -24,7 +24,7 @@ module tb_imem;
 
     imem #(
         .DEPTH(17),
-        .INIT_FILE("software/task3_hello/build/hello.mem")
+        .INIT_FILE("software/hello_uart/build/hello.mem")
     ) program_dut (
         .addr(addr),
         .instruction(program_instruction)

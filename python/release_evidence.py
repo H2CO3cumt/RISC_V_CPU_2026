@@ -85,7 +85,7 @@ def predictor(path: str) -> dict[str, int | float]:
 def main() -> int:
     out = ROOT / "release" / "evidence"
     out.mkdir(parents=True, exist_ok=True)
-    configs = {"final": ("fpga/task30_logic_analyzer", "mes50hp_logic_analyzer_top")}
+    configs = {"final": ("fpga/logic_analyzer", "mes50hp_logic_analyzer_top")}
     result: dict[str, object] = {"board_evidence": "not claimed by this extractor"}
     for name, (folder, top) in configs.items():
         bit = f"{folder}/generate_bitstream/{top}.sbit"

@@ -18,7 +18,7 @@ $sources=@(
  'rtl/imm_gen.v','rtl/decoder.v','rtl/branch_unit.v','rtl/load_store_unit.v',
  'rtl/soc_data_interconnect.v','rtl/uart_tx.v','rtl/uart_rx.v',
  'rtl/uart_mmio.v','rtl/gpio_mmio.v','tb/pipeline_imem_adapter.v',
- 'tb/task15_ram_adapter.v','tb/tb_coremark_pipeline.v'
+ 'tb/ram_adapter.v','tb/tb_coremark_pipeline.v'
 )
 $delay=if($RandomDelay){1}else{0}
 $predictor=if($DisablePredictor){0}else{1}

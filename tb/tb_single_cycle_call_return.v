@@ -5,9 +5,9 @@ module tb_single_cycle_call_return;
     reg reset;
     integer failures;
 
-    task15_core_harness #(
+    core_harness #(
         .IMEM_DEPTH(7),
-        .IMEM_INIT_FILE("tb/data/task12_call_return.mem")
+        .IMEM_INIT_FILE("tb/data/call_return.mem")
     ) dut (
         .clk(clk),
         .reset(reset)

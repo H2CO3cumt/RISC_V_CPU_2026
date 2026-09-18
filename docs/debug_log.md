@@ -1,6 +1,6 @@
 # Debug Log
 
-> 最后更新：2026-09-17
+> 最后更新：2026-09-17（CPI 优化专项）
 
 本文件只记录已经实际发生、对架构或后续开发有复用价值的重要 Bug。尚未开始 RTL 时不预填虚构问题。
 
@@ -18,19 +18,138 @@
 - 修复后的验证命令与 Regression 结果。
 - 是否影响 Reference Model、接口或架构文档。
 
+### 2026-09-17 / 交付冻结：改名暴露出的 4 个既有脆弱点
+
+一次性把 `taskNN_*` 命名改成功能化命名（`fpga/coremark`、`fpga/logic_analyzer`、`fpga/coremark_ila`、
+`scripts/run_*`、`tb/tb_*`、`tb/data/*.mem`、`software/*` 等）。改名本身不改行为，但暴露并修掉了 4 个既有问题：
+
+1. **测试依赖仓库里的陈旧固件产物**：`run_soc_harness_tb.ps1` 直接读 `software/<prog>/build/<prog>.mem`，
+   自己不做 `make`。旧产物一直存在所以从没暴露；固件改名后立刻报 `$readmemh: Unable to open …`。
+   修复：runner 增加 `make -C software/mmio_demo all`，测试自包含。
+2. **发布审计把位流哈希写死**：`audit_release_package.ps1` 里 `$expected='2C09E690…'`，任何一次重新综合后
+   审计必然失败，无法跟随新位流。修复：以 `fpga/logic_analyzer/generate_bitstream/…sbit` 为唯一真实来源，
+   要求 `final_submission` 与 `release/artifacts` 两处副本与之逐字节一致。
+3. **审计依赖 `rg`**：本机 PATH 无 ripgrep 时审计在命名检查处中断（不是「没发现问题」，而是命令失败）。
+   修复：优先用 `rg`，缺失时回退到 PowerShell `Select-String`，保留「交付包不得出现 taskNN」这条检查。
+4. **导出脚本整目录删除**：`Remove-Item -Recurse` 遇到被 PDS GUI 占用的 `.pds.lock` 时中途失败，
+   留下**半成品发布包**（本次实际发生）。修复：改为逐项删除、跳过被占用条目并告警；
+   `.lock` 本来就被清单与审计按设计排除。
+
+证据：修复后 `run_final_regression.ps1`（-Quick 与全量）均 `ALL AUTOMATED FINAL REGRESSION PASS`；
+`FINAL SUBMISSION EXPORT PASS files=206`、`RELEASE MANIFEST PASS files=1963`、`RELEASE PACKAGE AUDIT PASS final_files=126 artifacts=3`。
+
+### 2026-09-17 / 工具：Fabric Debugger 无 GUI 抓 ILA 波形的可行流程
+
+- 背景：赛题要求「利用 ILA 抓取的波形图分析 CoreMark 关键算法的流水线效率」，此前只有诊断位流、没有实体波形。
+- 结论：`cdt_dbg.exe -file <tcl>` 提供了完整 CLI，**不需要打开 GUI**。可用命令（来自
+  `Fabric_Debugger_User_Guide.pdf`）：`dbg_connect / dbg_scan_chain / dbg_program / dbg_import_fic /
+  dbg_fla_get_bus / dbg_fla_run / dbg_fla_trig_immd / dbg_fla_export_wf_data / dbg_disconnect / dbg_close`。
+- 踩坑记录：
+  1. **必须先下载匹配的位流再 `dbg_import_fic`**，否则报 `Debugger-4001: FIC file isn't matching`。
+  2. `dbg_fla_power_init` 在本设计上失败（`get_power_on_init_data exec unsuccessfully`）。它是可选项：
+     IP 未开「power-on init data」时必然失败，但**不影响抓取**。TCL 脚本里若保留它，会因为
+     “命令失败即中断后续命令”而整段停在导出之前——要么去掉，要么在其后加 `clean`。
+  3. `dbg_fla_set_capture -type N -samples 512` 报 `Capture type or arguments is illegal`；
+     直接用 IP 默认抓取配置即可（本设计为单窗口 512 拍）。
+  4. `open_cable` 偶尔耗时 5 分钟以上（USB 重新枚举）。**同一时刻只能有一个进程占用下载线**：
+     前一次中断的 `cdt_dbg` 不退出会一直占线，导致后续进程卡在 `open_cable`/`dbg_scan_chain`。
+     排查方法：`Get-CimInstance Win32_Process -Filter "Name like 'cdt%'"` 看有几个客户端。
+  5. CoreMark 镜像 `AUTOSTART=0` 会等串口 `R`：抓取期间需要另起一个持续发 `R` 的进程；
+     重下位流会复位 FPGA 并让固件重新等待 `R`。
+- 成果：512 拍窗口，IPC 0.635 / CPI 1.575（板级整段 1.5388，差 2.3%），
+  窗口内 84.3% 提交落在 `__mulsi3` 软件乘法循环。证据与复现见 `release/evidence/ila_coremark/README.md`。
+
+### 2026-09-17 / CPI 专项：取指每两拍一条，把 CPI 钉在 2.34（**Score 最大单项损失**）
+
+- 现象：实体板 50/80 MHz 两点 `CoreMark/MHz x1000` 都是 591，CPI 2.3443 / 2.3445；
+  按每 1000 条指令分解 `2344.3 = 理想 1000 + stall 106.4 + flush 103.3 + 剩余 1134.6`，
+  这个「剩余 1134.6（48.4%）」既不是 Hazard stall 也不是 flush，长期没有归因。
+- 第一错误点：**取指事务的第二个周期**——请求被接收后的那一拍，取指端口没有任何请求在场。
+  （不是 EX/MEM 的数据事务，也不是 Hazard 逻辑。）
+- 第一错误信号：`i_req_valid` 在窗口 1,788,110 拍中有 **920,207 拍（51.5%）为低**；
+  相邻 IF/ID 写入间隔直方图里 **间隔 2 占 664,411 次（86.7%）、间隔 1 只有 1 次**。
+- 预期与实际：`docs/interfaces.md` §3 明确要求「流水线 IF 允许在旧取指响应完成握手的同一拍接受下一请求，
+  以支持一拍一条的连续取指」；实际每笔取指固定占 2 拍，1,532,008/1,788,110 拍（85.7%）是取指底座，
+  其中 **768,832 拍（43.0%）纯属取指串行化损失**。
+- 根因（两处，缺一不可）：
+  1. Core：`pipeline_cpu.v` 在 `if_request_accept` 当拍 `if_req<=0`，而重新登记 `if_req_addr_reg`
+     要等到“响应被接收”那一拍的结尾（`if(!if_req)` 分支），因此下一拍请求不可见，
+     “旧响应接收 + 新请求接受”的同拍交接永远无法发生。
+  2. SoC：实体板取指存储器 `assign req_ready=!rsp_valid`，在交接当拍（`rsp_valid=1 && rsp_ready=1`）
+     恰好为 0，即使 Core 把请求送到也会被拒收。
+- 最小修复：Core 新增 `if_arm`（接受请求当拍立即武装下一笔请求，展示地址直接来自已寄存的 `fetch_pc`，
+  不新增地址寄存级，`!ready` 时地址仍稳定；Redirect 当拍先冻结成 `if_req` 再改 `fetch_pc`）；
+  取指存储器 `req_ready` 改为 `!rsp_valid||rsp_ready`（数据端口不变，`dstate` 已串行化）。
+  详见 `docs/rtl_changes.md` 改动 2。
+- 归因方法（可复现）：新建只读观测台 `tb/tb_cpi_attribution.v` + `tb/cpi_board_memory_model.v`
+  （与 `coremark_imem`/`coremark_dmem` 逐拍一致），口径自证：观测台 CPI **2.342** vs 实体板 **2.3443**。
+  单改 SoC 侧 ready 策略收益只有 2.342 → 2.321（−0.9%），证明瓶颈在 Core。
+- 验证：-Quick 与全量回归 `ALL AUTOMATED FINAL REGRESSION PASS`；官方 CoreMark RTL 仿真
+  cycles 1,852,156 → 1,295,932；实体板 50 MHz Score 29.559 → **45.051**、CPI 2.3443 → **1.5388**、
+  22.196 s、四 CRC 全过；80 MHz PLL Score 47.295 → **72.081**、CPI 1.5387；逻辑分析仪 50/80 MHz 各 80/80 PASS。
+- 影响：只改 Core 内部取指握手与 Core 外取指 adapter 的 ready 策略。Core 顶层端口、单 outstanding 语义、
+  提交级 trace 语义、Reference Model 等价性全部不变；80 MHz WNS 由 +0.145 ns 变为 +0.667 ns（更好）。
+
+### 2026-09-17 / CPI 专项：load-use 停顿计数 3 → 4（测试期望按新时序纠正，非放宽）
+
+- 失败测试：`scripts/run_pipeline_load_use_tb.ps1`（固定延迟编译）报 `LOAD STALL COUNT FAIL got=4 want=3`。
+- 第一错误点：`tb/data/load_use.mem` 中 `0x24 lw x7,0(x0)` → `0x28 add x8,x1,x7` 这一对的 ID/EX 周期。
+- 第一错误信号：`event_load_stall` 在该对指令上多出一次脉冲（`LOADUSE cyc=27 ex_load_pc=00000024 id_pc=00000028`）。
+- 预期与实际：该程序共有 **4 组相邻 load-use**（0x08→0x0c、0x10→0x14、0x18→0x1c、0x24→0x28），
+  满速取指下 4 组都必须检出；旧期望值 3 是“取指每两拍一条”时代的历史标定——
+  当时取指空洞恰好插在 0x24→0x28 之间，把这对相邻指令在流水线里拉开成两级，
+  既不构成 load-use、也不需要停顿。
+- 根因：不是 RTL 缺陷，而是旧值把“前端串行化顺带掩盖了一个真实冒险”误当成正确基线。
+- 最小修复：`EXPECT_LOAD_STALL` 3 → 4，并在脚本内写明理由；同时用一次性探针
+  （`tmp/cpi/probe_loaduse.v`）逐事件打印 4 次 `LOADUSE` 的 PC 对，确认与程序里的 4 组 hazard 一一对应。
+- 验证：同测试的**提交级 trace 与最终 architectural state 对比全部 PASS**；
+  `scripts/run_final_regression.ps1`（-Quick 与全量）均 `ALL AUTOMATED FINAL REGRESSION PASS`。
+- 影响：仅测试期望值；流水线功能、接口与 Reference Model 不受影响。
+
+### 2026-09-17 / 工具：频率扫描汇总把 `Minimum Pulse Width` 当成 setup WNS
+
+- 最小复现：`scripts\run_fmax_sweep_rtl.ps1 -Tag cpi -Periods '11.765,11.111'`，
+  再看 `tmp/fmax_sweep/cpi_sweep_summary.csv` 与同目录的 `report_timing/*.rtr`。
+- 现象：85 MHz 汇总写 `WNS=4.365`、90 MHz 写 `WNS=4.038`，而 `.rtr` 的
+  `Setup Summary(Slow Corner)` 实际是 `+0.393` / `−0.374`；4.365 其实是
+  `Minimum Pulse Width Summary(Slow Corner)` 的 slack。
+- 第一错误点：汇总脚本的报表解析（不是 PDS、不是 RTL）。
+- 根因：原解析用“第一个形如 `名字 名字 数字 数字 整数 整数` 的行”取 WNS/WHS，
+  而报告里 `Recovery/Removal/Minimum Pulse Width/Setup(Fast Corner)` 等小节是同一形态。
+- 最小修复：改为**按小节定位**——先记录当前小节名（`^名字:`），只在
+  `Setup Summary(Slow Corner)` 取 WNS/TNS/失败端点、在 `Hold Summary(Slow Corner)` 取 WHS/THS；
+  并从 `Performance Summary` 行额外记录估计 Fmax。同时修正小节名捕获的正则
+  （原正则贪婪匹配只捕到 `Setup Summary`，漏掉 `(Slow Corner)` 后缀）。
+- 验证：`-Tag cpi3 -Periods '11.765,11.111'` 汇总输出
+  `f84998 WNS=0.393 fail=0 WHS=0.231 MET`、`f90001 WNS=-0.374 fail=102 WHS=0.312 VIOLATED`，
+  与手工从 `.rtr` 读取的数值逐字段一致。
+- 影响：仅扫描汇总脚本；`docs/performance_tuning.md` 中的历史 WNS 数字本来就直接取自 `.rtr`，不受影响。
+
+### 2026-09-17 / 工具：`run_coremark_fpga_tb.ps1` 会静默把板级镜像恢复成“未窗口对齐”版本
+
+- 最小复现：跑一次 `scripts/run_coremark_fpga_tb.ps1`，再检查 `fpga/coremark/rtl/coremark_imem.mem`
+  是否还含 `start_time()` 的 `PERF_CONTROL` 写（`... 100027B7 00100713 02E7AC23`）。
+- 现象：脚本 `finally` 恢复最终 1000 迭代镜像时漏传 `-PerfWindowAlign 1`，使仓库源码退回未对齐版本，
+  与已经实体板实测通过的位流不一致；板级 CPI 归因依赖这个对齐窗口（否则 `COREMARK_READY`
+  的 UART 轮询会进入计数窗口，产生 `stall > cycles` 的失真数据）。
+- 根因：恢复步骤只对齐了 `-Iterations/-ClockHz/-AutoStart`，漏了观测口径开关。
+- 最小修复：`finally` 中补 `-PerfWindowAlign 1`，并加注释说明为什么不能省。
+- 验证：修复后重跑 `run_coremark_fpga_tb.ps1`，`coremark_imem.mem` 仍含窗口对齐的写操作。
+- 影响：仅镜像生成脚本；不改被测执行路径。
+
 ### 2026-09-17 / Task 33：发布证据把综合与布局布线两个阶段的资源数字混排
 
 - 最小复现：运行 `scripts/run_release_evidence.ps1`，比较 `release/evidence/automated_metrics.json` 的 `ff` 与 `docs/progress.md`、`release/HANDOFF.md`、技术报告中引用的 `3129 FF`。
 - 第一错误点：`python/release_evidence.py` 的 `utilization()` 解析逻辑；不是 PDS 综合、时序或实体板问题。
-- 预期与实际：`fpga/task30_logic_analyzer/flow.log` 综合段为 LUT 3459 / 寄存器 3129 / DRM18K 5.5，device map 段为实现 FF 3120；旧实现从综合段取 LUT 与 DRM，却从 device map 段取 FF，生成 `3459 LUT + 3120 FF + 5.5 DRM` 的混合行，与全部已发布材料不一致。
+- 预期与实际：`fpga/logic_analyzer/flow.log` 综合段为 LUT 3459 / 寄存器 3129 / DRM18K 5.5，device map 段为实现 FF 3120；旧实现从综合段取 LUT 与 DRM，却从 device map 段取 FF，生成 `3459 LUT + 3120 FF + 5.5 DRM` 的混合行，与全部已发布材料不一致。
 - 根因：`utilization()` 在 `Device Utilization Summary` 块内匹配 `| FF |`，而 `Total LUTs`/`Total DRM18Ks` 来自综合统计，两者属于不同阶段。
 - 最小修复：FF 改取综合统计 `Total Registers`（3129），并新增 `ff_implemented`（3120）单独保留布局布线后实现值；`automated_metrics.md` 增加一行阶段说明。不修改任何综合或时序结论。
-- 回归：`run_release_evidence.ps1` 输出 `ALL RELEASE EVIDENCE TEST PASS`；JSON 为 `lut=3459, ff=3129, ff_implemented=3120, drm=5.5, setup=2.661, hold=0.312, fmax=57.6735`，与 `fpga/task30_logic_analyzer/synthesize/mes50hp_logic_analyzer_top.snr` 的综合行一致；`create_release_manifest.ps1` 与 `audit_release_package.ps1` 仍 PASS。
+- 回归：`run_release_evidence.ps1` 输出 `ALL RELEASE EVIDENCE TEST PASS`；JSON 为 `lut=3459, ff=3129, ff_implemented=3120, drm=5.5, setup=2.661, hold=0.312, fmax=57.6735`，与 `fpga/logic_analyzer/synthesize/mes50hp_logic_analyzer_top.snr` 的综合行一致；`create_release_manifest.ps1` 与 `audit_release_package.ps1` 仍 PASS。
 - 影响：仅发布证据提取脚本与证据文件；不影响 RTL、Core/SoC 接口、时序或实体板结论。
 
 ### 2026-09-17 / Task 33：交付包早于最终位流，审计哈希与实体证据不一致
 
-- 最小复现：运行 `audit_release_package.ps1` 检查最终包哈希，或比较 `release/final_submission/bitstream/mes50hp_riscv_logic_analyzer.sbit` 与 `fpga/task30_logic_analyzer/generate_bitstream/mes50hp_logic_analyzer_top.sbit`。
+- 最小复现：运行 `audit_release_package.ps1` 检查最终包哈希，或比较 `release/final_submission/bitstream/mes50hp_riscv_logic_analyzer.sbit` 与 `fpga/logic_analyzer/generate_bitstream/mes50hp_logic_analyzer_top.sbit`。
 - 第一错误点：交付导出时间戳（09-17 08:37）早于 J8 约束校正、Capture Engine 分频边沿修复与最终 PDS 重建（13:45～13:47）；不是 RTL、时序或综合问题。
 - 预期与实际：审计期望位流 SHA-256 `2C09E690…`（实体板 80/80 回环所用），实际包内为 `01C394618BB473E6…`；同时 `evidence/logic_analyzer_board_final` 缺失，`.fdc` 仍写连续脚对 `3..18`，`capture_engine.v`、`logic_analyzer_pattern_gen.v` 与三份上位机工具均为修复前版本。
 - 根因：实体回环修复与最终位流重建之后没有重新执行导出与发布清单。
@@ -62,7 +181,7 @@
 
 - 最小复现：运行 `scripts/run_scope_audit.ps1`，当前环境报 `The term 'rg' is not recognized`。
 - 第一个错误点：脚本第 6 行对 `rg` 的调用，不是 RTL、时序或综合问题。
-- 预期与实际：审计应当扫描 `rtl`、`fpga/task30_logic_analyzer`、`software/task30_logic_analyzer`、`python`
+- 预期与实际：审计应当扫描 `rtl`、`fpga/logic_analyzer`、`software/logic_analyzer`、`python`
   并拒绝已冻结功能（RLE/Cache/异常中断/AI/DDR/HDMI/PCIe/千兆网/I2C/16 通道）的实现；
   实际上 `rg` 不在 PATH 上，`2>$null` 又把"命令未找到"吞掉，
   于是 `$violations` 恒为空、脚本无条件走到 `SCOPE AUDIT PASS`。
@@ -101,7 +220,7 @@
 
 ### 2026-09-15 / Task 30：Task 30 栈顶与互连 RAM 上界不一致
 
-- 最小复现：将裸机栈顶扩大到 `0x1000` 后运行 `run_task30_logic_analyzer_soc_tb.ps1`，软件读取的 `post_count` 变为 8192。
+- 最小复现：将裸机栈顶扩大到 `0x1000` 后运行 `run_logic_analyzer_soc_tb.ps1`，软件读取的 `post_count` 变为 8192。
 - 第一错误点：函数栈访问地址超过互连原 `0x3FF` RAM 窗口，返回 error/zero，随后局部变量被破坏。
 - 根因：DMEM adapter 已扩大到 1024 words，但 SoC 互连仍用 1 KiB byte 地址上界。
 - 修复：Task 30 board wrapper 与 SoC TB 同步使用 `RAM_LAST_ADDR=0x0FFF`，启动代码用 `lui sp,1` 设置栈顶；Core 与统一事务接口不变。
@@ -112,7 +231,7 @@
 - 最小复现：较老指令在 WB 写 `rd` 的同周期，较新 ID/EX 指令因 EX/MEM 数据事务等待而保持；等待结束时寄存器文件读快照仍为写回前值。
 - 第一错误点：解除 `mem_hold` 后的 EX operand，原 forward unit 此时已看不到前一周期 WB producer。
 - 根因：ID/EX 被整体保持时，源操作数快照没有吸收同周期提交的 WB 数据。
-- 修复：保持 ID/EX 时若 WB 命中源寄存器，更新相应 operand snapshot；新增 `task23_wb_hold` fixed/random 定向 trace 比较。
+- 修复：保持 ID/EX 时若 WB 命中源寄存器，更新相应 operand snapshot；新增 `wb_hold` fixed/random 定向 trace 比较。
 - 验证：`run_pipeline_wb_hold_tb.ps1` 两种时序 8/8 trace PASS，Task 23 十入口回归与 Task 24 GCC fixed/random 全部 PASS。
 
 ### 2026-09-15 / Task 26～30：PDS recipe 被生成脚本覆盖及大 case ROM 不可实现
@@ -124,7 +243,7 @@
 
 ### 2026-09-14 / Task 33：最终 Regression 聚合器被历史 `exit 0` 提前终止
 
-- 最小复现：`run_final_regression.ps1 -SkipExternal` 直接调用 `run_task12_regression.ps1`；Task 12 的第一个独立 Testbench 脚本正常结束时会执行 `exit 0`，父聚合器随后不再继续。
+- 最小复现：`run_final_regression.ps1 -SkipExternal` 直接调用 `run_rv32i_regression.ps1`；Task 12 的第一个独立 Testbench 脚本正常结束时会执行 `exit 0`，父聚合器随后不再继续。
 - 第一错误点：回归调度器进程边界，不是 RTL 或 Testbench 结果；日志会停在 Task 12 中段而汇总文件可能保留旧结果。
 - 根因：PowerShell 脚本内的 `exit` 终止当前解释器，聚合器用 `& script` 调用时没有隔离子进程；Task 23 也存在相同风险。
 - 最小修复：Task 12、Task 23 和最终聚合器统一通过当前可用的 PowerShell 解释器以 `-File` 子进程调用每个入口；保留原有退出码并在失败时停止。
@@ -144,19 +263,19 @@
 - 第一错误点：响应等待周期的 `rsp_rdata`/`rsp_valid`；原 wrapper 组合使用当前地址，测试写响应则使 `rsp_valid` 永久保持。
 - 根因：设备未在请求握手时锁存读数据/错误位；TB 写任务没有遵守统一 response handshake。
 - 最小修复：`perf_mmio` 与 `logic_analyzer_mmio` 在 `req_valid && req_ready` 时锁存响应数据和错误，`capture_engine` 仍只接受一次 arm/stop/clear 脉冲；TB 写任务等待并消费响应。
-- 验证：`run_perf_mmio_tb.ps1`、`run_logic_analyzer_tb.ps1`、`run_application_mmio_mux_tb.ps1`、`run_task30_logic_analyzer_soc_tb.ps1` 全部 PASS，并覆盖错误地址、随机背压和软件配置路径。
+- 验证：`run_perf_mmio_tb.ps1`、`run_logic_analyzer_tb.ps1`、`run_application_mmio_mux_tb.ps1`、`run_logic_analyzer_soc_tb.ps1` 全部 PASS，并覆盖错误地址、随机背压和软件配置路径。
 - 影响：仅修改 Core 外部 MMIO/测试；不改变 `pipeline_cpu` 端口或事务契约。
 
 ### 2026-09-14 / Task 30：PDS/实体板/CoreMark 外部证据阻塞
 
 - 现象：本地 RTL、软件和 Python 回归全部通过，但 Task 30 PDS 批处理输出 `Flow-0183`，仓库没有官方 CoreMark 源码，J8 相邻脚对物理回环尚未在当前会话连接。
 - 根因范围：许可证、第三方源码授权/下载和真实 MES50HP 设备属于工作区外部状态，不是仿真失败。
-- 处理：`run_task30_logic_analyzer_pds.ps1` 与 `run_final_regression.ps1` 明确检测并报告 BLOCKED；不使用其它 benchmark 冒充 CoreMark，不用内部 pattern loopback 冒充物理闭环。
+- 处理：`run_logic_analyzer_pds.ps1` 与 `run_final_regression.ps1` 明确检测并报告 BLOCKED；不使用其它 benchmark 冒充 CoreMark，不用内部 pattern loopback 冒充物理闭环。
 - 影响：不得标记 G9/G10/G11 或 `competition_final`；本地 PASS 证据仍可复现，待具备许可证、源码和实体板后按 `docs/reproduction.md` 重跑。
 
 ### 2026-09-14 / Task 23：Redirect 撤回被背压的取指 valid
 
-- 最小复现：`task23_hazard_stress` 使用随机取指背压，并在 taken Branch/JAL 附近令 `i_req_valid=1, i_req_ready=0`。
+- 最小复现：`hazard_stress` 使用随机取指背压，并在 taken Branch/JAL 附近令 `i_req_valid=1, i_req_ready=0`。
 - 第一错误点：Redirect 周期的取指请求接口；地址仍保持相同，但 `i_req_valid` 在握手前被撤回。
 - 预期与实际：契约要求 `valid && !ready` 时 valid 与地址持续稳定；候选流水线把 `i_req_valid` 组合依赖于 `ex_redirect/front_hold`，因此错误变为 0。
 - 根因：为提升 IF 吞吐而加入的响应/请求同拍交接没有保留独立的已登记请求槽，Redirect 直接抑制了尚未接受的请求。
@@ -166,12 +285,12 @@
 
 ### 2026-09-13 / Task 16：PDS 综合忽略 `$readmemh` 导致板级固件未初始化
 
-- 最小复现：Task 16 SoC 顶层使用 `$readmemh("task16_mmio_demo.mem", ...)` 初始化 IMEM/DMEM 后执行 PDS 综合。
+- 最小复现：Task 16 SoC 顶层使用 `$readmemh("mmio_demo.mem", ...)` 初始化 IMEM/DMEM 后执行 PDS 综合。
 - 现象：PDS 报告 initial block / `$readmemh` 不参与综合；仿真中的 Hello/GPIO 行为不能直接作为下载 bitstream 的固件证据。
 - 第一错误点：综合初始化阶段；不是 CPU 指令周期或 MMIO 互连信号错误。
 - 根因：该 PDS 流程不会把 Verilog 仿真时存储器初始化自动映射为综合后的 BRAM/逻辑内容。
-- 最小修复：将 Task 16 demo 的 24 个镜像字改为综合可见的 Verilog 常量函数；保留 `mem/task16_mmio_demo.mem` 作为仿真/追踪参考文件，并保持单周期 CPU 与 SoC 接口不变。
-- 验证：`run_task16_soc_harness_tb.ps1` 19/19 PASS，`run_mes50hp_task16_soc_tb.ps1` 的双行/30 字节连续 UART 检查 PASS；PDS Compile→Synthesize→Map→Place→Route→Timing→Bitstream 完成，50 MHz 下预计 59.0179 MHz、WNS 3.056 ns、TNS 0，综合日志不再出现 `$readmemh` 警告。
+- 最小修复：将 Task 16 demo 的 24 个镜像字改为综合可见的 Verilog 常量函数；保留 `mem/mmio_demo.mem` 作为仿真/追踪参考文件，并保持单周期 CPU 与 SoC 接口不变。
+- 验证：`run_soc_harness_tb.ps1` 19/19 PASS，`run_mes50hp_soc_demo_tb.ps1` 的双行/30 字节连续 UART 检查 PASS；PDS Compile→Synthesize→Map→Place→Route→Timing→Bitstream 完成，50 MHz 下预计 59.0179 MHz、WNS 3.056 ns、TNS 0，综合日志不再出现 `$readmemh` 警告。
 - 影响：当前 bitstream 固化为持续输出版 Task 16 demo；更换固件需重新生成常量并重新实现。尚未进行实体板下载与串口验收。
 
 ### 2026-09-13 / Task 16：UART 无输出的根因是缺少独立 USB-UART 数据线
@@ -234,7 +353,7 @@
 
 ### 2026-09-03 / Task 3：Windows ISA 检查命令不兼容
 
-- 最小复现：在 Windows PowerShell 的 `software/task3_hello` 目录执行 `make all`。
+- 最小复现：在 Windows PowerShell 的 `software/hello_uart` 目录执行 `make all`。
 - 现象：ELF、反汇编和镜像均已生成，但 `check-isa` 调用 Linux `grep` 失败，`make` 返回 Error 2。
 - 根因：Makefile 使用了 Windows 环境中未提供的 Linux `grep` 命令。
 - 最小修复：将该检查替换为 Windows `cmd /c findstr`；不改动 C 源码、链接脚本、生成物格式或 ISA 约束。

@@ -31,9 +31,11 @@ out/
 dist/
 work/
 
-# Temporary workspace files; retain the official scoring references
+# Temporary workspace files; retain only the official scoring reference images.
+# 注意：不要用 "!tmp/pdfs/" 放行整个目录——该目录下同时存在赛事方版权材料的
+# 本地副本（指南全文、在线实验手册与 RTL 学习路线的逐页截图），不得进入版本库。
 tmp/*
-!tmp/pdfs/
+tmp/pdfs/*
 !tmp/pdfs/riscv-topic-10.png
 !tmp/pdfs/riscv-topic-11.png
 

@@ -4,8 +4,8 @@ module tb_pipeline_smoke;
  wire tv; wire [31:0] tpc,tins; wire trw,tmw; wire [4:0] trd; wire [31:0] trdata,tmaddr,tmdata; wire [3:0] tmstrb;
  wire iv,ir,rv,rr,ie,dv,dr,dw,dsv,dsr,de; wire [31:0] ia,idata,da,dwd,drd; wire [3:0] dst;
  pipeline_cpu dut(.clk(clk),.reset(reset),.trace_valid(tv),.trace_pc(tpc),.trace_instruction(tins),.trace_rd_we(trw),.trace_rd_addr(trd),.trace_rd_data(trdata),.trace_mem_we(tmw),.trace_mem_addr(tmaddr),.trace_mem_data(tmdata),.trace_mem_wstrb(tmstrb),.i_req_valid(iv),.i_req_ready(ir),.i_req_addr(ia),.i_rsp_valid(rv),.i_rsp_ready(rr),.i_rsp_data(idata),.i_rsp_error(ie),.d_req_valid(dv),.d_req_ready(dr),.d_req_addr(da),.d_req_write(dw),.d_req_wdata(dwd),.d_req_wstrb(dst),.d_rsp_valid(dsv),.d_rsp_ready(dsr),.d_rsp_rdata(drd),.d_rsp_error(de),.event_stall(),.event_load_stall(),.event_branch(),.event_branch_taken(),.event_flush());
- task15_imem_adapter #(.DEPTH(12),.INIT_FILE("tb/data/task11_single_cycle.mem"),.RANDOM_DELAY(0)) im(.clk(clk),.reset(reset),.req_valid(iv),.req_ready(ir),.req_addr(ia),.rsp_valid(rv),.rsp_ready(rr),.rsp_data(idata),.rsp_error(ie));
- task15_ram_adapter #(.DEPTH(16),.RANDOM_DELAY(0)) dm(.clk(clk),.reset(reset),.req_valid(dv),.req_ready(dr),.req_addr(da),.req_write(dw),.req_wdata(dwd),.req_wstrb(dst),.rsp_valid(dsv),.rsp_ready(dsr),.rsp_rdata(drd),.rsp_error(de),.write_side_effect_count());
+ imem_adapter #(.DEPTH(12),.INIT_FILE("tb/data/single_cycle_smoke.mem"),.RANDOM_DELAY(0)) im(.clk(clk),.reset(reset),.req_valid(iv),.req_ready(ir),.req_addr(ia),.rsp_valid(rv),.rsp_ready(rr),.rsp_data(idata),.rsp_error(ie));
+ ram_adapter #(.DEPTH(16),.RANDOM_DELAY(0)) dm(.clk(clk),.reset(reset),.req_valid(dv),.req_ready(dr),.req_addr(da),.req_write(dw),.req_wdata(dwd),.req_wstrb(dst),.rsp_valid(dsv),.rsp_ready(dsr),.rsp_rdata(drd),.rsp_error(de),.write_side_effect_count());
  always #5 clk=~clk;
  task ck; input [31:0] got,want; input [8*24-1:0] name; begin if(got!==want)begin $display("TEST %0s FAIL got=%h want=%h",name,got,want);fail=fail+1;end else $display("TEST %0s PASS",name);end endtask
  always @(posedge clk) if(!reset) begin cycles=cycles+1; if(tv)$display("RETIRE pc=%h inst=%h",tpc,tins); end

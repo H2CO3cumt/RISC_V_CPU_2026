@@ -5,9 +5,9 @@ module tb_single_cycle_shift_imm;
     reg reset;
     integer failures;
 
-    task15_core_harness #(
+    core_harness #(
         .IMEM_DEPTH(5),
-        .IMEM_INIT_FILE("tb/data/task12_shift_imm.mem")
+        .IMEM_INIT_FILE("tb/data/shift_imm.mem")
     ) dut (
         .clk(clk),
         .reset(reset)

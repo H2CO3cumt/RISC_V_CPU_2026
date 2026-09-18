@@ -20,9 +20,26 @@
 
 ## 正式配置与诊断配置
 
-交付只使用一套配置：`release/final_submission/bitstream/mes50hp_riscv_logic_analyzer.sbit`，与 `release/artifacts/mes50hp_riscv_logic_analyzer.sbit` 及 `fpga/task30_logic_analyzer/generate_bitstream/mes50hp_logic_analyzer_top.sbit` 的 SHA-256 必须一致（当前 `2C09E690…4746E`）。该配置上电输出 `LA_READY`，等待 13 字节带 XOR 校验的配置包，可切换 static、counter、UART 8N1 与 SPI mode 0，无需重新综合。
+交付只使用一套配置：`release/final_submission/bitstream/mes50hp_riscv_logic_analyzer.sbit`，与 `release/artifacts/mes50hp_riscv_logic_analyzer.sbit` 及 `fpga/logic_analyzer/generate_bitstream/mes50hp_logic_analyzer_top.sbit` 的 SHA-256 必须一致（当前 `17FD57D8…DB092`；审计脚本以 `fpga/logic_analyzer/generate_bitstream` 为唯一真实来源自动比对，不再写死哈希）。该配置上电输出 `LA_READY`，等待 13 字节带 XOR 校验的配置包，可切换 static、counter、UART 8N1 与 SPI mode 0，无需重新综合。
 
-开发阶段的三套配置保留在 `fpga/task26_pipeline_soc`、`fpga/task28_coremark` 和 `fpga/task29_coremark_ila`，只作为历史验证证据与 ILA 调试入口，不属于交付下载项，也不需要使用者选择。`coremark_ila` 的 192-bit、512-sample 探针只用于 Task 29 波形证据，不参与正式资源或 Fmax 计分。
+## 上板操作入口（推荐用这两个脚本，不要再手写临时 tcl）
+
+```powershell
+# 下载位流（la50 为交付配置；另有 la80 / cm50 / cm80 / ila）
+& '<pwsh7>' -NoProfile -File scripts\program_board.ps1 -Config la50
+# 板上有 DebugCore 位流导致 JTAG 链被 Jtag Hub 接管时（cdt_cfg 报 Configuration-0009）
+& '<pwsh7>' -NoProfile -File scripts\program_board.ps1 -Config la50 -UseDebugger
+
+# CoreMark 一键测量：下载位流 → 串口发 'R' → 解析官方 CRC 与 Score → 落证据
+& '<pwsh7>' -NoProfile -File scripts\measure_coremark.ps1 -Config cm50
+& '<pwsh7>' -NoProfile -File scripts\measure_coremark.ps1 -Config cm80
+```
+
+两个脚本都会自动启动 `cdt_js.exe`（端口 65420）、写入带绝对路径的 TCL、按成功标志提前结束并清理驻留进程。
+`tmp/_old_tcl/` 里的旧编程 tcl 是改名前的历史脚本，路径已失效，仅作存档。
+
+
+开发阶段的三套配置保留在 `fpga/pipeline_soc`、`fpga/coremark` 和 `fpga/coremark_ila`，只作为历史验证证据与 ILA 调试入口，不属于交付下载项，也不需要使用者选择。`coremark_ila` 的 192-bit、512-sample 探针只用于 Task 29 波形证据，不参与正式资源或 Fmax 计分。
 
 器件必须显示 `PGL50H-6IFBG484`。系统时钟为 50 MHz，默认使用内部上电复位。`REST` 只用于重新加载配置，不接 CPU Core。CP2102 串口固定为 115200、8N1、无流控，FPGA RX=`R8`、TX=`R9`。
 
@@ -31,10 +48,10 @@
 若只需把工程交给板卡验证人员，使用 `release/board_validation`：该目录自包含四个 PDS 工程、共享 RTL、约束、Task 29 DebugCore IP、四份可下载 `.sbit`、PDS recipe，以及 `pyui/pyUI.py` 图形验证界面。该目录含 PDS 实现数据库，不纳入 Git，分发形式是 `release/MES50HP_board_validation_package.zip`；解压回 `release/board_validation` 后可用 `./scripts/audit_board_validation_package.ps1` 校验，保持目录层级不变后可直接打开：
 
 ```text
-release/board_validation/projects/task26_pipeline_soc/impl.pds
-release/board_validation/projects/task28_coremark/task28_generated.pds
-release/board_validation/projects/task29_coremark_ila/task29_coremark_ila.pds
-release/board_validation/projects/task30_logic_analyzer/task30_generated.pds
+release/board_validation/projects/pipeline_soc/impl.pds
+release/board_validation/projects/coremark/coremark_generated.pds
+release/board_validation/projects/coremark_ila/coremark_ila.pds
+release/board_validation/projects/logic_analyzer/logic_analyzer_generated.pds
 ```
 
 先用 PDS Programmer 下载 `release/board_validation/bitstreams/*.sbit`，再运行 `python release/board_validation/pyui/pyUI.py`。PyUI 通过 CP2102 执行 CoreMark UART 和逻辑分析仪 static/counter/UART/SPI 四模式，并保存原始日志、JSON 和 VCD；无图形环境时可直接调用同目录的 `coremark_serial.py` 与 `logic_analyzer_serial.py`。首次使用仅需安装 `pyserial`：`python -m pip install -r release/board_validation/pyui/pyUI_requirements.txt`。
@@ -51,7 +68,7 @@ release/board_validation/projects/task30_logic_analyzer/task30_generated.pds
 
 ## CoreMark DebugCore 实体证据
 
-下载 `coremark_debug_ila.sbit`，在 Fabric Debugger 中选择 `coremark_ila`。探针宽度为 192 bit、深度为 512 samples、采样时钟为 50 MHz；字段表以 `fpga/task29_coremark_ila/README.md` 为准。可用 bit 0 触发退休事件，或用 bit 174/176 观察 Branch/Flush。该诊断构建的 PDS 结果为 4416 LUT、4458 FF、39 DRM、setup WNS +5.453 ns、hold WNS +0.186 ns，50 MHz 约束通过；这些数字只描述诊断配置，正式性能与资源指标仍取 `coremark_stable.sbit`。
+下载 `coremark_debug_ila.sbit`，在 Fabric Debugger 中选择 `coremark_ila`。探针宽度为 192 bit、深度为 512 samples、采样时钟为 50 MHz；字段表以 `fpga/coremark_ila/README.md` 为准。可用 bit 0 触发退休事件，或用 bit 174/176 观察 Branch/Flush。该诊断构建的 PDS 结果为 4416 LUT、4458 FF、39 DRM、setup WNS +5.453 ns、hold WNS +0.186 ns，50 MHz 约束通过；这些数字只描述诊断配置，正式性能与资源指标仍取 `coremark_stable.sbit`。
 
 ## 逻辑分析仪实体回环
 
@@ -71,7 +88,7 @@ release/board_validation/projects/task30_logic_analyzer/task30_generated.pds
 下载 `logic_analyzer_p0.sbit` 后运行四种无需重新综合的模式：
 
 ```powershell
-./scripts/run_task30_board.ps1 -Port COM5
+./scripts/run_logic_analyzer_board.ps1 -Port COM5
 ```
 
 脚本依次执行 static、counter、UART 与 SPI，每种 20 次；每次等待 `LA_READY`，发送带 XOR 校验配置，验证 count/trigger，UART/SPI 模式还验证解析字节，然后保存 80 份 UART log、VCD 和总 JSON。任何超时、校验失败、解码错误或样本位置错误都会立即停止。

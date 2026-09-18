@@ -5,10 +5,10 @@ module tb_single_cycle_store_align;
     reg reset;
     integer failures;
 
-    task15_core_harness #(
+    core_harness #(
         .IMEM_DEPTH(14),
         .DMEM_DEPTH(1),
-        .IMEM_INIT_FILE("tb/data/task12_store_align.mem")
+        .IMEM_INIT_FILE("tb/data/store_align.mem")
     ) dut (
         .clk(clk),
         .reset(reset)

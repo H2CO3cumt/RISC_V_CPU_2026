@@ -1,0 +1,42 @@
+version,2024.2-SP2-EN<build 208883>
+project name,task30_generated.pds
+
+Single Seed:
+Seed,State,Convergence,Setup(Slow),Setup(Fast),Hold(Slow),Hold(Fast),Recovery(Slow),Recovery(Fast),Removal(Slow),Removal(Fast),PBM-GP,PBM-PreGP,PBM-PostGP,LP,Total Placement Cpu Time,Detailed routing,Total Routing Cpu Time,Wire Length After Post-GP,Wire Length After LP,Wire Length After DP,Routing Arc Length,Worst Slack After GP Timing,Worst Slack After LP Timing,Worst Slack Before RP,Worst Slack Before DP,Worst Slack After DP,Worst Slack After Placement,Worst Slack After TA By Preroute,TNS After DP,TNS Before Route,Setup(Slow) Total Failing TNS,Setup(Slow) Total Failing Endpoints,Hold(Slow) Total Failing THS,Hold(Slow) Total Failing Endpoints,Power
+single,OK,OK,2.812,7.794,0.314,0.217,17.415,18.144,0.769,0.591,NA,NA,NA,NA,16.28,5.39,8.85,NA,NA,NA,51211,NA,NA,NA,1058,1058,1058,NA,0,NA,0.000,0,0.000,0,NA
+Pass Rate/Convergence Rate,100.00%,100.00%
+
+Synthesize:
+control_set,123
+Synthesize Performance Summary:
+slack category,Synthesize Setup WNS,Synthesize Setup TNS,Synthesize Recovery WNS,Synthesize Recovery TNS
+slack value,1.498,0.000,16.713,0.000
+Synthesize Partition Blocks Summary:
+Name,type,Status,Reason,Start Time,End Time,Real Time,CPU Time
+NA,NA,NA,NA,NA,NA,NA,NA
+partition blocks number:,NA
+Synthesize Cpu Time,0h:0m:12s
+Synthesize Process Cpu Time,0h:0m:14s
+Synthesize Real Time,0h:0m:15s
+
+Device Map:
+Device Map Resource Usage Summary:
+Logic Utilization,LUT,FF,DRM,APM,Distributed RAM,HSSTHP,USCM,HCKB,RCKB
+Used,3550,3127,5.5,0,0,NA,1,NA,0
+Available,42800,64200,134,84,17000,NA,30,NA,24
+Utilization(%),9%,5%,5%,0%,0%,NA,4%,NA,0%
+Device Map Process Cpu Time,0h:0m:4s
+
+Project Configurations:
+top module,mes50hp_logic_analyzer_top
+compile," -force_to_run 
+ -top_module {mes50hp_logic_analyzer_top} 
+ -include_path {D:/RISC_V_CPU_2026/fpga/task30_logic_analyzer} "
+synthesize," -force_to_run "
+device map," -force_to_run 
+ -packing_io "
+place & route,
+
+Test Parameters Configurations:
+testparam,
+

@@ -5,7 +5,7 @@ module tb_pipeline_no_hazard;
  parameter RANDOM_DELAY=0;
  parameter TRACE_COUNT=17;
  parameter IMEM_DEPTH=17;
- parameter INIT_FILE="tb/data/task19_no_hazard.mem";
+ parameter INIT_FILE="tb/data/no_hazard.mem";
  parameter EXPECT_LOAD_STALL=-1;
  parameter EXPECT_FLUSH=-1;
  parameter EXPECT_STORES=-1;
@@ -13,11 +13,11 @@ module tb_pipeline_no_hazard;
  reg [31:0] ref_pc[0:31],ref_inst[0:31],ref_rddata[0:31],ref_maddr[0:31],ref_mdata[0:31]; reg ref_rwe[0:31],ref_mwe[0:31]; reg [4:0] ref_rd[0:31]; reg [3:0] ref_mstrb[0:31];
  reg [31:0] pipe_pc[0:31],pipe_inst[0:31],pipe_rddata[0:31],pipe_maddr[0:31],pipe_mdata[0:31]; reg pipe_rwe[0:31],pipe_mwe[0:31]; reg [4:0] pipe_rd[0:31]; reg [3:0] pipe_mstrb[0:31];
  wire rtv,rrwe,rmwe; wire [31:0] rtpc,rtinst,rtrddata,rtmaddr,rtmdata; wire [4:0] rtrd; wire [3:0] rtmstrb;
- task15_core_harness #(.IMEM_DEPTH(IMEM_DEPTH),.DMEM_DEPTH(16),.IMEM_INIT_FILE(INIT_FILE)) ref_core(.clk(clk),.reset(reset),.trace_valid(rtv),.trace_pc(rtpc),.trace_instruction(rtinst),.trace_rd_we(rrwe),.trace_rd_addr(rtrd),.trace_rd_data(rtrddata),.trace_mem_we(rmwe),.trace_mem_addr(rtmaddr),.trace_mem_data(rtmdata),.trace_mem_wstrb(rtmstrb));
+ core_harness #(.IMEM_DEPTH(IMEM_DEPTH),.DMEM_DEPTH(16),.IMEM_INIT_FILE(INIT_FILE)) ref_core(.clk(clk),.reset(reset),.trace_valid(rtv),.trace_pc(rtpc),.trace_instruction(rtinst),.trace_rd_we(rrwe),.trace_rd_addr(rtrd),.trace_rd_data(rtrddata),.trace_mem_we(rmwe),.trace_mem_addr(rtmaddr),.trace_mem_data(rtmdata),.trace_mem_wstrb(rtmstrb));
  wire ptv,prwe,pmwe,iv,ir,rv,rr,ie,dv,dr,dw,dsv,dsr,de,load_stall_event,flush_event; wire [31:0] ptpc,ptinst,ptrddata,pmaddr,pmdata,ia,idata,da,dwd,drd,pwrite_count; wire [4:0] ptrd; wire [3:0] pmstrb,dst; integer load_stall_count=0,flush_count=0,store_trace_count=0; reg ihold=0,dhold=0; reg [31:0] held_ia,held_da,held_dwd; reg held_dw; reg [3:0] held_dst;
  pipeline_cpu pipe(.clk(clk),.reset(reset),.trace_valid(ptv),.trace_pc(ptpc),.trace_instruction(ptinst),.trace_rd_we(prwe),.trace_rd_addr(ptrd),.trace_rd_data(ptrddata),.trace_mem_we(pmwe),.trace_mem_addr(pmaddr),.trace_mem_data(pmdata),.trace_mem_wstrb(pmstrb),.i_req_valid(iv),.i_req_ready(ir),.i_req_addr(ia),.i_rsp_valid(rv),.i_rsp_ready(rr),.i_rsp_data(idata),.i_rsp_error(ie),.d_req_valid(dv),.d_req_ready(dr),.d_req_addr(da),.d_req_write(dw),.d_req_wdata(dwd),.d_req_wstrb(dst),.d_rsp_valid(dsv),.d_rsp_ready(dsr),.d_rsp_rdata(drd),.d_rsp_error(de),.event_stall(),.event_load_stall(load_stall_event),.event_branch(),.event_branch_taken(),.event_flush(flush_event));
  pipeline_imem_adapter #(.DEPTH(IMEM_DEPTH),.INIT_FILE(INIT_FILE),.RANDOM_DELAY(RANDOM_DELAY)) pim(.clk(clk),.reset(reset),.req_valid(iv),.req_ready(ir),.req_addr(ia),.rsp_valid(rv),.rsp_ready(rr),.rsp_data(idata),.rsp_error(ie));
- task15_ram_adapter #(.DEPTH(16),.RANDOM_DELAY(RANDOM_DELAY)) pram(.clk(clk),.reset(reset),.req_valid(dv),.req_ready(dr),.req_addr(da),.req_write(dw),.req_wdata(dwd),.req_wstrb(dst),.rsp_valid(dsv),.rsp_ready(dsr),.rsp_rdata(drd),.rsp_error(de),.write_side_effect_count(pwrite_count));
+ ram_adapter #(.DEPTH(16),.RANDOM_DELAY(RANDOM_DELAY)) pram(.clk(clk),.reset(reset),.req_valid(dv),.req_ready(dr),.req_addr(da),.req_write(dw),.req_wdata(dwd),.req_wstrb(dst),.rsp_valid(dsv),.rsp_ready(dsr),.rsp_rdata(drd),.rsp_error(de),.write_side_effect_count(pwrite_count));
  always #5 clk=~clk;
  always @(posedge clk) if(!reset) begin
   if(rtv&&ref_n<TRACE_COUNT) begin ref_pc[ref_n]=rtpc;ref_inst[ref_n]=rtinst;ref_rwe[ref_n]=rrwe;ref_rd[ref_n]=rtrd;ref_rddata[ref_n]=rtrddata;ref_mwe[ref_n]=rmwe;ref_maddr[ref_n]=rtmaddr;ref_mdata[ref_n]=rtmdata;ref_mstrb[ref_n]=rtmstrb;ref_n=ref_n+1;end
@@ -39,5 +39,5 @@ module tb_pipeline_no_hazard;
   if(EXPECT_FLUSH>=0 && flush_count!==EXPECT_FLUSH) begin $display("FLUSH COUNT FAIL got=%0d want=%0d",flush_count,EXPECT_FLUSH);failures=failures+1;end
   if(EXPECT_STORES>=0 && (store_trace_count!==EXPECT_STORES || pwrite_count!==EXPECT_STORES)) begin $display("STORE COUNT FAIL trace=%0d side_effect=%0d want=%0d",store_trace_count,pwrite_count,EXPECT_STORES);failures=failures+1;end
   if(failures==0)$display("ALL PIPELINE REFERENCE COMPARISON PASS");else $fatal(1,"PIPELINE REFERENCE COMPARISON %0d FAIL",failures); $finish; end
- initial begin #10000;$fatal(1,"TASK19 TIMEOUT");end
+ initial begin #10000;$fatal(1,"PIPELINE TIMEOUT");end
 endmodule

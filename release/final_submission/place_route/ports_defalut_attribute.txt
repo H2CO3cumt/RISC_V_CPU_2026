@@ -1,0 +1,161 @@
+The following ports are set to default value, please confirm:
+Port 'p:led[0]':
+DRIVE is set to default value: 8,
+BUS_KEEPER is set to default value: NONE,
+SLEW is set to default value: SLOW,
+OFF_CHIP_TERMINATION is set to default value: Y,
+OPEN_DRAIN is set to default value: OFF,
+
+Port 'p:led[1]':
+DRIVE is set to default value: 8,
+BUS_KEEPER is set to default value: NONE,
+SLEW is set to default value: SLOW,
+OFF_CHIP_TERMINATION is set to default value: Y,
+OPEN_DRAIN is set to default value: OFF,
+
+Port 'p:led[2]':
+DRIVE is set to default value: 8,
+BUS_KEEPER is set to default value: NONE,
+SLEW is set to default value: SLOW,
+OFF_CHIP_TERMINATION is set to default value: Y,
+OPEN_DRAIN is set to default value: OFF,
+
+Port 'p:led[3]':
+DRIVE is set to default value: 8,
+BUS_KEEPER is set to default value: NONE,
+SLEW is set to default value: SLOW,
+OFF_CHIP_TERMINATION is set to default value: Y,
+OPEN_DRAIN is set to default value: OFF,
+
+Port 'p:led[4]':
+DRIVE is set to default value: 8,
+BUS_KEEPER is set to default value: NONE,
+SLEW is set to default value: SLOW,
+OFF_CHIP_TERMINATION is set to default value: Y,
+OPEN_DRAIN is set to default value: OFF,
+
+Port 'p:led[5]':
+DRIVE is set to default value: 8,
+BUS_KEEPER is set to default value: NONE,
+SLEW is set to default value: SLOW,
+OFF_CHIP_TERMINATION is set to default value: Y,
+OPEN_DRAIN is set to default value: OFF,
+
+Port 'p:led[6]':
+DRIVE is set to default value: 8,
+BUS_KEEPER is set to default value: NONE,
+SLEW is set to default value: SLOW,
+OFF_CHIP_TERMINATION is set to default value: Y,
+OPEN_DRAIN is set to default value: OFF,
+
+Port 'p:led[7]':
+DRIVE is set to default value: 8,
+BUS_KEEPER is set to default value: NONE,
+SLEW is set to default value: SLOW,
+OFF_CHIP_TERMINATION is set to default value: Y,
+OPEN_DRAIN is set to default value: OFF,
+
+Port 'p:loopback_tx[0]':
+DRIVE is set to default value: 8,
+BUS_KEEPER is set to default value: NONE,
+SLEW is set to default value: SLOW,
+OFF_CHIP_TERMINATION is set to default value: Y,
+OPEN_DRAIN is set to default value: OFF,
+
+Port 'p:loopback_tx[1]':
+DRIVE is set to default value: 8,
+BUS_KEEPER is set to default value: NONE,
+SLEW is set to default value: SLOW,
+OFF_CHIP_TERMINATION is set to default value: Y,
+OPEN_DRAIN is set to default value: OFF,
+
+Port 'p:loopback_tx[2]':
+DRIVE is set to default value: 8,
+BUS_KEEPER is set to default value: NONE,
+SLEW is set to default value: SLOW,
+OFF_CHIP_TERMINATION is set to default value: Y,
+OPEN_DRAIN is set to default value: OFF,
+
+Port 'p:loopback_tx[3]':
+DRIVE is set to default value: 8,
+BUS_KEEPER is set to default value: NONE,
+SLEW is set to default value: SLOW,
+OFF_CHIP_TERMINATION is set to default value: Y,
+OPEN_DRAIN is set to default value: OFF,
+
+Port 'p:loopback_tx[4]':
+DRIVE is set to default value: 8,
+BUS_KEEPER is set to default value: NONE,
+SLEW is set to default value: SLOW,
+OFF_CHIP_TERMINATION is set to default value: Y,
+OPEN_DRAIN is set to default value: OFF,
+
+Port 'p:loopback_tx[5]':
+DRIVE is set to default value: 8,
+BUS_KEEPER is set to default value: NONE,
+SLEW is set to default value: SLOW,
+OFF_CHIP_TERMINATION is set to default value: Y,
+OPEN_DRAIN is set to default value: OFF,
+
+Port 'p:loopback_tx[6]':
+DRIVE is set to default value: 8,
+BUS_KEEPER is set to default value: NONE,
+SLEW is set to default value: SLOW,
+OFF_CHIP_TERMINATION is set to default value: Y,
+OPEN_DRAIN is set to default value: OFF,
+
+Port 'p:loopback_tx[7]':
+DRIVE is set to default value: 8,
+BUS_KEEPER is set to default value: NONE,
+SLEW is set to default value: SLOW,
+OFF_CHIP_TERMINATION is set to default value: Y,
+OPEN_DRAIN is set to default value: OFF,
+
+Port 'p:uart0_tx':
+DRIVE is set to default value: 8,
+BUS_KEEPER is set to default value: NONE,
+SLEW is set to default value: SLOW,
+OFF_CHIP_TERMINATION is set to default value: Y,
+OPEN_DRAIN is set to default value: OFF,
+
+Port 'p:capture_ch[0]':
+BUS_KEEPER is set to default value: NONE,
+HYS_DRIVE_MODE is set to default value: NOHYS,
+
+Port 'p:capture_ch[1]':
+BUS_KEEPER is set to default value: NONE,
+HYS_DRIVE_MODE is set to default value: NOHYS,
+
+Port 'p:capture_ch[2]':
+BUS_KEEPER is set to default value: NONE,
+HYS_DRIVE_MODE is set to default value: NOHYS,
+
+Port 'p:capture_ch[3]':
+BUS_KEEPER is set to default value: NONE,
+HYS_DRIVE_MODE is set to default value: NOHYS,
+
+Port 'p:capture_ch[4]':
+BUS_KEEPER is set to default value: NONE,
+HYS_DRIVE_MODE is set to default value: NOHYS,
+
+Port 'p:capture_ch[5]':
+BUS_KEEPER is set to default value: NONE,
+HYS_DRIVE_MODE is set to default value: NOHYS,
+
+Port 'p:capture_ch[6]':
+BUS_KEEPER is set to default value: NONE,
+HYS_DRIVE_MODE is set to default value: NOHYS,
+
+Port 'p:capture_ch[7]':
+BUS_KEEPER is set to default value: NONE,
+HYS_DRIVE_MODE is set to default value: NOHYS,
+
+Port 'p:clk_50m':
+BUS_KEEPER is set to default value: NONE,
+HYS_DRIVE_MODE is set to default value: NOHYS,
+
+Port 'p:uart0_rx':
+BUS_KEEPER is set to default value: NONE,
+HYS_DRIVE_MODE is set to default value: NOHYS,
+
+

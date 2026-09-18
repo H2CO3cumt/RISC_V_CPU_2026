@@ -1,0 +1,83 @@
+{
+ "source": "tmp/ila/coremark_ila.txt",
+ "window_samples": 512,
+ "clock_hz": 50000000,
+ "window_us": 10.24,
+ "committed": 325,
+ "ipc": 0.6348,
+ "cpi": 1.5754,
+ "stall_cycles": 7,
+ "load_use_stall_cycles": 0,
+ "branch_events": 100,
+ "branch_taken_events": 65,
+ "flush_events": 44,
+ "first_flush_cycle": 9,
+ "mulsi3_commits": 274,
+ "mulsi3_share_of_commits": 0.8431,
+ "hot_pcs": [
+  {
+   "pc": "0x00003520",
+   "hits": 49,
+   "symbol": "__mulsi3",
+   "text": "andi\ta3,a1,1"
+  },
+  {
+   "pc": "0x00003524",
+   "hits": 48,
+   "symbol": "__mulsi3",
+   "text": "beq\ta3,zero,352c <__mulsi3+0x14>"
+  },
+  {
+   "pc": "0x0000352c",
+   "hits": 48,
+   "symbol": "__mulsi3",
+   "text": "srli\ta1,a1,0x1"
+  },
+  {
+   "pc": "0x00003530",
+   "hits": 48,
+   "symbol": "__mulsi3",
+   "text": "slli\ta2,a2,0x1"
+  },
+  {
+   "pc": "0x00003534",
+   "hits": 48,
+   "symbol": "__mulsi3",
+   "text": "bne\ta1,zero,3520 <__mulsi3+0x8>"
+  },
+  {
+   "pc": "0x00003528",
+   "hits": 28,
+   "symbol": "__mulsi3",
+   "text": "add\ta0,a0,a2"
+  },
+  {
+   "pc": "0x00003538",
+   "hits": 5,
+   "symbol": "__mulsi3",
+   "text": "jalr\tzero,0(ra)"
+  },
+  {
+   "pc": "0x00003518",
+   "hits": 5,
+   "symbol": "__mulsi3",
+   "text": "addi\ta2,a0,0"
+  },
+  {
+   "pc": "0x0000351c",
+   "hits": 5,
+   "symbol": "__mulsi3",
+   "text": "addi\ta0,zero,0"
+  },
+  {
+   "pc": "0x00001ad4",
+   "hits": 3,
+   "symbol": "matrix_mul_matrix_bitextract",
+   "text": "add\ts9,s9,a0"
+  }
+ ],
+ "notes": [
+  "采样窗口为实体板 50 MHz 下 CoreMark 运行中触发的 512 拍（10.24 us）",
+  "ipc/cpi 与板级计数器同口径（各自独立测量，互相印证）"
+ ]
+}

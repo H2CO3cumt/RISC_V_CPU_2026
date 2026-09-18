@@ -22,7 +22,7 @@
 
 RTL、GCC、官方 CoreMark CRC、Predictor Off/On、逻辑分析仪、Python/VCD 和最终 PDS 均已通过。最终位流已由 JTAG 下载到 PGL50H（DONE=1），J8 static/counter/UART/SPI 四模式各连续 20 次，共 80/80 实体回环 PASS；证据位于 `release/evidence/logic_analyzer_board_final`。
 
-`release/final_submission`、`release/artifacts` 与 `fpga/task30_logic_analyzer/generate_bitstream` 的位流 SHA-256 必须一致（`2C09E690…4746E`），位流、时序、约束、固件与实体回环证据必须来自同一次最终构建；任何源文件修改后都要重新执行 `export_final_submission.ps1`、`create_release_manifest.ps1` 和 `audit_release_package.ps1`。发布脚本需用 PowerShell 7 执行（本机为 Codex 运行时 `pwsh.exe`），不能用 Windows PowerShell 5.1。
+`release/final_submission`、`release/artifacts` 与 `fpga/logic_analyzer/generate_bitstream` 的位流 SHA-256 必须一致（`2C09E690…4746E`），位流、时序、约束、固件与实体回环证据必须来自同一次最终构建；任何源文件修改后都要重新执行 `export_final_submission.ps1`、`create_release_manifest.ps1` 和 `audit_release_package.ps1`。发布脚本需用 PowerShell 7 执行（本机为 Codex 运行时 `pwsh.exe`），不能用 Windows PowerShell 5.1。
 
 ## 参赛材料
 

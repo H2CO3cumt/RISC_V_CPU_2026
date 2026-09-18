@@ -3,7 +3,7 @@ param(
   [int]$ClockHz = 80000000,
   [int]$AutoStart = 0,
   [int]$PerfWindowAlign = 0,
-  [string]$ProjectDir = 'fpga/task28_coremark_80m'
+  [string]$ProjectDir = 'fpga/coremark_80m'
 )
 # 生成 80 MHz CoreMark 板级程序镜像。
 # 复用未修改的 scripts/generate_coremark_fpga_memory.ps1（50 MHz 基线仍由它生成），
@@ -15,7 +15,7 @@ $ErrorActionPreference='Stop'
 $repo=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 Push-Location $repo
 try{
-  $src="fpga/task28_coremark/rtl"
+  $src="fpga/coremark/rtl"
   & (Join-Path $PSScriptRoot 'generate_coremark_fpga_memory.ps1') -Iterations $Iterations -ClockHz $ClockHz -AutoStart $AutoStart `
       -PerfWindowAlign $PerfWindowAlign `
       -OutputFile "$src/coremark_program_memory.v" -MemoryDirectory $src
@@ -29,7 +29,7 @@ try{
   # 仿真分支路径改为本工程目录（综合分支用相对 rtl/ 路径，无需修改）。
   $target=Join-Path $dst 'coremark_program_memory.v'
   $text=Get-Content -LiteralPath $target -Raw
-  $text=$text.Replace('fpga/task28_coremark/rtl/','fpga/task28_coremark_80m/rtl/')
+  $text=$text.Replace('fpga/coremark/rtl/','fpga/coremark_80m/rtl/')
   Set-Content -LiteralPath $target -Value $text -Encoding ascii -NoNewline
   Write-Host "COREMARK 80M MEMORY READY iterations=$Iterations clock_hz=$ClockHz dir=$dst"
 }finally{Pop-Location}

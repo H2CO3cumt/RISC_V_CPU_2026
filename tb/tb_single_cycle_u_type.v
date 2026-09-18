@@ -5,9 +5,9 @@ module tb_single_cycle_u_type;
     reg reset;
     integer failures;
 
-    task15_core_harness #(
+    core_harness #(
         .IMEM_DEPTH(2),
-        .IMEM_INIT_FILE("tb/data/task12_u_type.mem")
+        .IMEM_INIT_FILE("tb/data/u_type.mem")
     ) dut (
         .clk(clk),
         .reset(reset)

@@ -5,13 +5,13 @@ param(
   [string]$LicenseFile = $(if($env:PANGO_LICENSE_FILE){$env:PANGO_LICENSE_FILE}else{'D:\Downloads\new_pds_60452e195a32.lic'}),
   [string]$Periods = '20.000,16.667,14.286,13.333,12.500,11.765',
   [string]$RtlSource = 'D:\RISC_V_CPU_2026\rtl',
-  [string]$MemorySource = 'D:\RISC_V_CPU_2026\fpga\task28_coremark\rtl',
-  [string]$RecipeSource = 'D:\RISC_V_CPU_2026\fpga\task28_coremark\pds_recipe.tcl',
-  [string]$FdcSource = 'D:\RISC_V_CPU_2026\fpga\task28_coremark\constraints\mes50hp_coremark.fdc'
+  [string]$MemorySource = 'D:\RISC_V_CPU_2026\fpga\coremark\rtl',
+  [string]$RecipeSource = 'D:\RISC_V_CPU_2026\fpga\coremark\pds_recipe.tcl',
+  [string]$FdcSource = 'D:\RISC_V_CPU_2026\fpga\coremark\constraints\mes50hp_coremark.fdc'
 )
 # 频率扫描复现脚本（T0 / T4）。
 # 每个频率点使用完全隔离的工程目录：project/<tag>-<freq>/，并通过 ../../rtl 引用
-# 该 tag 专属的 RTL 快照快照目录 <tag>_rtl/，绝不污染 fpga/task28_coremark 的正式产物。
+# 该 tag 专属的 RTL 快照快照目录 <tag>_rtl/，绝不污染 fpga/coremark 的正式产物。
 # 运行前记录 RTL/FDC SHA-256，运行后输出时序表，保证 Before/After 可比。
 $ErrorActionPreference='Stop'
 $pds = Join-Path $PdsRoot 'bin/pds_shell.exe'
@@ -72,16 +72,27 @@ foreach($j in $jobs){
   $d = Join-Path $projDir $nm
   $rtr = Get-ChildItem -LiteralPath (Join-Path $d 'report_timing') -Filter '*.rtr' -ErrorAction SilentlyContinue |
          Sort-Object LastWriteTime -Descending | Select-Object -First 1
-  $row = [ordered]@{ freq=$nm; state=$st; target=''; wns=''; tns=''; fail=''; whs=''; ths=''; ds=''; lut=''; ff=''; drm='' }
+  $row = [ordered]@{ freq=$nm; state=$st; target=''; est=''; wns=''; tns=''; fail=''; whs=''; ths=''; ds=''; lut=''; ff=''; drm='' }
   if($rtr){
     $L = Get-Content -LiteralPath $rtr.FullName
-    $m = $L | Select-String -Pattern '^\s*clk_50m.*?([\d\.]+) MHz\s+([\d\.]+) MHz\s+([\d\.]+)\s+([\d\.]+)\s+(-?[\d\.]+)\s*$' | Select-Object -First 1
-    if($m){ $row.target=$m.Matches[0].Groups[1].Value; $row.wns=$m.Matches[0].Groups[5].Value }
-    # 时钟行可能是 `clk_50m` 或 `clk_50m|u_pll/.../CLKOUT0_Inferred`；统配前缀后再取 4 个数值列
-    $s = $L | Select-String -Pattern '^\s*\S*(?:Inferred)?\s+(-?[\d\.]+)\s+(-?[\d\.]+)\s+(\d+)\s+(\d+)\s*$' | Select-Object -First 1
-    if($s){ $row.wns=$s.Matches[0].Groups[1].Value; $row.tns=$s.Matches[0].Groups[2].Value; $row.fail=$s.Matches[0].Groups[3].Value }
-    $h = $L | Select-String -Pattern '^\s*\S*(?:Inferred)?\s+(-?[\d\.]+)\s+(-?[\d\.]+)\s+(\d+)\s+(\d+)\s*$' | Select-Object -Skip 1 -First 1
-    if($h){ $row.whs=$h.Matches[0].Groups[1].Value; $row.ths=$h.Matches[0].Groups[2].Value }
+    # Performance Summary 行：target MHz / estimated MHz / period / est period / slack
+    $m = $L | Select-String -Pattern '^\s*\S+\s+([\d\.]+) MHz\s+([\d\.]+) MHz\s+([\d\.]+)\s+([\d\.]+)\s+(-?[\d\.]+)\s*$' | Select-Object -First 1
+    if($m){ $row.target=$m.Matches[0].Groups[1].Value; $row.est=$m.Matches[0].Groups[2].Value }
+    # Setup/Hold 数字必须按小节定位：报告里 Minimum Pulse Width / Fast Corner 等小节
+    # 也是同样的 `名字 名字 数字 数字 整数 整数` 形态，不分小节会取到错误的 slack
+    # （历史缺陷：曾把 Minimum Pulse Width(Slow Corner) 的 4.365 当成 85 MHz 的 WNS）。
+    $section=''
+    foreach($line in $L){
+      $sec = [regex]::Match($line,'^\s*([A-Za-z][^:]*?)\s*:\s*$')
+      if($sec.Success){ $section=$sec.Groups[1].Value.Trim(); continue }
+      $num = [regex]::Match($line,'^\s*\S+\s+\S+\s+(-?[\d\.]+)\s+(-?[\d\.]+)\s+(\d+)\s+(\d+)\s*$')
+      if(-not $num.Success){ continue }
+      if($section -eq 'Setup Summary(Slow Corner)'){
+        $row.wns=$num.Groups[1].Value; $row.tns=$num.Groups[2].Value; $row.fail=$num.Groups[3].Value
+      } elseif($section -eq 'Hold Summary(Slow Corner)'){
+        $row.whs=$num.Groups[1].Value; $row.ths=$num.Groups[2].Value
+      }
+    }
     $row.ds = if(($L | Select-String -Pattern 'All Constraints Met').Count -gt 0){'MET'}else{'VIOLATED'}
   }
   $syn = Join-Path $d 'synthesize\run.log'

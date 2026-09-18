@@ -258,7 +258,7 @@ add_bullets(doc, [
     "Forwarding 选择 EX/MEM 为最高优先级，MEM/WB 为次优先级；Load、x0、无效或错误写回被排除。",
     "Load-Use 相关冻结 PC 与 IF/ID，并向 ID/EX 注入 Bubble；Store 和 Branch 的两个源操作数均参与检测。",
     "Branch、JAL 和 JALR 在 EX 级重定向并冲刷错误路径。被冲刷指令不得写 RegFile、RAM、MMIO 或提交 trace。",
-    "数据事务等待期间保持流水线状态，WB 值继续可前递；定向用例 `task23_wb_hold` 覆盖该边界。",
+    "数据事务等待期间保持流水线状态，WB 值继续可前递；定向用例 `wb_hold` 覆盖该边界。",
 ])
 add_paragraph(doc, "Task 23 汇总 10 个入口，覆盖一级/二级前递、同 rd 优先级、Load 到 ALU/Store/Branch、taken 与 not-taken、JAL/JALR、错误响应、随机背压和 Reset 中止。所有测试按退休顺序与 Reference Model 比较。")
 

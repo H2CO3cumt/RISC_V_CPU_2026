@@ -32,9 +32,9 @@ module tb_single_cycle_reference_trace;
     wire [31:0] trace_mem_data_b;
     wire [3:0]  trace_mem_wstrb_b;
 
-    task15_core_harness #(
+    core_harness #(
         .IMEM_DEPTH(12),
-        .IMEM_INIT_FILE("tb/data/task11_single_cycle.mem")
+        .IMEM_INIT_FILE("tb/data/single_cycle_smoke.mem")
     ) dut_a (
         .clk(clk), .reset(reset),
         .trace_valid(trace_valid_a), .trace_pc(trace_pc_a),
@@ -45,9 +45,9 @@ module tb_single_cycle_reference_trace;
         .trace_mem_wstrb(trace_mem_wstrb_a)
     );
 
-    task15_core_harness #(
+    core_harness #(
         .IMEM_DEPTH(12),
-        .IMEM_INIT_FILE("tb/data/task11_single_cycle.mem")
+        .IMEM_INIT_FILE("tb/data/single_cycle_smoke.mem")
     ) dut_b (
         .clk(clk), .reset(reset),
         .trace_valid(trace_valid_b), .trace_pc(trace_pc_b),
@@ -157,7 +157,7 @@ module tb_single_cycle_reference_trace;
         expect_intentional_mismatch;
 
         if (failures == 0)
-            $display("ALL TASK13 CANDIDATE REFERENCE TEST PASS");
+            $display("ALL SINGLE-CYCLE CANDIDATE REFERENCE TEST PASS");
         else
             $fatal(1, "%0d TEST(S) FAILED", failures);
         $finish;

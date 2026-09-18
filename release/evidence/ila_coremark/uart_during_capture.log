@@ -1,0 +1,42 @@
+COREMARK_READY: send R to start
+COREMARK_START
+2K performance run parameters for coremark.
+CoreMark Size    : 666
+Total ticks      : 1109848679
+Total time (secs): 22
+Iterations/Sec   : 45
+Iterations       : 1000
+Compiler version : GCC 15.2.0
+Compiler flags   : -O2 -march=rv32i -mabi=ilp32
+Memory location  : STATIC BRAM
+seedcrc          : 0xe9f5
+[0]crclist       : 0xe714
+[0]crcmatrix     : 0x1fd7
+[0]crcstate      : 0x8e3a
+[0]crcfinal      : 0xd340
+Correct operation validated. See README.md for run and reporting rules.
+CoreMark score x1000 : 45051
+CoreMark/MHz x1000  : 901
+PERF cycle=424a498f instret=2b143bf4 stall=056c0d3e load=01430878 branch=0bd5dcce taken=075acec5 flush=04728018
+COREMARK_DONE
+COREMARK_READY: send R to start
+COREMARK_START
+2K performance run parameters for coremark.
+CoreMark Size    : 666
+Total ticks      : 1109848679
+Total time (secs): 22
+Iterations/Sec   : 45
+Iterations       : 1000
+Compiler version : GCC 15.2.0
+Compiler flags   : -O2 -march=rv32i -mabi=ilp32
+Memory location  : STATIC BRAM
+seedcrc          : 0xe9f5
+[0]crclist       : 0xe714
+[0]crcmatrix     : 0x1fd7
+[0]crcstate      : 0x8e3a
+[0]crcfinal      : 0xd340
+Correct operation validated. See README.md for run and reporting rules.
+CoreMark score x1000 : 45051
+CoreMark/MHz x1000  : 901
+PERF cycle=424a498f instret=2b143bf4 stall=056c0d3e load=01430878 branch=0bd5dcce taken=075acec5 flush=04728018
+COREMARK_DONE

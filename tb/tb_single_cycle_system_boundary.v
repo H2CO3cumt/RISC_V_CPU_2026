@@ -5,9 +5,9 @@ module tb_single_cycle_system_boundary;
     reg reset;
     integer failures;
 
-    task15_core_harness #(
+    core_harness #(
         .IMEM_DEPTH(17),
-        .IMEM_INIT_FILE("tb/data/task12_system_boundary.mem")
+        .IMEM_INIT_FILE("tb/data/system_boundary.mem")
     ) dut (
         .clk(clk),
         .reset(reset)
