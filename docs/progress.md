@@ -1,7 +1,54 @@
 # Project Progress
 
-> 最后更新：2026-09-17（CPI 优化专项轮 + 交付冻结收口）
+> 最后更新：2026-10-09（上位机波形可视化链一致性修复 + 交付包重新导出）
 > 状态依据：`AGENTS.md`、`docs/competition_scoring.md`、`docs/roadmap.md`、`docs/architecture.md`、`docs/interfaces.md`、`docs/fpga_platform.md`、`docs/application_logic_analyzer.md` 与当前项目文件。聊天记录不作为任务完成证明。
+
+## 上位机波形链一致性修复（2026-10-09）
+
+本轮**只动上位机工具、导出脚本与文档**，未改任何 RTL、固件、约束或位流。
+
+### 1. 修掉了三处"看着都对、其实对不上"的不一致
+
+| # | 不一致 | 证据 | 修复 |
+|---|---|---|---|
+| 1 | `python/` 里的上位机工具被冲回 9 月旧版：`logic_analyzer.py` 没有 `write_waveform_page`，`logic_analyzer_serial.py` 没有 `on_run`，UI 没有实时波形面板 | `python python/tests/test_waveform_page.py` → `ImportError: cannot import name 'write_waveform_page'` | 以 `tmp/pkg_cm_verify/tools/`（10-03 含面板的完整快照）恢复四个工具文件，并按 10-09 的测试契约把 `write_waveform_page` 的可选字段补回 |
+| 2 | 交付包根目录 `波形预览.html` 是 10-03 旧模板（无 `decodeUart`/`drawByteLabels`/`zannot`），而 `release/evidence/logic_analyzer_board_85m/` 下 10-09 重新生成的页面是新版 | 逐项 grep 对照 | 用 `scripts\logic_analyzer_capture.ps1 -FromCaptures release\evidence\logic_analyzer_board_85m` 离线重建 4 个模式页 + 总览页，再重新导出交付包 |
+| 3 | `scripts/demo_preflight.ps1` 的文件清单里写着 `scripts/show_capture.ps1` | 现场会 `FAIL demo files`，而 `docs/demo_runbook.md` 记的是 `warnings=0` | 清单改为 `scripts/logic_analyzer_capture.ps1`（并加入 `python/waveform_viewer.html`），`show_capture.ps1` 若存在则作为兼容项追加 |
+
+### 2. 导出流程加固（被构建垃圾卡死 → 半成品包）
+
+`export_final_submission.ps1` 过去对包内**所有文件**算哈希，而审计的交付物集合排除 `.lock`/`.log`/`sim/`。
+PDS 打开过交付工程后 `pds.log` 被别的进程独占，`Get-FileHash` 抛 ReadError，导出在最后一步中断，
+留下"内容已更新但缺 `SHA256SUMS.txt` 与 zip"的半成品。现已把哈希清单与 zip 打包都改成与审计同一套排除规则。
+另外记录一条操作纪律：编辑该脚本后必须补回 UTF-8 BOM，否则 PS 5.1 按 ANSI 解码中文会报
+`Unexpected token '}'` 与 `The string is missing the terminator: "@`。
+
+### 3. 本轮验证结果
+
+| 验证 | 命令 | 结果 |
+|---|---|---|
+| 波形页注入单测 | `python python\tests\test_waveform_page.py` | 6 项 OK |
+| 实时面板单测 | `python python\tests\test_waveform_panel.py` | 10 项 OK |
+| 定时器串口解析 | `python python\tests\test_timer_demo_serial.py` | ALL PASS |
+| 上位机工具单测 | `python -m unittest test_logic_analyzer test_logic_analyzer_serial test_coremark_serial` | 8 项 OK |
+| 波形查看器端到端 | `scripts\run_waveform_viewer_test.ps1` | `ALL TEST PASS`（含四模式页面与总览页） |
+| Python/VCD 回归入口 | `scripts\run_logic_analyzer_python.ps1` | `ALL LOGIC ANALYZER PYTHON TEST PASS`，exit 0 |
+| 演示前自检 | `scripts\demo_preflight.ps1 -Port COM11` | `DEMO PREFLIGHT PASS warnings=0` |
+| 交付包导出 | `scripts\export_final_submission.ps1` | `FINAL SUBMISSION EXPORT PASS files=178` |
+| 交付清单 | `scripts\create_release_manifest.ps1` | `RELEASE MANIFEST PASS files=3679` |
+| 交付包审计 | `scripts\audit_release_package.ps1` | `RELEASE PACKAGE AUDIT PASS final_files=179 artifacts=3` |
+
+位流未重新综合，三处副本 SHA-256 仍为 `788F1CEB273FA626…1622DCE2`。
+
+### 4. 已知遗留（本轮未动，需用户决定）
+
+- `scripts\logic_analyzer_capture.ps1` 的 `-Segmented` / `-Oneshot -Segments N` 会发 **0xA6** 前缀命令，
+  但 `software/logic_analyzer/logic_analyzer.c` 只认 **0xA5**（`do { packet[0]=uart_getc(); } while (packet[0]!=0xA5u);`）。
+  也就是说这条路径在当前交付固件上不可能成功，失败形式是超时（默认 70 s）或按 0xA5 对齐后
+  `LA_CONFIG_ERROR`。**现场误用会当场卡住**，建议要么加"当前固件不支持分段"的显式拒绝，要么整段移除。
+- `scripts\run_waveform_viewer_test.ps1` 仍未接入 `run_final_regression.ps1`；
+  `python/tests/` 也不在 `run_logic_analyzer_python.ps1` 的发现范围内（只发现 `test_logic_analyzer*.py`）。
+- `release/evidence/logic_analyzer_board/` 是另一个位流批次（`cpi50m`）的证据页，本轮未重建。
 
 ## 交付冻结收口（2026-09-17，CPI 专项之后）
 

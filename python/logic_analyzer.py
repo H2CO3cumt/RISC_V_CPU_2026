@@ -27,12 +27,26 @@ def parse_raw(data: bytes | str, channels: int = 8) -> Tuple[List[int], int | No
     return [v & ((1 << channels) - 1) for v in raw], None
 
 def decode_uart(samples: Sequence[int], channel: int = 0, bit_samples: int = 16) -> Tuple[bytes, int]:
-    """Decode 8N1 UART from uniformly sampled levels; returns bytes/errors."""
+    """Decode 8N1 UART from uniformly sampled levels; returns bytes/errors.
+
+    【2026-09-30 修的 bug —— 别改回去】
+    旧实现在窗口里找到**第一个下降沿**就当成帧起始，并且不管 stop 位是否有效，
+    都固定向前跳过 10 个比特。可采集窗口的相位是任意的：只要窗口不是恰好从帧边界
+    开始，第一个下降沿就可能落在某个数据位内部，于是解出 0 字节、还记一个假的
+    framing error，然后窗口已经不够再去试真正的帧。
+
+    这个 bug 在 50/80 MHz 上"碰巧"不发作（那两个频率的窗口正好落在帧边界），
+    但在 85 MHz PLL 变体上窗口偏了 1 个采样点就暴露了 —— 实际波形完全正确。
+    证据：release/evidence/logic_analyzer_board_85m/。
+
+    现在：stop 位无效时只前进 1 个采样点继续扫描，不把它当帧、也不立刻记错；
+    只有真正把一帧解出来但 stop 位仍不对，才算 framing error。
+    """
     mask = 1 << channel
     level = [1 if s & mask else 0 for s in samples]
     out = bytearray(); errors = 0; i = 1
-    # The falling edge only identifies the start-bit boundary.  Sampling on
-    # subsequent bit boundaries works in an ideal simulation but is fragile on
+    # The falling edge only identifies a candidate start-bit boundary.  Sampling
+    # on subsequent bit boundaries works in an ideal simulation but is fragile on
     # a real board because the generated waveform and capture clock can have an
     # arbitrary phase.  Sample each data/stop bit in its centre instead.
     half_bit = max(1, bit_samples // 2)
@@ -42,9 +56,13 @@ def decode_uart(samples: Sequence[int], channel: int = 0, bit_samples: int = 16)
             for bit in range(8):
                 value |= level[i + bit_samples * (bit + 1) + half_bit] << bit
             stop = level[i + bit_samples * 9 + half_bit]
-            if stop != 1: errors += 1
-            else: out.append(value)
-            i += bit_samples * 10
+            if stop == 1:
+                out.append(value)
+                i += bit_samples * 10
+            else:
+                # 不是帧起始（多半是数据位内部的跳变）：继续往后找真正的起始位，
+                # 不要在这里记 framing error，也不要跳过 10 个比特。
+                i += 1
         else:
             i += 1
     return bytes(out), errors
@@ -83,6 +101,83 @@ def write_vcd(samples: Sequence[int], path: str | Path, channels: int = 8, trigg
             for i, ident in enumerate(ids): f.write(f"{(sample >> i) & 1}{ident}\n")
         if trigger is not None and 0 <= trigger < len(samples):
             f.write(f"$comment trigger_index={trigger} $end\n")
+
+def write_waveform_page(datasets, path: str | Path, template: str | Path | None = None) -> bool:
+    """把采集数据嵌进自包含 HTML 波形页（双击用浏览器打开即可看）。
+
+    [2026-10-03 新增] 目的：让 Python 上位机与零依赖 PowerShell 采集器**产出同一套文件**——
+    以前只有 PowerShell 那条路会生成 .html，pyUI 采完还得手动把 .vcd 拖进查看器。
+
+    datasets: [{"name": str, "samples": [int], "trigger": int, "note": str}, ...]
+    返回是否写出成功；模板缺失时返回 False 而不是抛异常——
+    采集本身不该因为"少了一个查看模板"而失败。
+
+    [2026-10-09 扩展] 可选字段按需**透传**，与零依赖 PowerShell 采集器
+    （scripts/logic_analyzer_capture.ps1 的 Write-ViewerHtml / Get-DecodeJson）
+    产出同一套页面数据：
+      sample_ns / sample_hz —— 时基，给了页面才把横轴标成真实时间；
+      decode                —— 协议标注 spec（{"protocol":"uart"|"spi", ...}），
+                              由页面自己的 decodeUart/decodeSpi 重新解码并画帧；
+      tag_names             —— 通道别名，例如 {"0":"UART_TX"}；
+      segments              —— 分段拼长波形时各段的 [起点, 终点] 采样下标。
+    三条纪律（缺一条就会画出假波形）：
+      1. 字段**只在调用方给了的时候才写进 payload**，没给就不写——页面靠"有没有这个
+         字段"决定要不要标注，凭空补默认值会画出根本不存在的帧或时间轴；
+      2. samples 一律 & 0xFF 收敛到一个字节，页面按位取通道；
+      3. 非整数样本直接报错，不做静默取整——静默取整会得到一条"看着对但错"的波形。
+    """
+    import json
+    path = Path(path)
+    if template is None:
+        template = Path(__file__).resolve().with_name("waveform_viewer.html")
+    template = Path(template)
+    if not template.is_file():
+        return False
+    marker = "window.WAVEFORMS = null; // __WAVEFORMS_JSON__"
+    html = template.read_text(encoding="utf-8")
+    if marker not in html:
+        return False
+
+    def to_sample(value) -> int:
+        if isinstance(value, bool):
+            raise TypeError(f"sample is not an integer: {value!r}")
+        if isinstance(value, int):
+            return value & 0xFF
+        if isinstance(value, float) and float(value).is_integer():
+            return int(value) & 0xFF
+        raise TypeError(f"sample is not an integer: {value!r}")
+
+    payload = []
+    for item in datasets:
+        entry = {
+            "name": str(item.get("name", "波形")),
+            "channels": int(item.get("channels", 8)),
+            "samples": [to_sample(v) for v in item.get("samples", [])],
+            "trigger": item.get("trigger"),
+            "note": str(item.get("note", "")),
+        }
+        sample_ns = item.get("sample_ns")
+        sample_hz = item.get("sample_hz")
+        if sample_ns is not None and sample_ns > 0:
+            entry["sample_ns"] = float(sample_ns)
+        if sample_hz is not None and sample_hz > 0:
+            entry["sample_hz"] = float(sample_hz)
+        decode = item.get("decode")
+        if isinstance(decode, dict) and decode.get("protocol"):
+            entry["decode"] = decode
+        tag_names = item.get("tag_names")
+        if isinstance(tag_names, dict) and tag_names:
+            entry["tag_names"] = tag_names
+        segments = item.get("segments")
+        if isinstance(segments, (list, tuple)) and len(segments) > 1:
+            entry["segments"] = [list(seg) for seg in segments]
+        payload.append(entry)
+    # ensure_ascii=True：页面里只有 ASCII 数据，避免不同编码环境下注入出错
+    html = html.replace(marker, "window.WAVEFORMS = %s;" % json.dumps(payload, ensure_ascii=True))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(html, encoding="utf-8")
+    return True
+
 
 def main(argv: Iterable[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="Decode Task 30 Raw capture and export VCD")

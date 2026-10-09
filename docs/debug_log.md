@@ -1,6 +1,6 @@
 # Debug Log
 
-> 最后更新：2026-09-17（CPI 优化专项）
+> 最后更新：2026-10-09（上位机工具链一致性 + 导出被构建垃圾卡死）
 
 本文件只记录已经实际发生、对架构或后续开发有复用价值的重要 Bug。尚未开始 RTL 时不预填虚构问题。
 
@@ -17,6 +17,54 @@
 - 最小修复范围。
 - 修复后的验证命令与 Regression 结果。
 - 是否影响 Reference Model、接口或架构文档。
+
+### 2026-10-09 / 上位机工具链被 `git restore` 冲回旧版（三处不一致）
+
+- **现象**：`python -m unittest discover -s python` 只跑 8 个测试且全过，但
+  `python python/tests/test_waveform_page.py` 一跑就 ImportError：
+  `cannot import name 'write_waveform_page' from 'logic_analyzer'`。
+- **第一个错误信号**：`python/logic_analyzer.py` 只有 5398 字节、没有 `def write_waveform_page`，
+  而 `python/tests/test_waveform_page.py`（10-09 新增、未跟踪）明确按该函数的新契约断言。
+  同一批被冲掉的还有 `logic_analyzer_serial.py`（缺 `on_run` 回调和波形页导出）、
+  `mes50hp_validation_ui.py`（缺实时波形面板）、`waveform_panel.py`（旧版）。
+  **`waveform_viewer.html` 反而活着**，因为它也是未跟踪文件——这正是"未提交工作被选择性冲掉"的特征。
+- **根因**：这些 Python 工具当时**只存在于未提交的工作区**（交付包里有一份 10-03 的快照）。
+  一次 `git restore`/`checkout` 把它们退回 HEAD 的 9 月版本；而 10-09 新写的测试与 HTML 模板
+  是未跟踪文件，所以留了下来，形成"新测试 vs 旧实现"的组合。
+- **次要后果**：交付包根目录的 `波形预览.html` 也是 10-03 的旧模板（不含
+  `decodeUart`/`drawByteLabels`/`zannot`），而 10-09 重新生成的
+  `release/evidence/logic_analyzer_board_85m/*/` 页面是带标注的新版 —— 最抢眼的那个文件恰好最旧。
+- **最小修复范围**：只动上位机工具与导出脚本，不碰 RTL、位流、固件和冻结范围。
+  以 `tmp/pkg_cm_verify/tools/`（10-03 那次"含实时面板"的完整快照）为准恢复
+  `logic_analyzer.py` / `logic_analyzer_serial.py` / `mes50hp_validation_ui.py` / `waveform_panel.py`，
+  再把 `write_waveform_page` 的可选字段（`sample_ns`/`sample_hz`/`decode`/`tag_names`/`segments`）
+  按 10-09 的测试契约补回；`waveform_viewer.html` 保持 10-09 的新版不动。
+- **验证**：`python python/tests/test_waveform_page.py`（6 项）、`test_waveform_panel.py`（10 项）、
+  `test_timer_demo_serial.py`、`python -m unittest test_logic_analyzer test_logic_analyzer_serial test_coremark_serial`
+  全 PASS；`scripts\run_waveform_viewer_test.ps1` → `ALL TEST PASS`；
+  `scripts\run_logic_analyzer_python.ps1` → `ALL LOGIC ANALYZER PYTHON TEST PASS`（exit 0）。
+- **影响**：不涉及 Core、接口、Reference Model；只影响上位机交付件。
+
+### 2026-10-09 / 导出被被独占的构建垃圾卡死（半成品包）
+
+- **现象**：`export_final_submission.ps1` 在最后一步抛
+  `Get-FileHash : The file '…\release\final_submission\pds.log' cannot be read`，
+  包内容其实已经写好，却**缺 `SHA256SUMS.txt` 与 zip** —— 一个"看着像导出成功、实际不完整"的半成品。
+- **第一个错误信号**：`pds.log` 被别的进程独占（PDS GUI 打开过交付工程；本机还有 Sangfor 端点保护在挂钩文件访问），
+  连 `Remove-Item -Force` 与 `Rename-Item` 都失败。
+- **根因**：导出脚本给**包里所有文件**算哈希（`Get-ChildItem -File -Recurse`），
+  而 `audit_release_package.ps1` 的交付物集合是**排除 `.lock`/`.log`/`sim/` 的**。
+  导出比审计严格，于是"审计根本不会看的构建垃圾"把导出卡死了。
+- **最小修复范围**：`scripts/export_final_submission.ps1` 两处 ——
+  ① 哈希清单与 zip 打包都改用与审计一致的排除规则（zip 用 `ZipFile` + 文件清单，避免
+  `Compress-Archive <目录>/*` 又把 `pds.log` 读进去）；② 顺带记录：编辑该文件后**必须补回 UTF-8 BOM**，
+  否则 Windows PowerShell 5.1 按 ANSI 解码中文，会报
+  `Unexpected token '}'` 与 `The string is missing the terminator: "@`（本轮实际踩到）。
+- **验证**：`export_final_submission.ps1` → `FINAL SUBMISSION EXPORT PASS files=178`；
+  `create_release_manifest.ps1` → `RELEASE MANIFEST PASS files=3679`；
+  `audit_release_package.ps1` → `RELEASE PACKAGE AUDIT PASS final_files=179 artifacts=3`；
+  三处位流副本 SHA-256 仍为 `788F1CEB…DCE2`（未重新综合）。
+- **影响**：只影响发布流程，不影响 RTL 与位流。
 
 ### 2026-09-17 / 交付冻结：改名暴露出的 4 个既有脆弱点
 

@@ -183,6 +183,99 @@ logic inputs -> input register -> sample/trigger -> | logic_analyzer       |
 - Python 上位机显示的样本数、触发位置和协议字节与 FPGA/软件日志一致。
 - 多次 Reset 和连续至少 20 次采集结果一致，无死锁、丢样或重复 side effect。
 
+## 6.5 A6 故障诊断闭环（2026-09-28 新增）
+
+进阶任务包的 A6 要求"在现有逻辑分析仪上建立可控故障注入、Raw/VCD/解析结果与真值自动比较，
+形成量化报告和现场步骤"。本节记录落地方式与判据。
+
+### 6.5.1 闭环链路（全部复用现有 RTL，不新增外设）
+
+```text
+确定性通道源 ──┬──────────────────────────────► capture_engine（现有）──► Raw 流
+              │                                        ▲
+              └── 可控故障注入（第 N 个采样点翻转指定位）┤
+                                                       │
+   真值流 CLEAN + 引擎实见流 SEEN + 读出流 CAP ─────────┘
+                            │
+                            ▼
+        python/logic_analyzer_fault_diag.py（独立判定 + 量化报告）
+```
+
+- Testbench：`tb/tb_logic_analyzer_fault_diag.v`，通道源是 8 位自由计数器（完全确定），
+  触发条件为电平 `channels==0x40`、`pre=8`/`post=8`，因此采样窗口固定为触发点前后各 8 个样本。
+  注入由宏 `TB_FD_INJ_TICK` / `TB_FD_INJ_MASK` 控制，**只影响一拍**。
+- 判定器：`python/logic_analyzer_fault_diag.py`，只看日志，判定**四件事**——
+  **采集保真**（CAP 逐样本等于 SEEN：不多、不少、不重排、不改值）、
+  **VCD 链路保真**（用生产用的同一份 `python/logic_analyzer.py` 把采集流导出成 VCD，
+  再解析回样本流，必须与 CAP 逐样本一致——覆盖"Raw → 上位机文本协议 → VCD"整条交付链路）、
+  **定位**（CAP 与真值的首个差异的索引与通道位必须正好等于注入描述）、
+  **不误报**（注入点落在窗口之外时必须报不出任何差异）。
+
+### 6.5.2 四个场景与实测结果
+
+| 场景 | 注入 | 期望 | 实测 |
+|---|---|---|---|
+| `post` | 第 60 个采样点翻转 `0x02` | 窗口内，定位到采集索引 4 / 通道 1 | 索引 **4**、掩码 `0x02` ✓ |
+| `pre` | 第 57 个采样点翻转 `0x80` | 窗口内，定位到采集索引 1 / 通道 7 | 索引 **1**、掩码 `0x80` ✓ |
+| `before` | 第 40 个采样点翻转 `0x04` | 窗口外（窗口是 56~72），不得报出差异 | 差异数 **0** ✓ |
+| `none` | 不注入 | 采集流与真值完全一致 | 差异数 **0** ✓ |
+
+四个场景的采集样本数都是 17（= pre 8 + 触发 1 + post 8），触发索引 8，无溢出；
+**采集保真与 VCD 链路保真四个场景全部 PASS**（VCD 内同样是 17 个采样点、触发索引 8）。
+逐场景报告还会给出**具体是哪一位翻转**，例如 `post` 场景：
+采集索引 4（绝对采样点 60）、通道 1、真值 `0x3c` vs 采集 `0x3e`。
+**采集保真四个场景全部 PASS**。
+
+命令：`scripts\run_logic_analyzer_fault_diag.ps1` → `ALL LOGIC ANALYZER FAULT DIAG PASS (4 scenarios)`。
+量化报告写入 `tmp/logic_analyzer_fault_diag/fault_report.md`（汇总表）与
+`fault_report_<场景>.json/.md`（逐场景明细，含首个差异的索引、绝对采样点、通道位、
+真值与采集值）。
+
+### 6.5.3 现场步骤（接上实板 UART 后照此执行）
+
+1. 下载交付位流：`scripts\program_board.ps1 -Config la50`（含 DebugCore 时加 `-UseDebugger`）；
+2. 把待诊断信号接到 8 路采集输入，用上位机配置：`sample_div`、`channel_mask`、
+   触发条件、`pre/post`，与本节的仿真配置保持一致以便对照；
+3. `Arm` 后触发一次，通过 UART 把 Raw 流导出（协议见 §5 与
+   `python/logic_analyzer_serial.py`）；
+4. 用同一份 `python/logic_analyzer_fault_diag.py` 的判据思想做比较：把"已知正确的参考流"
+   作为 CLEAN、"实际采集"作为 CAP，脚本会直接给出**首个差异的采样点序号与通道位**；
+5. 把 `fault_report.md` 连同 VCD 一起归档：报告里"首个差异 + 通道掩码"就是故障定位结论。
+
+**边界与纪律**：A6 只做"采集—定位—复现—回归"闭环，**不标称 AI 高阶任务**；
+采样资源与时序不得因此退步（`capture_engine.v` 未被改动，PDS 结果见 `docs/progress.md` 时序表）。
+
+## 6.6 上位机波形可视化链（2026-10-09 冻结）
+
+上位机对评委可见的部分只有这一条链，三处产物必须同源：
+
+```text
+FPGA 采集 → 固件 UART 文本回包（LA RAW count=… trigger=… + 十六进制样本）
+   ├─ scripts/logic_analyzer_capture.ps1   （零依赖：Windows 自带 PowerShell + .NET 串口）
+   │      └─ <mode>_NN.{log,vcd,html} + 波形预览.html（自包含页面，双击即可看）
+   └─ python/logic_analyzer_serial.py      （pyUI 路径：pyserial）
+          └─ 同一套 {log,vcd,html}，并把每一轮通过 on_run 回调交给
+             python/waveform_panel.py 的实时面板
+```
+
+- **页面模板只有一个**：`python/waveform_viewer.html`。PowerShell 采集器与 Python 上位机都用它，
+  所以模板升级后必须用 `scripts\logic_analyzer_capture.ps1 -FromCaptures <采集目录>` 把
+  `release/evidence/logic_analyzer_board_85m/` 下四个模式页与总览页**离线重建**，
+  否则交付包里"板级实测波形页"会比模板旧一代（本轮实际发生过）。
+- **判据与标注必须同源**：页面上框出的第 1 个字节，就是采集脚本判 PASS 用的那个字节；
+  UART 的 `bit_samples` 也必须与采集时一致（85 MHz 非分段为 16，分段窗口为 10）。
+  标注与判据不同源时，波形上标的字节会和"上位机报 PASS 的字节"对不上，比不标更坏。
+- **可选字段按需透传**：`sample_ns`/`sample_hz`（时基未标定时页面**明说"未标定"**，不猜）、
+  `decode`（协议 spec，页面自己重新解码）、`tag_names`（通道别名）、`segments`（分段接缝）。
+  `python/logic_analyzer.py::write_waveform_page` 只在调用方给了字段时才写进页面——
+  凭空补默认值会画出根本不存在的帧或时间轴。
+- **交付包根目录的 `波形预览.html`** 由 `export_final_submission.ps1` 从
+  `release/evidence/logic_analyzer_board_85m/波形预览.html` 复制而来；改成旧模板会让整份交付件
+  退回"只有波形、没有协议标注"的观感。
+- 测试入口：`scripts\run_waveform_viewer_test.ps1`（解析/时基/解码纯函数 + 真页面的
+  绘制调用与光标 Δt）、`scripts\run_logic_analyzer_python.ps1`、`python\tests\test_waveform_page.py`、
+  `python\tests\test_waveform_panel.py`。
+
 ## 7. 必须报告的量化指标
 
 - Pipeline Core：CoreMark/MHz、Fmax、CoreMark/LUT、CPI、Stall/Flush Rate。
