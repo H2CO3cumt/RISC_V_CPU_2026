@@ -15,7 +15,7 @@ module forward_unit(
     output reg [1:0] forward_b
 );
     // 00=ID/EX 原值，01=MEM/WB，10=EX/MEM。x0 永不构成 RAW producer。
-    always @(*) begin
+    always @(*) begin//假设刚开始我都不前递
         forward_a = 2'b00;
         forward_b = 2'b00;
         if (memwb_valid && memwb_regwrite && !memwb_error && memwb_rd != 5'd0) begin
@@ -26,6 +26,6 @@ module forward_unit(
         if (exmem_valid && exmem_regwrite && !exmem_memread && exmem_rd != 5'd0) begin
             if (exmem_rd == idex_rs1) forward_a = 2'b10;
             if (exmem_rd == idex_rs2) forward_b = 2'b10;
-        end
+        end//这里的优先级是EXMEM>MEMWB,之前搞反了
     end
 endmodule

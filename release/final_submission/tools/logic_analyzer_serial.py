@@ -6,7 +6,7 @@ import json
 import time
 from pathlib import Path
 
-from logic_analyzer import decode_spi, decode_uart, parse_raw, write_vcd
+from logic_analyzer import decode_spi, decode_uart, parse_raw, write_vcd, write_waveform_page
 
 MODES = {"static": 0, "counter": 1, "uart": 2, "spi": 3}
 TRIGGERS = {"level": 0, "rise": 1, "fall": 2}
@@ -28,8 +28,14 @@ def build_packet(mode: int, data: int, pattern_div: int, sample_div: int,
 
 def default_config(mode: str, data: int) -> dict[str, int]:
     if mode == "uart":
+        # [2026-09-30 修] pre 16 -> 64、post 220 -> 191（窗口仍 240 个采样点，没超 Raw 上限）。
+        # 原因：pattern_div=433 / sample_div=26 => 每比特 16.65 个采样点，一帧 10 bit = 166.5 点。
+        # 旧窗口（pre=16/post=220）只给"帧起始位"留 237-166.5 = 70.5 点的余量，一旦触发沿落在
+        # 数据位内部，整帧就装不进窗口 => 解码失败，**而波形本身完全正确**。
+        # 这个隐患在 50/80 MHz 上碰巧不发作，在 85 MHz PLL 变体上暴露了。
+        # 现在把窗口前移，帧起始位必被框住，各频率都能稳定解码。
         return dict(mode=2, data=data, pattern_div=433, sample_div=26,
-                    trigger_type=2, trigger_mask=1, trigger_value=0, pre=16, post=220)
+                    trigger_type=2, trigger_mask=1, trigger_value=0, pre=64, post=191)
     if mode == "spi":
         return dict(mode=3, data=data, pattern_div=3, sample_div=0,
                     trigger_type=1, trigger_mask=1, trigger_value=1, pre=4, post=80)
@@ -65,12 +71,25 @@ def synchronize_ready(ser, timeout: float) -> bytes:
 
 
 def run_captures(port: str, output: Path, mode: str, value: int, runs: int,
-                 baud: int, timeout: float) -> list[dict[str, int | str]]:
+                 baud: int, timeout: float,
+                 pre: int | None = None, post: int | None = None,
+                 on_run=None) -> list[dict[str, int | str]]:
     try:
         import serial
     except ImportError as exc:
         raise SystemExit("pyserial is required for live MES50HP capture") from exc
     cfg = default_config(mode, value)
+    # [2026-09-30 新增] 允许命令行覆盖 pre/post（不传就是各模式既有值，行为不变）。
+    # 为什么需要：UART 模式 pattern_div=433 / sample_div=26 => 每比特 433/26 = 16.65 个
+    # 采样点，一帧 10 bit 占 166.5 个采样点，而 Raw 深度上限只有 256。
+    # 默认 pre=16/post=220（窗口 237）只给"帧起始位"留了 237-166.5 = 70.5 个采样点的余量；
+    # 一旦触发沿落在数据位内部（85 MHz PLL 变体正是如此，窗口比 50 MHz 晚 32 个采样点），
+    # 整帧就装不进窗口，解码必然失败——而波形本身完全正确。
+    # 把 pre 提到 64 让窗口前移，就能把起始位框进来。
+    if pre is not None:
+        cfg["pre"] = pre
+    if post is not None:
+        cfg["post"] = post
     packet = build_packet(**cfg)
     output.mkdir(parents=True, exist_ok=True)
     summaries: list[dict[str, int | str]] = []
@@ -92,6 +111,20 @@ def run_captures(port: str, output: Path, mode: str, value: int, runs: int,
             stem = f"{mode}_{run:02d}"
             (output / f"{stem}.log").write_bytes(raw_text)
             write_vcd(samples, output / f"{stem}.vcd", 8, trigger)
+            # [2026-10-03 新增] 同步生成自包含波形页：pyUI 采完不必再手动拖 .vcd，
+            # 直接双击这个 .html 就能用浏览器看（与零依赖采集器产物一致）。
+            write_waveform_page(
+                [{"name": f"{mode} 模式 第{run + 1}次", "samples": samples, "trigger": trigger,
+                  "note": f"mode={mode} samples={len(samples)} trigger={trigger}"}],
+                output / f"{stem}.html",
+            )
+            # [2026-10-03 新增] 把这一轮立刻交给调用方（pyUI 的实时波形面板）。
+            # 放在协议校验**之前**：校验失败时更需要对着一张真实波形排错，
+            # 而不是等抛异常后什么都看不到。
+            if on_run is not None:
+                on_run(samples, trigger, {"mode": mode, "run": run, "runs": runs,
+                                          "log": str(output / f"{stem}.log"),
+                                          "vcd": str(output / f"{stem}.vcd")})
             uart_data, uart_errors = decode_uart(samples, 0, 16)
             spi_data = decode_spi(samples, 0, 1, 2)
             if mode == "static" and any(sample != value for sample in samples):
@@ -122,9 +155,14 @@ def main() -> int:
     parser.add_argument("--runs", type=int, default=20)
     parser.add_argument("--baud", type=int, default=115200)
     parser.add_argument("--timeout", type=float, default=5.0)
+    # [2026-09-30] 可选覆盖采集窗口；不传即沿用各模式既有值。
+    parser.add_argument("--pre", type=int, default=None,
+                        help="trigger 之前的采样点数（默认取模式配置）")
+    parser.add_argument("--post", type=int, default=None,
+                        help="trigger 之后的采样点数（默认取模式配置）")
     args = parser.parse_args()
     run_captures(args.port, args.output, args.mode, args.value & 0xFF,
-                 args.runs, args.baud, args.timeout)
+                 args.runs, args.baud, args.timeout, args.pre, args.post)
     return 0
 
 

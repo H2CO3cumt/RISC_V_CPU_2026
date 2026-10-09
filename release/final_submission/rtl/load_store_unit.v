@@ -105,7 +105,7 @@ always @(*) begin
                 end
             end
             default: begin
-                // Keep safe defaults for unsupported Store encodings.
+            
             end
         endcase
     end

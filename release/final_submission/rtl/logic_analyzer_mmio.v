@@ -1,6 +1,4 @@
-// Application-MMIO wrapper for capture_engine.  Offset 0x00 CONTROL: bit0 Arm,
-// bit1 Stop, bit2 Clear.  READ_INDEX is explicit (0x30), so READ_DATA has no
-// hidden auto-increment side effect and is safe under response backpressure.
+
 module logic_analyzer_mmio(
  input wire clk,input wire reset,input wire req_valid,output wire req_ready,input wire [31:0] req_addr,input wire req_write,input wire [31:0] req_wdata,input wire [3:0] req_wstrb,
  output reg rsp_valid,input wire rsp_ready,output reg [31:0] rsp_rdata,output reg rsp_error,
@@ -15,10 +13,9 @@ module logic_analyzer_mmio(
  always @(posedge clk)begin
   if(reset)begin rsp_valid<=0;rsp_rdata<=0;rsp_error<=0;sample_div<=0;channel_mask<=8'hff;trigger_mask<=0;trigger_value<=0;trigger_rise<=0;trigger_fall<=0;pre_count<=0;post_count<=0;read_index<=0;pattern_div<=0;pattern_data<=0;pattern_mode<=0;arm<=0;stop<=0;clear<=0;pattern_restart<=0;end
   else begin
-   // A response remains registered until the master accepts it.  This makes
-   // MMIO reads and writes safe when the shared application bus is backpressured.
-   arm <= 1'b0;
+   
    stop <= 1'b0;
+   arm <= 1'b0;
    clear <= 1'b0;
    pattern_restart <= 1'b0;
    if (rsp_valid && rsp_ready)

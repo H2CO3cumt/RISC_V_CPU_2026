@@ -1,5 +1,6 @@
 // Load-Use 检测只比较当前指令真正读取的源寄存器，避免 I/U/J 型指令的
 // immediate 位段碰巧等于 rd 时产生不必要的停顿。
+//本质上就是检查旧的load产生的rd是不是新的指令要用的rs1或者是rs2
 module hazard_unit(
     input wire idex_valid,
     input wire idex_memread,
@@ -14,7 +15,7 @@ module hazard_unit(
     reg uses_rs1;
     reg uses_rs2;
 
-    always @(*) begin
+    always @(*) begin//避免出现类似于lui的假冒险情况
         uses_rs1 = 1'b0;
         uses_rs2 = 1'b0;
         case (opcode)
@@ -31,5 +32,5 @@ module hazard_unit(
     assign load_use_stall = idex_valid && idex_memread && (idex_rd != 5'd0) &&
                             ifid_valid &&
                             ((uses_rs1 && rs1 == idex_rd) ||
-                             (uses_rs2 && rs2 == idex_rd));
+                             (uses_rs2 && rs2 == idex_rd));//后面的指令真正使用的源寄存器是和前面的load用的重复了，这样才是load_use
 endmodule

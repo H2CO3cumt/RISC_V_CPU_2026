@@ -23,4 +23,3 @@ module final_program_dmem #(parameter DEPTH=1024)(input wire clk,input wire rese
  end
  always @(posedge clk)begin if(reset)begin rsp_valid<=0;rsp_rdata<=0;rsp_error<=0;end else if(req_valid&&req_ready)begin rsp_valid<=1;rsp_error<=!address_ok;if(address_ok&&req_write)begin if(req_wstrb[0])mem[req_addr[11:2]][7:0]<=req_wdata[7:0];if(req_wstrb[1])mem[req_addr[11:2]][15:8]<=req_wdata[15:8];if(req_wstrb[2])mem[req_addr[11:2]][23:16]<=req_wdata[23:16];if(req_wstrb[3])mem[req_addr[11:2]][31:24]<=req_wdata[31:24];rsp_rdata<=0;end else rsp_rdata<=address_ok?mem[req_addr[11:2]]:0;end else if(rsp_valid&&rsp_ready)rsp_valid<=0;end
 endmodule
-
