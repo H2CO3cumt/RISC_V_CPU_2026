@@ -123,6 +123,10 @@ Run-Test 'A6 logic-analyzer fault diagnosis (inject/capture/localize)' './script
   # 判据里有一条是"波形里的数据访问脉冲数 = 对齐区间内的 load/store 条数"。
   Require-Artifact 'Trace wave+trace alignment README' 'release/evidence/trace85_board_wave/README.md'
   Require-Artifact 'Trace wave+trace alignment JSON' 'release/evidence/trace85_board_wave/trace_wave.json'
+  # S1（DDR3 打通）板级复核：2026-10-24 重跑并留档。此前只有 ddr3_smoke/README 的记录，
+  # 而 handoff_next §3.3 还挂着"停在下载之前"的历史告示，两边矛盾——现在有带日期的证据。
+  Require-Artifact 'S1 DDR3 smoke board evidence' 'release/evidence/ddr3_s1/README.md'
+  Require-Artifact 'S1 DDR3 smoke board log' 'release/evidence/ddr3_s1/ddr3_smoke_board_20261024.log'
   Require-Artifact 'N4 candidate board verification evidence' 'release/evidence/fmax_candidate_board/README.md'
   # Fmax 上界实测（2026-09-30）：CPU 板级上界 90 MHz；95 MHz 时序违例仅留档
   Require-Artifact 'CoreMark 90 MHz PLL bitstream' 'fpga/coremark_90m/generate_bitstream/mes50hp_coremark_pll_top.sbit'
