@@ -1,0 +1,148 @@
+{
+  "judgements": [
+    {
+      "name": "记录条数自洽",
+      "ok": true,
+      "detail": "头部 count=4096，实际导出 4096 条"
+    },
+    {
+      "name": "打点数等于字符数",
+      "ok": true,
+      "detail": "marks=3，发送字符数=3"
+    },
+    {
+      "name": "打点值等于发送的字符",
+      "ok": true,
+      "detail": "打点=b'ABC' 发送=b'ABC'"
+    },
+    {
+      "name": "打点索引单调且不越界",
+      "ok": true,
+      "detail": "索引=[4096, 4096, 4096]，count=4096"
+    },
+    {
+      "name": "原样回读",
+      "ok": true,
+      "detail": "得到 b'ABC'，期望 b'ABC'"
+    },
+    {
+      "name": "大写字符计数应为 0",
+      "ok": true,
+      "detail": "up=0"
+    },
+    {
+      "name": "字符数字段",
+      "ok": true,
+      "detail": "chars=3，期望 3"
+    },
+    {
+      "name": "收尾状态位",
+      "ok": true,
+      "detail": "status=0xC（armed=0 recording=0 done=1 overflow=1）"
+    },
+    {
+      "name": "未溢出",
+      "ok": true,
+      "detail": "overflow=1，count=4096，窗口容量=4096"
+    },
+    {
+      "name": "rd_we 不得指向 x0",
+      "ok": true,
+      "detail": "越界样本 0 条"
+    },
+    {
+      "name": "store 必须有字节使能",
+      "ok": true,
+      "detail": "越界样本 0 条"
+    },
+    {
+      "name": "记录 pc 必须 4 字节对齐",
+      "ok": true,
+      "detail": "越界样本 0 条"
+    },
+    {
+      "name": "pc 与位流镜像同源",
+      "ok": true,
+      "detail": "不一致记录 0 条"
+    },
+    {
+      "name": "store 有效地址与记录低 12 位一致",
+      "ok": true,
+      "detail": "不一致 0 条"
+    }
+  ],
+  "count": 4096,
+  "marks": 3,
+  "status": 12,
+  "text": [
+    65,
+    66,
+    67
+  ],
+  "summary": {
+    "records": 4096,
+    "distinct_pc": 22,
+    "hotspots": [
+      {
+        "pc": 20,
+        "asm": "lw x15,0(x14)",
+        "count": 1358,
+        "share": 0.33154296875
+      },
+      {
+        "pc": 24,
+        "asm": "andi x15,x15,1",
+        "count": 1358,
+        "share": 0.33154296875
+      },
+      {
+        "pc": 28,
+        "asm": "beq x15,x0,-8",
+        "count": 1357,
+        "share": 0.331298828125
+      },
+      {
+        "pc": 104,
+        "asm": "addi x8,x8,1",
+        "count": 2,
+        "share": 0.00048828125
+      },
+      {
+        "pc": 108,
+        "asm": "jal x1,-96",
+        "count": 2,
+        "share": 0.00048828125
+      },
+      {
+        "pc": 12,
+        "asm": "lui x14,0x10000",
+        "count": 2,
+        "share": 0.00048828125
+      },
+      {
+        "pc": 16,
+        "asm": "addi x14,x14,4",
+        "count": 2,
+        "share": 0.00048828125
+      },
+      {
+        "pc": 3064,
+        "asm": "sw x14,512(x15)",
+        "count": 1,
+        "share": 0.000244140625
+      }
+    ],
+    "top4_share": 0.994873046875,
+    "chars": 3,
+    "marks": [
+      4096,
+      4096,
+      4096
+    ],
+    "instructions_per_char": [
+      0,
+      0
+    ],
+    "sent": "ABC"
+  }
+}

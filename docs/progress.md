@@ -1,7 +1,547 @@
 # Project Progress
 
-> 最后更新：2026-10-09（上位机波形可视化链一致性修复 + 交付包重新导出）
+> 最后更新：2026-10-21（**提交级 trace 可视化（进行中）**：Core 外部的 trace 缓冲 +
+   MMIO 从端口 + 固件 0xAA 命令 + 单页数据流可视化；模块级与上位机判据全 PASS、
+   **PDS `All Constraints Met`**；SoC 端到端仿真场景 2 还差一个 TB 缓冲参数，
+   **实板验证被"JTAG 下载线未被系统识别"阻塞**。详见文末 2026-10-21 章节。
+   本轮**未改动** `pipeline_cpu.v` 与交付位流 la85）
+> 上一版：2026-10-19（**M 扩展乘法并行部分积**：`rtl/mdu.v` 的 `MUL_LAT` 3 → 2 并成为默认，
+> **实板 Score 193.192 → 197.408（+2.183%）**、CoreMark/MHz 2.272 → 2.322、ticks −2.135%，
+> LUT −46、85 MHz 时序仍 Met；24 项回归全 PASS。交付 la85 位流未重打）
 > 状态依据：`AGENTS.md`、`docs/competition_scoring.md`、`docs/roadmap.md`、`docs/architecture.md`、`docs/interfaces.md`、`docs/fpga_platform.md`、`docs/application_logic_analyzer.md` 与当前项目文件。聊天记录不作为任务完成证明。
+
+## M 扩展（RV32IM）与采集源双源可选（2026-10-14，用户批准的范围变更）
+
+两项都是"只回答问题"之后的**显式授权实施**：用户原话是"做 M 扩展和 J8 外部 / Core 内部
+双源可选，我开发板已经同上电源了你可以直接连接开发板，不要留给我任何操作"。
+范围契约已写进 `AGENTS.md` §1.7（ISA）与 `docs/application_logic_analyzer.md` §6.10（双源）。
+
+### 1. 结论（实体板实测）
+
+| 项 | 基线（RV32I） | **本次（RV32IM）** | 变化 |
+|---|---:|---:|---:|
+| CoreMark Score @50 MHz | 46.816 | **113.642** | **2.43×** |
+| **CoreMark Score @85 MHz（与交付同频）** | **79.587**（`cm85r`，当前 RTL 同源点；归档 `cm85` 同值） | **193.192**（`cmim85`） | **2.43×** |
+| **CoreMark/MHz** | **0.936** | **2.272** | **2.43×** |
+| ticks / 迭代 | 1,068,007 | 439,975 | −58.8% |
+| 指令数 / 迭代 | 778,037 | 362,131 | −53.5% |
+| CPI | 1.494 | 1.550（50 MHz）/ 1.547（85 MHz） | +3.7% |
+| 迭代次数 / 时长 | 1000 / 21.36 s | 2000 / 17.60 s（50 MHz）· 4000 / 20.70 s（85 MHz） | 均 ≥10 s ✓ |
+| 官方 CRC | 全过 | **全过**（两个频点） | ✓ |
+| **CoreMark/LUT（85 MHz 同源同频）** | **0.0190**（79.587÷4198） | **0.0460**（193.192÷4198） | **2.43×** |
+| RTL 仿真 cycles（同 TB/程序） | 1,251,724 | 594,792 | −52.5% |
+
+- **依据**：`third_party/coremark/core_matrix.c` 每迭代固定 10,575 次乘法，全部走 libgcc
+  `__mulsi3`；反汇编实测循环体 6 条指令、平均 7.94 次迭代/次乘法；板级 ILA 窗口
+  84.3% 的提交落在该循环里 ⇒ 约 **60% 的指令**花在软件乘法上（`docs/coremark_cpi_analysis.md` §5 的
+  "取指已满速"之后剩下的最大单项）。
+- **口径纪律**：`rv32i` 仍是默认与可比口径（历史成绩、交付镜像、`claims_map` 既有数字都不变），
+  `rv32im` 是**并列的增强配置**。CoreMark 输出自带 `Compiler flags : -O2 -march=rv32im -mabi=ilp32`
+  一行可自证；两个位流、两份证据文件分别留档。
+
+### 2. 改了什么
+
+| 层 | 文件 | 改动 |
+|---|---|---|
+| RTL 新增 | `rtl/mdu.v` | 乘除法单元：三段流水乘法（锁操作数 → 16×32 部分积寄存 → 移位相加 + 符号修正）+ 32 拍恢复余数法除法 |
+| RTL | `rtl/decoder.v` | `mdu_en`/`mdu_op` 输出；`funct7=0000001` 整组由非法改为合法（两个 CPU 都启用，不受 `ENABLE_SYSTEM` 影响） |
+| RTL | `rtl/pipeline_cpu.v` | ID/EX 的 mdu 位；`ex_result` 增加 mdu 分支；`mdu_block` 停顿 + `ack` 握手；**新增 `exmem_retired`** 让 MEM 级能与 EX 级解耦排空 |
+| RTL | `rtl/single_cycle_cpu.v` | 同一套 M 扩展（Reference Model 必须同 ISA）+ `mdu_busy` 等待 |
+| RTL | `rtl/logic_analyzer_mmio.v` | `probe_channels` 输入 + 寄存器 18（`src_sel`）；**采集源选择结果寄存一拍**再进引擎 |
+| RTL | 四个板级顶层 | `core_probe`（8 根 Core 已有冻结输出）**再打一拍**后接探针 |
+| 固件 | `software/logic_analyzer/logic_analyzer.c` | `LA_SRC` + **0xA8** 命令（16 字节：pre/post 各 16 位、[14]=采集源）；0xA5/0xA7 明确回写 `LA_SRC=0` |
+| 上位机 | `python/logic_analyzer_serial.py`、`python/core_probe_board.py`、`python/test_logic_analyzer_serial.py` | `source`/`core` 模式/通道名/板级验收/5 项新单测 |
+| 脚本 | `run_mdu_tb.ps1`、`run_pipeline_m_ext_tb.ps1`、`run_coremark_im_pds.ps1`、`run_core_probe_board.ps1`、`score_coremark_board.ps1`（新增 `cmim`）、`run_coremark_board.ps1`（输出路径可覆盖）、`program_board.ps1`（新增 `cmim`）、`check_coremark_elf.ps1`（双向 ISA 校验）、`generate_*.ps1`（MARCH/输出目录参数化）、46 个编译脚本 + 13 个 PDS 配方加入 `rtl/mdu.v` | |
+| 工程 | `fpga/coremark_im/`（新增 RV32IM 计分工程） | |
+
+### 3. 本轮修掉的三个真 bug（详见 `docs/debug_log.md`）
+
+1. **背靠背除法共用上一次结果**（`rem` 返回了商）——状态机只认 `run` 的边沿；
+   新增 `ack` 消费脉冲。
+2. **CoreMark rv32im 整机死锁**（停在一条 `lbu`）——访存"完成"由握手定义，
+   而 MEM→WB 原来与"ID/EX 换入 EX/MEM"同拍原子发生；除法停顿把两者拆开后
+   `mem_block` 永久为 1。新增 `exmem_retired` 退休标记。
+3. **乘法器进关键路径**：一拍组合 32×32 被综合成 4 级串联 APM，
+   50 MHz WNS 掉到 +0.234 ns、85 MHz 违例 −3.268 ns。改两段流水后
+   50 MHz +1.841 ns、85 MHz `All Constraints Met`。
+
+### 4. 逻辑分析仪：采集源双源可选
+
+- **外设没换**：官方指南 `tmp/pdfs/competition_guide.txt` 第 210～212 行把"逻辑分析仪"
+  与游戏机、工控机并列写进"应用场景构建"示例。本次改的是**被测对象**。
+- 8 根探针 + MMIO 寄存器 18 切换（**不重新综合**）+ 0xA8 命令；判据是
+  "窗口里既有 ch7 提交脉冲又有 ch0 取指请求"（只查点数会放过"采到一整窗 0"）。
+- **实板实测**（`release/evidence/core_probe_board/`，flush / stall 两组触发各 3 次全 PASS）：
+  2048 点全速窗口里 **1187 条提交 / 1987 拍 ⇒ 窗口 IPC ≈0.597**，其中 **785 拍是停顿（39.5%）**，
+  窗口内 4 次控制流冲刷——这正是"用自研仪器量自研 CPU"的第一组真实读数。
+
+#### 4.1 RV32IM 85 MHz 计分点（2026-10-14 追加，用户要求补齐）
+
+用户问"带 M 扩展的为啥只有 50M"，查下来是**没建过**而不是跑不了：`fpga/coremark_im` 的
+`.fdc` 写死 `create_clock clk_50m -period 20.000`（50 MHz、无 PLL），而 80/85/90 MHz 的计分工程
+都建在 M 扩展之前、从未用新 RTL 重建（资源报告里 `APM = 0`，没有乘法器）。本轮补齐：
+
+| 项 | 值 |
+|---|---|
+| 工程 | `fpga/coremark_im_85m`（源文件取自 `fpga/coremark_85m`：同一颗 `pll_85m` + 同一个顶层；**只把镜像换成 `-march=rv32im`**，4000 迭代） |
+| 构建入口 | `scripts/run_coremark_im_85m_pds.ps1 -Iterations 4000` |
+| 位流 | `EE8B65360B0B07189C66460D813A6CC990FE87BE156AEA5BC7779B5D3C68D6F1`，**`All Constraints Met`**，85.0000 MHz 请求 / **86.8456 MHz** 估算，WNS **+0.250 ns**，**4198 LUT / 3361 FF** |
+| 实体板 | **Score 193.192、CoreMark/MHz 2.272、ticks 1,759,901,953、20.704 s、官方 CRC 全过**（`Compiler flags : -O2 -march=rv32im -mabi=ilp32` 自证），CPI 1.547 / IPC 0.646 / 停顿占 27.1% / 冲刷 2.07% |
+| 证据 | `release/evidence/coremark_board_cmim85_20261014.json` + `coremark_uart_cmim85_20261014.log`；`claims_map.md` §3.1c |
+| ISA 自证 | `scripts/check_coremark_elf.ps1 -ExpectArch rv32im2p1` → `rv32i2p1_m2p0_zmmul1p0 ELF with 48 hardware M instructions` |
+| 交叉校验 | 两个频点的 **ticks/迭代都是 439,975 拍**（逐位一致）、CoreMark/MHz 都是 2.272 ⇒ 同一份负载，Score 随频率线性 |
+| **同源对照点 `cm85r`** | 用**与 cmim85 完全相同的源码**重建的 rv32i 位流：`EC71AFDD…`，LUT/FF/WNS 与 cmim85 **逐项相同**（4198 / 3361 / +0.250 ns），实体板 Score **79.587**、ticks **2,670,014,377**（与 09-30 归档 cm85 **逐位相同**）⇒ ① M 扩展不扰动 RV32I；② 同源同频 CoreMark/LUT 0.0190 → 0.0460（**2.43×**，旧稿的 2.11× 是跨 RTL 修订比较，已更正） |
+| 上板入口 | `program_board.ps1 -Config cmim85` / `cm85r`；一键跑分 `score_coremark_board.ps1 -Config cmim85` / `cm85r` |
+
+**为什么以前选 50 MHz 做对照**：Before/After 要在**同一频率**上比（46.816 vs 113.642 都是 50 MHz），
+这样 2.43× 完全来自 ISA 与微架构、不掺频率变化；而 Score 本身是频率归一化的，
+所以 50 MHz 点已经能证明 `CoreMark/MHz = 2.272`。85 MHz 这一点补的是**与交付同频的原始 Score**
+与资源效率（同源同频 CoreMark/LUT **2.43×**），不是新的效率结论。
+
+**顺带纠正一个会误导人的口径**：50 MHz 工程的"估算 Fmax ≈55–58 MHz"是**目标频率造成的假象**——
+那两颗的最差路径终点是 `imem/mem_5/RSTA[0]`、`core/ifid_inst[14]/RS` 这类**复位端**，
+PDS 在 50 MHz 目标下不去优化它；rv32i 的真实板级上界是实测的 **90 MHz**（cm90），
+带 M 的 CoreMark 配置在 85 MHz 下收敛 +0.250 ns。**不能拿 55 MHz 说"M 扩展只能跑 50M"。**
+
+#### 4.2 采集源必须能在界面上切（2026-10-14 补做，用户指出）
+
+功能原来只做在 RTL、固件与库里：命令行能跑，**两个界面上都点不出来**，现场演示等于用不上。
+用户指出后补做，并把两个上位机都当作交付面：
+
+| 层 | 文件 | 改动 |
+|---|---|---|
+| 库 | `python/logic_analyzer_serial.py` | 新增 `capture_view(mode, source)`；判据/波形页标注/汇总改按 **view** 选；超时报错写清"触发通道上要有信号"，若**一个字节都没收到**则直接提示"固件停在等待采集完成，按 REST 或重下位流" |
+| pyUI | `python/mes50hp_validation_ui.py` | 面板加「采集源」下拉框；切源自动把窗口换成新源下的合法默认值；波形标题写明真实源 |
+| 单文件 | `逻辑分析仪演示.py` | 同一套下拉框 + `capture_view` 复制品；Core 源下读数区改报提交/停顿/冲刷/窗口 IPC，通道名跟着源走 |
+| 单文件（2026-10-14 晚，用户报"点 core 没反应"后修） | `逻辑分析仪演示.py` | ① 抽出唯一的 `packet_for_cfg()`：`capture()` 与 `log_packet()` 共用（原来写日志那份**漏传 `source`**，core 模式抛 `ValueError`，异常从 Tk `after` 回调窜出 ⇒ 轮询循环不再续期、界面静默冻死）；② `poll()` 兜住所有异常并把 traceback 打进日志面板、`after` 放进 `finally`；③ 运行中切模式改为"请求停止 + 收尾后按新模自动重开"，并新增 `running_mode` 让状态行写明正在采哪个模式；④ 报错文案补上"0 字节 ⇒ 按 REST 或重下 `la85`"三条排查 |
+| 测试 | `test_logic_analyzer_serial.py`、`test_logic_analyzer_ui.py`、`test_logic_analyzer_singlefile.py`（新增） | **40 → 52 项**：5 项 `capture_view` 组合、pyUI 的"波形标题写明真实源"与"控件真的布局出来"、单文件演示器的 6 项界面级用例（控件接线、切源改窗口、**六模式共用一个 `packet_for_cfg()`**、**运行中切模式要停+自动重开**、view 口径） |
+
+- **为什么必须按 view 而不是按模式判**：采集源改变 8 根线的物理含义。改之前两种组合是
+  **采集对、解释错的假失败**，实板都复现过：uart 模式 + Core 源被按 UART 帧解码而报
+  `UART decode mismatch`；core 预设 + J8 源在波形页上把一根普通外部线标成 `trace_valid`。
+  规则表见 `docs/application_logic_analyzer.md` §6.10.5。
+- **实板证据**（真界面路径，不是重写的脚本）：
+  `release/evidence/logic_analyzer_board_85m/ui_source_check/pyui_board_check.log`
+  —— pyUI 的 `_run_logic_analyzer()` 四种"模式×源"组合：core+Core / uart+Core / uart+J8 / core+J8
+  报文长度 **16/16/13/13**、命令码 **0xA8/0xA8/0xA5/0xA5**、`[14]` = **1/1**，**四枪全 PASS**；
+  同目录 `singlefile_selftest.log` —— 单文件界面 `--selftest COM11` **六模式全部通过**
+  （Core 源读数：提交 1187 拍、取指在场 1198 拍、停顿 785 拍、冲刷 4 次、窗口 IPC 0.597）。
+
+#### 4.3 本轮发现并记录的已知限制：触发永不出现会停住固件
+
+固件 Arm 之后**无超时**轮询采集完成位（`software/logic_analyzer/logic_analyzer.c` 第 189 行）。
+若上位机发了一条永不命中的触发（例如 J8 源下等一个没接信号的外引脚上升沿），固件停在该循环：
+串口不再读也不再写，**只有按板上 `REST` 或重下同一位流才能恢复**。
+本轮实板复现一次（当时正在无人值守跑四种组合检查），重下 `la85` 后 `PROGRAM PASS` / done bit 1 恢复正常。
+
+- 恢复路径与现场纪律写进 `release/materials/field_recovery_card.md` 与演示脚本 §6；
+  完整说明见 `docs/application_logic_analyzer.md` §6.10.7。
+- **为什么不改固件**：给 Arm 加超时需要重建位流，会作废已冻结的交付位流哈希与全部引用它的证据；
+  本轮保持位流不变，按"已知限制 + 恢复路径"记录（是否改由用户决定）。
+- 上位机侧已能自动识别这种情况（`bytes=0` ⇒ 直接提示恢复方法），不会再让现场去猜接线或串口。
+
+### 5. 验证结果
+
+| 验证 | 命令 | 结果 |
+|---|---|---|
+| MDU 单元 | `scripts\run_mdu_tb.ps1` | **46 项 `ALL TEST PASS`**（乘除全边界、除零、溢出、背靠背、取消） |
+| M 扩展端到端 | `scripts\run_pipeline_m_ext_tb.ps1` | **`ALL M EXTENSION PIPELINE TEST PASS`**（固定延迟 + 随机背压两配置；55 条提交 trace 与单周期 Reference 逐条一致、x1~x31 + RAM 一致、每笔除法精确 34 拍） |
+| CoreMark RTL 仿真 | `run_coremark_pipeline_tb.ps1`（rv32i / `-March rv32im`） | **1,251,724 / 594,792 拍**，两配置官方 CRC 全过；rv32i 与历史基线**逐位相同**（证明 M 扩展没扰动 RV32I） |
+| 逻辑分析仪模块 | `scripts\run_logic_analyzer_tb.ps1` | 新增 `SRC DEFAULT / SRC SELECT / SRC CORE CAPTURE / SRC BACK TO J8` 四项 PASS |
+| 上位机 | `python -m unittest discover -s python -p 'test_logic_analyzer*.py'` | **50 项 OK**（pyUI：`capture_view` 组合、界面标题与"控件真的布局出来"；单文件演示器：控件接线、切源改窗口、报文 0xA8/0xA5、view 口径） |
+| **实板 5 模式验收** | `run_logic_analyzer_board.ps1 -Port COM11 -RunsPerMode 20 -ClockHz 85000000` | **`LOGIC ANALYZER PHYSICAL BOARD ACCEPTANCE PASS captures=100`** |
+| **实板 Core 探针** | `scripts\run_core_probe_board.ps1 -Port COM11` | **`CORE PROBE BOARD ACCEPTANCE PASS`**（6 次采集） |
+| **实板 界面双源四组合** | `scripts\run_ui_source_board.ps1 -Port COM11` | **`UI BOARD CHECK PASS`**（pyUI 真路径，四枪全 PASS，报文 0xA8/0xA8/0xA5/0xA5） |
+| **实板 单文件界面六模式** | 同上脚本第二段（`python 逻辑分析仪演示.py --selftest COM11`） | **`全部通过`**（六模式 PASS，含 Core 源读数） |
+| **实板 CoreMark（RV32IM @85 MHz）** | `program_board.ps1 -Config cmim85` + `score_coremark_board.ps1 -Config cmim85` | **Score 193.192 / CoreMark-MHz 2.272 / 官方 CRC PASS / 20.704 s**（4000 迭代，位流 `EE8B6536…`，WNS +0.250 ns） |
+| **实板 CoreMark** | `program_board.ps1 -Config cmim` + `run_coremark_board.ps1` | **Score 113.642 / CoreMark-MHz 2.272 / 官方 CRC PASS / 17.599 s** |
+| 演示前自检 | `scripts\demo_preflight.ps1 -Port COM11` | `DEMO PREFLIGHT PASS warnings=0`（位流哈希已同步） |
+| 板级验收（加跑 Core 源） | `run_logic_analyzer_board.ps1 -Port COM11 -RunsPerMode 1 -IncludeCoreSource -CoreRuns 3` | `LOGIC ANALYZER CORE SOURCE PASS captures=3` + `ACCEPTANCE PASS captures=8`（不加开关仍是 `captures=100`，冻结口径不变） |
+| 交付包链（改动后重跑） | `export_final_submission.ps1` → `create_release_manifest.ps1` → `audit_release_package.ps1` | `EXPORT PASS files=298` / `MANIFEST PASS files=3936` / `AUDIT PASS final_files=299 artifacts=3` |
+
+> 上面整轮 `run_final_regression.ps1` 在本次界面/判据改动**之后**重跑并全绿
+> （`ALL AUTOMATED FINAL REGRESSION PASS`，含 `Task 30 Python/VCD tools`）；随后又补了
+> `python/test_logic_analyzer_singlefile.py`（单文件演示器的界面级用例），单独重跑
+> `scripts\run_logic_analyzer_python.ps1` → `ALL LOGIC ANALYZER PYTHON TEST PASS`（**50 项 OK**）。
+> 导出包内 `tools/logic_analyzer_serial.py`、`tools/mes50hp_validation_ui.py`、`逻辑分析仪演示.py`
+> 与仓库源文件的 SHA-256 逐一对齐（含 `capture_view`）。
+
+### 6. 位流（本批）
+
+| 用途 | 工程 | SHA-256 |
+|---|---|---|
+| 交付（85 MHz 逻辑分析仪） | `fpga/logic_analyzer_85m` | `C017ED10195502739BEBF914DD3BC6F3CAA84C0EAEB6E9E97559248B003FAA4F`，`All Constraints Met` |
+| 备用（50 MHz） | `fpga/logic_analyzer` | `8102634A23ACB68BF9EDA4110E48A3ECFE28186A4E76D0C5717856903986B012`，`All Constraints Met` |
+| RV32IM 计分 | `fpga/coremark_im` | `BE7A4FF31F2214AC12D230B4B48079B80C4A17A33C72F106ABAB407FD57D6F36`，`All Constraints Met`（WNS +1.841 ns） |
+| **RV32IM 计分（85 MHz，与交付同频）** | `fpga/coremark_im_85m`（新增） | `EE8B65360B0B07189C66460D813A6CC990FE87BE156AEA5BC7779B5D3C68D6F1`，`All Constraints Met`（WNS **+0.250 ns**，估算 Fmax **86.8456 MHz**，4198 LUT / 3361 FF） |
+
+> ⚠️ `fpga/coremark`、`fpga/coremark_80m`、`fpga/coremark_85m`、`fpga/coremark_90m`、
+> `fpga/logic_analyzer_80m`、`fpga/logic_analyzer_90m` 的**位流文件未重建**，其已登记哈希与
+> 板级结论按各自批次继续有效；但共享 RTL（`pipeline_cpu.v` / `logic_analyzer_mmio.v`）已变，
+> 这些工程的**源码与位流不再一一对应**，如需重建必须重跑对应板级证据。
+
+### 7. 已知遗留
+
+- 归档位流（cm50/cm80/cm85/cm90/la80/la90/ila）未用新 RTL 重建，也未重测；引用时按原批次口径。
+  （2026-10-14 追加：**RV32IM 的 85 MHz 计分位流已新建并实测**，见 §4.1——它不属于"归档位流"，是新构建的。）
+- RV32IM 已在 **50 MHz 与 85 MHz** 两个频点实测；**80/90 MHz 未测**（85 MHz 是交付时钟，优先补这一点）。
+- **触发条件永不出现会把固件停住**（无超时轮询），只能按 `REST` 或重下位流恢复；
+  已在两个上位机与恢复卡里写明识别与恢复方法，见 §4.2 与 `docs/application_logic_analyzer.md` §6.10.7。
+  是否给固件加 Arm 超时（需重建位流、刷新全部哈希与证据）由用户决定，本轮未改。
+- 断电一致性三轮压力仍是"用户决定不做"。
+- **成品材料（`technical_report.docx/.pdf`、`defense_presentation.pptx`）仍是旧产物**：
+  docx/pdf 停在 2026-09-30、pptx 停在 2026-09-16，**都不含 M 扩展与双源界面**。
+  两个生成器的文本已同步改对（`scripts/generate_technical_report.py`、
+  `scripts/generate_defense_deck.mjs`），但本机没有 `python-docx`、
+  也没有 `@oai/artifact_tool`（`docs/reproduction.md` 第 104 行记录 PPTX 只能在原环境重生成），
+  因此**未重新生成**；要不要为它装依赖由用户决定。交付包本身不含这三个文件，包内一致性不受影响。
+
+## 仪器化第四轮：仪器面板（交互旋钮）（2026-10-10 立项，2026-10-12 收口；用户批准的范围变更）
+
+起因：用户提出"想把逻辑分析仪改成可交互的"。只读调查后确认问题不在"功能少"，
+而在**固件早就有旋钮、界面却没接出来**：时基 `sample_div`、触发方式/通道/电平、
+`pre`/`post`、激励速率 `pattern_div`、激励数据 `data` 全部写死在 `mode_config()` /
+`default_config()` 里，而 13 字节报文的 `[1]`～`[11]` 一直把它们写进
+`LA_DIV`/`LA_TR_*`/`LA_PRE`/`LA_POST`（`software/logic_analyzer/logic_analyzer.c` 第 153～158 行）。
+因此本轮**只动主机端**：不改 RTL、不改固件、不重综合，位流哈希不变。
+规格与边界见 `docs/application_logic_analyzer.md` §6.9，D52 例外登记见 `docs/competition_scoring.md` §6 第 ③ 条。
+
+### 1. 改了什么
+
+| 层 | 文件 | 改动 |
+|---|---|---|
+| 上位机（共享推导） | `python/logic_analyzer_serial.py` | 新增 `KNOB_FIELDS`/`apply_knobs`/`mirror_required_samples`：旋钮 → 报文的**唯一**推导处，含越界、未知字段、镜像限制与窗口校验；`run_captures` 增 `knobs` 参数，并在**打开串口之前**校验镜像窗口 |
+| 上位机（界面） | `python/mes50hp_validation_ui.py` | 新增「仪器面板」：时基、触发方式/通道/电平、`pre`/`post`、激励速率/数据、板级时钟、采满 N 次后停；即时校验（错值变红并给原因）；模式相关禁用；每轮把**报文十六进制**打进日志 |
+| 上位机（测试） | `python/test_logic_analyzer_serial.py`、`python/test_logic_analyzer_ui.py`（新增） | 8 项旋钮推导/校验 + 5 项面板行为（同位规则、镜像禁用、即时校验、停止条件） |
+| 零依赖采集器 | `scripts/logic_analyzer_capture.ps1` | `-Oneshot`（0xA6）改为**开串口前显式拒绝**，新增默认关闭的 `-AllowUnsupportedFirmwareSegments`；头部协议注释补 0xA7 布局 |
+
+边界未破：`rtl/*.v`、`software/logic_analyzer/*`、`.fdc` 与位流一字未改；
+单文件上位机 `逻辑分析仪演示.py` 本轮不动（旋钮只长在一个界面上，避免两份推导）。
+
+### 2. 本轮修掉的口径与死路径
+
+| # | 问题 | 根因 | 处理 |
+|---|---|---|---|
+| 1 | `-Oneshot` 现场误用会卡住 | 发 0xA6，而交付固件只认 0xA5/0xA7（`logic_analyzer.c` 第 214 行），失败形式是等满超时（默认 70 s） | 开串口前抛错；显式开关可越过（实测越过后的错误变成"串口打不开"，证明拦它的是闸门） |
+| 2 | 上一轮文档口径不准 | `docs/progress.md` 原文说 `-Segmented` 也发 0xA6；**实际只有 `-Oneshot` 发**，`-Segmented` 拼的是同目录已有日志 | 在本轮记录里更正，并保留主机端拼接路径（实测 `-Segments 20` 重建 `pages=1` PASS） |
+| 3 | 关窗时 Tk 报 `invalid command name "..._poll_events"` | 窗口销毁后仍有排队中的 `after` 轮询回调 | `destroy()` 里先 `after_cancel` 再销毁 |
+
+### 3. 本轮验证结果
+
+| 验证 | 命令 | 结果 |
+|---|---|---|
+| 上位机全部单测 | `python -m unittest discover -s python -p 'test_logic_analyzer*.py'` | **24 项 OK**（原 9 项 + 新增 15 项） |
+| 上位机入口 | `scripts\run_logic_analyzer_python.ps1` | `ALL LOGIC ANALYZER PYTHON TEST PASS`（子进程退出码 0） |
+| **不勾面板时逐字节不变** | 与交付包旧版 `tools/logic_analyzer_serial.py` 对拍：5 模式 × 2 时钟 × 2 波特率 | **报文与 cfg 0 处不符** |
+| 零依赖采集器离线重建 | `scripts\logic_analyzer_capture.ps1 -FromCaptures <目录> -Modes static,counter,uart,spi,mirror` | `WAVEFORM REBUILD PASS pages=5` |
+| 主机端分段拼接仍可用 | 同上 + `-Segments 20` | `WAVEFORM REBUILD PASS pages=1` |
+| `-Oneshot` 拒绝 | 不带开关 / 带显式开关 | 前者开串口前抛错；后者越过闸门后变成串口 IOException |
+| 脚本语法与 BOM | `ensure_ps1_bom.ps1` + `Parser::ParseFile` | `PS1 BOM FIXED: logic_analyzer_capture.ps1`、`PARSE OK` |
+| **完整最终回归** | `scripts\run_final_regression.ps1` | **`ALL AUTOMATED FINAL REGRESSION PASS`，`FINAL_REGRESSION_EXIT=0`，PASS=54 / FAIL=0** |
+| **位流未被触碰** | 同上（回归里的 `Require-Artifact` 逐份算 SHA-256） | la85 交付=`8908FD8C…`、la50 备用=`FDDF038C…`，与上一轮**逐位一致** |
+
+> 复现提示：本轮**第一次**跑最终回归 PASS（54/54），**第二次**在
+> `Task 28 initialized FPGA memory model` 步骤失败，原因是
+> `fpga/coremark/rtl/coremark_imem.mem` 被别的进程短暂占用
+> （`Set-Content : ... because it is being used by another process`）。
+> 当时机器上已无 PDS/iverilog/python 进程，占用者未定位，怀疑是短时的文件索引或安全软件扫描；
+> **第三次重跑即恢复**（`FINAL_REGRESSION_EXIT=0`、54/54）。
+> 这条记下来是因为它会让"回归失败"看起来像代码问题：判断依据应是**同一命令重跑是否复现**，
+> 而不是第一次的退出码。
+
+### 4. 板级 100/100 与交付包收口（2026-10-12，用户批准后补做）
+
+| 步骤 | 命令 | 结果 |
+|---|---|---|
+| 下载交付位流 | `scripts\program_board.ps1 -Config la85` | `PROGRAM PASS config=la85`、`done bit is 1`；SHA256 `8908FD8CB3AE72ED…` |
+| 板级探测（1 次/模式） | `run_logic_analyzer_board.ps1 -Port COM11 -RunsPerMode 1 -ClockHz 85000000 -Output results\probe` | `LOGIC ANALYZER PHYSICAL BOARD ACCEPTANCE PASS captures=5`（J8 跳线在位；样本数 static 5 / counter 5 / uart 207 / spi 85 / mirror 2048） |
+| **板级正式验收（20 次/模式）** | `run_logic_analyzer_board.ps1 -Port COM11 -RunsPerMode 20 -ClockHz 85000000 -Output results\board_final_20261012` | **`LOGIC ANALYZER PHYSICAL BOARD ACCEPTANCE PASS captures=100`**，作业退出码 0 |
+| 证据页重建 | `logic_analyzer_capture.ps1 -FromCaptures results\board_final_20261012 -Modes static,counter,uart,spi,mirror` | `WAVEFORM REBUILD PASS pages=5` |
+| 证据归档 | 先备份旧目录，再替换 `release/evidence/logic_analyzer_board_85m/` | 306 文件（5 模式 × 61 + 总览页），与旧目录**同形**；旧证据备份在 `results/evidence_backup_85m_20261012/`（306 文件） |
+| 演示前自检 | `demo_preflight.ps1 -Port COM11` | `DEMO PREFLIGHT PASS warnings=0` |
+| 发布链（pwsh 7.6.5） | `export_final_submission.ps1` → `create_release_manifest.ps1` → `audit_release_package.ps1` | `FINAL SUBMISSION EXPORT PASS files=296` / `RELEASE MANIFEST PASS files=3891` / `RELEASE PACKAGE AUDIT PASS final_files=297 artifacts=3`（三个退出码均 0） |
+| 包内核查 | 仓库源文件与包内副本逐份 SHA-256 比对 | `tools/mes50hp_validation_ui.py`、`tools/logic_analyzer_serial.py` 与仓库源文件**逐字节一致**；包内板级证据 = 本批（`mirror/summary.json` 哈希相同、306 文件） |
+| 最终回归（改动后复跑） | `scripts\run_final_regression.ps1` | **`FINAL_REGRESSION_EXIT=0`、PASS=54 / FAIL=0**（改过 `scripts/` 与证据后按 handoff §4 复跑） |
+| **实板旋钮路径验证** | 直接调 `run_captures(..., knobs=...)` 打真板：① UART 改速率 `pattern_div 433→866` 且 `sample_div 26→52`（重算后位点数仍是 16）② 镜像改窗口 `post 2047→1200` | 两次都 PASS：UART 208 点 / 触发 16，且 UART 字节解对；镜像 1201 点，且**逐字节解出 `HELLO,RISC-V`**。证明"旋钮 → 报文 → 实板采集 → 判据"整条链在真板上成立（证据 `results/knob_probe/`） |
+
+**发布链上撞到并修掉的一个既有缺陷**：
+`scripts\export_final_submission.ps1` 第 276 行的 README 模板写了单反引号的 Markdown 代码段
+（`` `uart0_rx` ``）。PowerShell 7 把 `` `u `` 当作 Unicode 转义 `` `u{...} `` 的起始，
+于是**整个脚本在 pwsh 7 下解析失败**
+（`ParserError: The Unicode escape sequence is not valid ... @line 276`），导出以 `EXPORT_EXIT=1` 中断。
+旁证：交付包 README 第 53 行原本显示成"镜像 uart0_rx"，反引号被吃掉——
+说明**上一次成功导出实际上是用 PowerShell 5.1 跑的**（5.1 里 `` `u `` 只是普通字符），
+与 `docs/demo_runbook.md` "发布脚本必须用 pwsh 7"的要求不符。
+处理：按同一文件第 255 行已有的写法把该行改成成对反引号（`` ``uart0_rx`` ``），
+再用 `ensure_ps1_bom.ps1` 补回编辑工具去掉的 BOM。修复后 pwsh 7 下 `scripts\*.ps1` 解析全绿
+（修复前只有它一个失败），README 第 53 行的反引号也恢复正常。
+
+**仍未处理的同类外观问题（本轮未动，等用户决定）**：同一 README 模板还有约 20 处单反引号代码段
+（例如 `` `scripts\run_final_regression.ps1` ``）。它们在 PowerShell 字符串里同样会丢掉反引号，
+生成的 README 第 59 行因此显示为"scripts\run_final_regression.ps1"。
+这一类**不会**导致解析失败（只有 `` `u `` 会），只是 Markdown 标记丢失，修法相同。
+
+**其余未做**：
+
+1. **新测试已自动进最终回归**：`python/test_logic_analyzer_ui.py` 与
+   `python/test_logic_analyzer_serial.py` 的 15 项新用例都落在
+   `run_logic_analyzer_python.ps1` 的发现范围 `test_logic_analyzer*.py` 内，
+   而该入口由 `run_final_regression.ps1` 第 70 行调用，无需另加入口。
+2. **发现一个既有的红测试（不是本轮引入）**：`scripts\run_waveform_viewer_test.ps1` 的
+   `waveform-page-mirror_00` 判据要求状态栏出现字面量 `' ns'`
+   （`scripts/waveform_viewer_test.js` 第 318 行），而镜像页的时基是 1082 ns/点，
+   格式化后正确显示为 `µs`/`ms`，于是被判 FAIL。
+   **证据**：改用交付包自带的模板与板级证据（都不是本轮改过的文件）跑同一条命令，同样 `FAIL count=1`，
+   说明与本轮改动无关。页面本身把 Δ 报成了 `925 点 = 1.001 ms`，读数是对的，是判据写得太死。
+3. **"换被测对象"仍未做**：把采集通道改接 Core 外部的总线观测点（见上一轮遗留第 2 条），
+   这仍是把应用与 CPU/CoreMark 主线焊接起来的方向，属下一轮范围变更。
+
+### 5. 单文件上位机补齐（2026-10-12，用户要求"合成一个能直接用的 py"）
+
+用户反馈上位机散在 `tools\` 里一堆模块、不好用，要一个能直接双击的 py。
+处理：把「仪器面板」搬进自包含的 `逻辑分析仪演示.py`（仓库根目录，也是交付包根目录那一份）。
+它本来就自带协议、解码、测试与 VCD/HTML 导出，**不 import 仓库任何模块**。
+
+| 项 | 改动 |
+|---|---|
+| 旋钮 | 移植 `apply_knobs` / `mirror_required_samples` / `_knob_int` 与全部面板控件（时基、触发方式/通道/电平、`pre`/`post`、激励速率/数据、板级时钟、采满 N 次后停） |
+| **修掉一个真 bug** | "连续采集"按钮原来是**死的**：`live` 从来没被置真，点它只采一次。现在真的连续采，再点一次停止，并支持"采满 N 次自动停" |
+| **对拍抓到的移植 bug** | 本文件 cfg 用 `trig_type/trig_mask/trig_value` 键名，旋钮名却是 `trigger_*`；不翻译就会被静默加成新键——**报文照发但参数没生效**。已加 `_KNOB_TO_CFG` 映射 |
+| 自检钩子 | `run_gui(probe=…)` 把面板句柄交给自动化脚本，用于无人值守驱动界面（正常双击不走这条路） |
+
+**验证（全部实测）**：
+
+| 验证 | 结果 |
+|---|---|
+| 与正式模块逐字段对拍 | 5 模式 × 2 时钟 × 11 组旋钮 = **110 组、0 处不一致**（含全部拒绝分支）；`build_packet` 输出逐字节相同 |
+| 真实 Tk 窗口驱动 | 默认旋钮全禁用 → 勾选后启用并预填模式默认 → 非法值变红给原因 → 切 mirror 后 `pre`/`post` 变镜像默认 |
+| 连续采集 + 自动停（实板 COM11） | 计数包装器数**真实采集次数 = 3 / 期望 3**，且旋钮确实传进了 `capture()` |
+| 五模式自检（实板） | `python 逻辑分析仪演示.py --selftest COM11` → **全部通过**（含 mirror 逐字符解出 `HELLO,RISC-V`） |
+| 交付包同步 | export → manifest → audit 重跑通过，包内 `逻辑分析仪演示.py` 与仓库源文件一致 |
+
+> 分工：**单文件版 = 现场用**（一个文件、双击就跑，含面板）；
+> `tools\` 那一套 = 回归与批量验收用（`run_logic_analyzer_board.ps1` 调 `logic_analyzer_serial.py` 跑 100/100）。
+> 两份的旋钮推导已用上面的 110 组对拍锁住一致性。
+
+
+## 仪器化第三轮：八键八灯面板**整套移除**（2026-10-10，用户决定）
+
+用户原话："按键的功能是啥啊，能不能把按键的功能去掉，我觉得没用"——按用户选择执行 **B 方案**：
+按键与面板控制逻辑全部删除，**LED 退回原来的 `gpio_out[7:0]`**，读数（§6.8.3）保留不动。
+
+| 层 | 文件 | 改动 |
+|---|---|---|
+| RTL | `rtl/la_panel.v` | **删除**（连同 8 键消抖、档位循环、LED 状态编码） |
+| RTL | `rtl/logic_analyzer_mmio.v` | 删掉面板端口与 `panel_active` 判定；`DEPTH=2048` 与镜像采集保持原样 |
+| RTL | la50/la85 板级顶层 + la85 PLL 顶层 | 删 `key_n` 接线与面板例化；`assign led = gpio_out[7:0];` 恢复 |
+| RTL | la80/la90 归档顶层 | 恢复到归档位流对应的原始写法（单行例化），位流与哈希**未变** |
+| 约束 | 两个活跃 `.fdc` | 删掉 KEY1..KEY8 管脚块，回到 114 行；纯 ASCII |
+| 测试 | `tb/tb_la_panel.v`、`scripts/run_la_panel_tb.ps1` | **删除** |
+| 测试 | `tb/tb_logic_analyzer_board_top.v` | 重写干净版：`led!==8'h5A` 断言 + 镜像检查，无按键用例 |
+| 测试 | MSIM TB / 镜像 TB / 80M 归档 TB | 去掉 `key_n` 接线与面板断言，回到各自基线行为 |
+| 脚本 | `export_final_submission.ps1`、`run_final_regression.ps1`、两个板级 TB 入口 | 删掉面板相关条目 |
+
+**关键证据——移除是干净的**：重建后位流的资源/时序
+（LUT 4479 / FF 3610（实现 3601）/ DRM 6.0 / WNS +0.588 / WHS +0.310 / Fmax 89.4721 MHz）
+与**加面板之前**逐项一致；板级复测 `captures=100 PASS`；`demo_preflight.ps1` PASS warnings=0。
+新哈希：**la85 = `8908FD8C…`**、**la50 = `FDDF038C…`**（已同步进 `demo_preflight.ps1` 与 `claims_map.md`）。
+
+**踩到的坑**：PDS 会拒绝 `DEPTH=2048` 下复位期的 BRAM 清零循环（`Loop limit 2000`），该循环已删除；
+`.sbit` 内含构建时间戳，**同样 RTL 重建哈希也会变**，所以哈希只能靠"重建后同步"而不能靠比对。
+
+### 交付包同步（2026-10-10 第三轮同日收口）
+
+| 步骤 | 命令 | 结果 |
+|---|---|---|
+| 重新导出 | `scripts\export_final_submission.ps1` | `FINAL SUBMISSION EXPORT PASS files=296` |
+| 重建清单 | `scripts\create_release_manifest.ps1` | `RELEASE MANIFEST PASS files=3881` |
+| 交付审计 | `scripts\audit_release_package.ps1` | **`RELEASE PACKAGE AUDIT PASS final_files=297 artifacts=3`** |
+| 演示前自检 | `scripts\demo_preflight.ps1 -Port COM11` | `DEMO PREFLIGHT PASS warnings=0` |
+
+- 包里已无任何面板残留（无 `la_panel.v` / `tb_la_panel.v` / `key_n`，MMIO 端口 0 处 `panel` 引用），
+  两个位流哈希与 `claims_map.md` 逐位一致。
+- **新增进包**：单文件上位机 `逻辑分析仪演示.py`（包根目录）。按用户选择"文件进包、
+  `启动逻辑分析仪.cmd` 仍指向 `tools\pyUI.py`"，两条上位机路径并存；审计的必需文件表已加这一条。
+- README 同步：五模式（含 mirror）波形预览说明、镜像采集命令行，并把"四模式 80/80、深度 256"
+  明确标注为 **2026-09-29 历史记录**；当前交付位流一栏写 **2026-10-10 五模式 100/100、深度 2048**。
+- **修复一个导出中断**：PDS GUI 打开交付包时会在包内自建并清理 `temp_projects\`，文件在
+  "枚举完 → 开始哈希"之间消失，导出在最后一步 `Get-FileHash` 抛 PathNotFound 中断（包内容已写好、
+  只缺 `SHA256SUMS.txt` 与 zip）。现导出与审计**统一把 `temp_projects/` 与 `sim/` 一起按构建垃圾排除**。
+- **提交包（新增脚本）**：`scripts\build_submission_bundle.ps1` 把"交付包 + 完整工程源码"打成一个
+  压缩包放桌面（`RISC-V_CPU_2026_提交包_20261010.zip`，2412 个文件 / 解压 70.9 MB / 压缩 7.5 MB）：
+  `01_交付包/`（= 已过审计的那一份，296 个文件按包内 SHA256SUMS.txt 逐条复核，0 处不符）
+  + `02_工程源码/`（rtl/tb/software/python/scripts/docs/third_party + fpga 各工程源码、约束、
+  工程文件、位流、时序报告）+ `先读我.txt`。
+  排除：`release/materials`（旧版报告/PPT，用户决定不进包）、`tmp/`、`.git/`、`node_modules/`
+  （7796 个文件 / 320 MB，第一版误收导致包涨到 109 MB）、FPGA 综合与布局布线中间产物。
+
+## 仪器化：读数 + 面板（2026-10-10 第二轮，用户批准的范围变更）
+> ⚠️ 本轮的**面板部分已在同日第三轮被用户否决并整套移除**（见上），下面保留作历史记录；
+> **读数部分仍然有效**。涉及 `la_panel.v` / 面板 TB / 按键现场步骤的表述均已作废。
+
+起因是用户看完波形页的一句反馈："逻辑分析仪有点太单薄"。诊断出的三条根因：
+
+1. **被测对象是它自己**（激励→回环→抓自己）——真仪器测的是别人的信号；
+2. **只给曲线不给读数**——仪器的价值在结论（频率、周期、占空比、帧错误），原来一个数都没有；
+3. **没有面板**——板上的 8 键 8 LED 闲置，拔掉 USB 这台"仪器"什么都不说。
+
+本轮做第 2、3 条（第 1 条"换被测对象"是更大的方向，见文末遗留）。
+
+### 1. 仪器读数（纯上位机，零位流风险）
+
+`逻辑分析仪演示.py` 里新增测量层，界面右侧多一张读数表：
+
+- **每通道**：上升沿/下降沿数、频率、周期（中位数）、周期抖动 min…max、占空比、最小/最大脉宽；
+  不足两个边沿标 `—`（直线测不出频率，硬报 0 Hz 是假读数）。
+- **协议层**：帧数/字节数、帧错误、每位采样点、位宽、推算波特率、解码内容。
+- 与判据**同源**：界面、网页波形页、Markdown 报告、`--selftest` 共用同一套函数；
+  新增"导出测量报告"（Markdown，含测量条件与读数口径）。
+- 已按实板校准：mirror 位宽 8658.8 ns vs 真实 8680 ns（**−0.24%**，是"每比特 8 个采样点"的
+  量化误差，口径照实写进文档）；SPI 的 SCLK 10.62 MHz（周期取中位数后偏差 0.00%）。
+  踩到两个真坑并已修：纳秒值被通用 SI 格式化印成 `8.659 ks`；周期用平均值被字节间隙带偏。
+
+### 2. 仪器面板（要动 RTL + 约束 + 位流）
+
+| 层 | 文件 | 改动 |
+|---|---|---|
+| RTL 新模块 | `rtl/la_panel.v` | 8 键两级同步 + 1.2 ms 消抖 → 单拍控制脉冲；时基档位按 `CLK_HZ` 参数算；LED 状态编码 |
+| RTL | `rtl/logic_analyzer_mmio.v` | 增加面板输入/状态输出端口；面板未激活时**行为与加面板前逐位相同**（用 `=== 1'b1` 判定，z 即为假） |
+| RTL | la50/la85 板级顶层 + PLL 顶层 | 接 `key_n[7:0]`，例化面板，LED 改由面板驱动 |
+| RTL | la80/la90 归档顶层 | 只加显式常量接线（PDS 原本就把未驱动输入 tie 0，功能等价），位流与哈希**未变** |
+| 约束 | 两个活跃 `.fdc` | 增加 KEY1..KEY8 管脚（K18,L15,J17,K16,J16,J19,H20,H17，LVCMOS33） |
+| 测试 | `tb/tb_la_panel.v` + `scripts/run_la_panel_tb.ps1`（新增） | 消抖、单拍脉冲、档位循环、LED 状态、KEY7 交还；已进最终回归 |
+| 测试 | 板级 TB + MSIM TB | LED 断言从 `led==0x5A`（那是 gpio_out）改成面板状态；新增**按键直接 Arm/Clear** 的端到端用例 |
+
+面板定义（按键/LED 含义）与现场人工步骤见 `docs/application_logic_analyzer.md` §6.8。
+
+### 3. 本轮验证结果
+
+| 验证 | 命令 | 结果 |
+|---|---|---|
+| 面板单测 | `scripts\run_la_panel_tb.ps1` | `ALL LOGIC ANALYZER PANEL TEST PASS` |
+| 板级按键（仿真） | `scripts\run_logic_analyzer_board_top_tb.ps1` | `PANEL LED / CLEAR / ARM PASS`（按键独立完成一次采集） |
+| 读数（实板） | `逻辑分析仪演示.py --selftest` | 五模式读数与已知参数吻合（含 −0.24% 量化口径） |
+| **面板不破坏原通路** | `run_logic_analyzer_board.ps1 -Port COM11 -RunsPerMode 20` | **`captures=100` PASS** |
+| 最终回归 | `scripts\run_final_regression.ps1` | **`ALL AUTOMATED FINAL REGRESSION PASS`**（含面板 TB） |
+| 交付包 | export → manifest → audit | `EXPORT PASS files=297` / `MANIFEST PASS files=3881` / **`AUDIT PASS final_files=298`** |
+| 演示前自检 | `scripts\demo_preflight.ps1 -Port COM11` | `DEMO PREFLIGHT PASS warnings=0` |
+
+位流：**la85 交付 = `005BD00B8C001FFE…`**、**la50 备用 = `ED38436EBE15CDE4…`**（两处哈希已同步进
+`demo_preflight.ps1` 与 `claims_map.md`）。资源/时序：LUT 4775、FF 3792（实现 3776）、DRM 6.0、
+Setup WNS +0.527 ns、Hold WHS +0.226 ns、估算 Fmax 88.9864 MHz，`All Constraints Met`。
+
+### 4. 本轮踩到的坑（详见 `docs/debug_log.md`）
+
+PDS `Verilog-4086` 双驱动（iverilog 容忍、综合器拒绝）；`.fdc` 只收 ASCII 且注释符是 `#` 不是 `//`；
+板级 TB 的并行 initial 被 `$finish` 截断导致"假通过"；读数单位与中位数两个显示缺陷；
+交付导出被**用户开着的 PDS 图形界面**锁住而中断一次（重跑即恢复，交付包已重新导出通过审计）。
+
+### 5. 仍未做（需要用户决定）
+
+1. **实体按键只能人工验**：`docs/application_logic_analyzer.md` §6.8.5 给了 6 步现场流程
+   （按 KEY1 看 LED2/LED3 亮、按 KEY3 清、KEY4-6 换档、KEY7 交还）——脚本看不见 LED，必须人眼确认并录像。
+2. **"换被测对象"没做**：把采集通道改接 Core 外部的总线观测点，做成"CPU 总线行为分析仪"。
+   这是把应用与 CPU/CoreMark 主线焊接起来的最大加分方向，但要动 SoC 观测层，属于下一轮范围变更。
+3. `release/materials/` 成品材料（技术报告 docx/pdf、答辩 QA、视频稿）仍含旧数字，上一轮已记录在案。
+
+
+## 镜像抓取：上位机发字符串、逻辑分析仪抓这根线（2026-10-10）
+
+起因：板级演示"展示效果差"——UART/SPI 页抓的是 pattern_gen **重复发送的同一个字节**
+（UART=`0xA5` 且不可打印、SPI=`0x3C`），窗口只有 240/85 点，static/counter 页更是只有 **5 个点**；
+页面本身的渲染能力（缩放、光标、帧标注、VCD）一直够用，差的是**被抓的内容**。
+
+本轮把被测信号换成"上位机真正发出去的串口线"：上位机发一句 ASCII（默认 `HELLO,RISC-V`），
+逻辑分析仪抓下来并把整句报文**逐字符标在波形上**。规格与验收口径见
+`docs/application_logic_analyzer.md` §6.7。
+
+### 1. 改了什么
+
+| 层 | 文件 | 改动 |
+|---|---|---|
+| RTL | `fpga/logic_analyzer{,_80m,_85m,_90m}/rtl/mes50hp_logic_analyzer_top.v`（各 1 行） | `assign loopback_tx={uart0_rx,sample_outputs[6:0]}`：ch7（J8-31/32）改为镜像上位机串口线 |
+| RTL | `rtl/logic_analyzer_mmio.v` | 新增 `parameter DEPTH=2048` 并传给 `capture_engine`；`rtl/capture_engine.v` 仅删掉复位清 BRAM 的 for 循环（DEPTH=2048 时超过 PDS `Loop limit 2000`） |
+| 固件 | `software/logic_analyzer/logic_analyzer.c` | 新命令 `0xA7`（镜像，13 字节布局不变、`[10]\|[11]` 改 16 位 post）；Arm 后打印 `LA_ARMED`；解码改流式（不再用栈上 1 KB 的 `raw[256]`） |
+| 上位机 | `python/logic_analyzer_serial.py`、`scripts/logic_analyzer_capture.ps1` | `mirror` 模式 + `--text/-MirrorText`；采样分频按**板级时钟与波特率**算（85 MHz→91、50 MHz→53）；判据 = 解出的字节**逐字节等于**发出去的字符串 |
+| 波形页 | `python/waveform_viewer.html` | 帧标注加字符（`'H' 0x48`）、状态栏直接打印 `报文 "HELLO,RISC-V"` |
+| 测试 | `tb/tb_logic_analyzer_mirror.v` + `scripts/run_logic_analyzer_mirror_tb.ps1`（新增，已入最终回归） | 真实板级顶层 + 真实固件；J8 八对回环用 `assign` 模拟；场景 A 短报文冒烟、场景 B 整句 + 2048 点（与交付配置一致） |
+
+边界未破：Core 源码、端口与事务语义一个字未改；不新增寄存器；8 路物理回环保留（ch7 的激励源换成上位机串口线）。
+
+### 2. 顺带修掉的四个真 bug（全部由证据定位，不是猜的）
+
+| # | 现象 | 根因 | 证据 |
+|---|---|---|---|
+| 1 | 固件把线上真实的 `0xA5` 解成 `0x4A` | `decode_uart` 在位边界取样，缺 2026-09-30 给 Python/PowerShell 补的半比特居中 | `release/evidence/logic_analyzer_board_85m/uart/uart_00.log` 的 `UART:0000004A` |
+| 2 | 上位机把实板捕获解成乱码，而板上固件解对了 | Python/PowerShell/JS 三处解码器都从 `i=1` 起扫；镜像 `pre=0` 时第 0 个采样点**就是**起始位 | 实板 `mirror_00.log`：固件 `ascii=HELLO,RISC-V`，上位机 `b'\x1511=,RISC-V'` |
+| 3 | 12 个字符错 5 个（`HE??RI??-V`） | 解码器成功后固定跳 10 个比特；实板采样边沿有 ±1 点抖动、帧长在 79~81 点浮动，误差逐帧累积到半个比特 | 实板 run-length：`(72,1,9)`、`(137,1,7)`；改成"每帧用自己的起始位重新对齐"后 4 次全对 |
+| 4 | SPI 从 20/20 PASS 变 FAIL | 触发在 SCLK 上升沿，而 pattern_gen 自由运行 → 窗口落在字节**任意 bit** 上；落 b6 就只剩 7 个脉冲、CS 提前拉高、整字节被（正确地）丢弃。老固件的 PASS 一直是**相位运气** | `spi_00.log` 位图：7 个脉冲后 CS 拉高；改触发 CS 下降沿后稳定 |
+
+第 3 条的修法在 Python、PowerShell、波形页 JS 与固件流式解码器**四处同改**——
+"判据与标注必须同源"这条纪律在本次是硬约束：任何一处漏改，页面上标的字节和判据用的字节就不是同一个。
+
+### 3. 本轮验证结果
+
+| 验证 | 命令 | 结果 |
+|---|---|---|
+| 镜像端到端（仿真） | `scripts\run_logic_analyzer_mirror_tb.ps1` | `ALL LOGIC ANALYZER MIRROR TEST PASS`（场景 A + 整句 2048 点，5 项检查全中） |
+| 采集器/MMIO/故障诊断 | `run_capture_engine_tb` / `run_capture_engine_stress_tb` / `run_logic_analyzer_tb` / `run_logic_analyzer_fault_diag` | 全部 PASS（含 `reset clears`、四场景故障定位） |
+| 板级顶层（50/80 MHz） | `run_logic_analyzer_board_top_tb` / `run_logic_analyzer_pll80_board_top_tb` | PASS，含新增的"ch7 每拍镜像 uart_rx"断言 |
+| 波形页/解析器 | `run_waveform_viewer_test.ps1`、`python -m unittest discover -s python/tests` | `ALL TEST PASS`、16 项 OK（含相位偏移用例） |
+| **实体板五模式验收** | `scripts\run_logic_analyzer_board.ps1 -Port COM11 -RunsPerMode 20 -ClockHz 85000000` | **`LOGIC ANALYZER PHYSICAL BOARD ACCEPTANCE PASS captures=100`**（四模式各 20 + 镜像 20） |
+| 备用位流冒烟 | 同上 `-Config la50 -ClockHz 50000000 -RunsPerMode 3` | `captures=15`（5 模式 ×3）；证据 `release/evidence/logic_analyzer_board_50m_recheck/` |
+| 板级波形页 | `logic_analyzer_capture.ps1 -FromCaptures … -Modes static,counter,uart,spi,mirror` | `WAVEFORM REBUILD PASS pages=5`；镜像页 2048 点、ch7/PC_TX、每比特 8 点、`框出=0x48` |
+| 演示前自检 | `scripts\demo_preflight.ps1 -Port COM11` | `DEMO PREFLIGHT PASS warnings=0`（6 个位流哈希全部对齐，含重打后的 la85/la50） |
+| **最终回归** | `scripts\run_final_regression.ps1` | **`ALL AUTOMATED FINAL REGRESSION PASS`**（含新增的镜像 TB；CoreMark/GCC 等价/流水线/Hazard 全绿） |
+| 交付包导出 | `scripts\export_final_submission.ps1` | `FINAL SUBMISSION EXPORT PASS files=295`（10-09 为 178，新增镜像证据与页面） |
+| 交付清单 | `scripts\create_release_manifest.ps1` | `RELEASE MANIFEST PASS files=3874` |
+| 交付包审计 | `scripts\audit_release_package.ps1` | `RELEASE PACKAGE AUDIT PASS final_files=296 artifacts=3` |
+
+位流：**la85 交付 = `66A1E9A74A9C55CC…`**（原 `788F1CEB…`）、**la50 备用 = `0477DDA4B8D308B3…`**
+（原 `BCAE040A…`，旧位流备份在 `tmp/la50_archived_BCAE040A.sbit`）。两个哈希已同步进
+`scripts/demo_preflight.ps1`，否则现场自检会为错误的原因拦下演示。
+
+### 4. 止损记录
+
+DEPTH 从 256 提到 2048 时，PDS 编译先以 `Verilog-4092: capture_engine.v line 32 Loop limit 2000 exceeded`
+失败（复位清 BRAM 的 for 循环）。按"不改已验证行为"的最小原则，只删掉那条复位清零循环
+（导出口径完全由 `capture_count/start_index` 决定，窗口外旧数据软件读不到），
+`capture_engine` 的独立 TB 与压力 TB 全部仍然 PASS。资源与时序未退化：
+85 MHz 交付位流 `Design Summary : All Constraints Met`，LUT **4479**（原 4814）、FF **3610**（原 3858）、
+DRM **6.0**（原 5.5 等效块）、Setup WNS +0.588 ns、Hold WHS +0.310 ns、估算 Fmax **89.4721 MHz**，
+2048×8 存储未被推成分布式 RAM（`LUT as Distributed RAM = 0`）。LUT/FF 反而下降，
+是因为去掉复位清零循环省下了逻辑。
+
+> 本机**没有安装 PowerShell 7**（`pwsh` 不在 PATH 也不在常见安装目录），
+> 本轮 `export_final_submission.ps1` / `create_release_manifest.ps1` / `audit_release_package.ps1`
+> 是用 Windows PowerShell 5.1 跑通的（脚本自身注释已声明两者在"UTF-8 无 BOM"上行为一致）。
+> `docs/demo_runbook.md` 里"必须用 pwsh 7"的要求在本机无法满足，需要用户在有 PS7 的机器上复核一次。
+
+### 5. 关于 la80 / la90：**故意不重打**
+
+目标的原始表述里包含"重打 la80/la90"，实际执行时判断**不应该重打**：
+`fpga/logic_analyzer_80m` 是已记录的 80 MHz 时频点（板级四模式 80 次通过），
+`fpga/logic_analyzer_90m` 是"CoreMark 通过、逻辑分析仪 SPI 挂死"的归档失败点。
+一旦重打，它们已记录的 Fmax/资源与板级结论就全部失效，还要连带改 claims_map §8。
+所以本轮把这两个工程**恢复成与各自归档位流一致的状态**（`assign loopback_tx=sample_outputs;`、
+程序镜像 `E3C3CD4A6997CD2A…`），只加了一条说明注释；
+`tb_logic_analyzer_pll80_board_top.v` 的断言也改回归档口径（不含镜像），
+镜像断言只留在 50m 交互工程与新增的镜像 TB 里。la80/la90 位流哈希因此未变
+（`0388100A…` / `0315374E…`）。
+
+### 6. 本轮明确没做（需要用户决定）
+
+1. **`release/materials/` 的成品材料没有重新生成**。`scripts/generate_technical_report.py`
+   里的数字与哈希已经改对（Raw 深度 2048、五模式 100/100、镜像抓取、新位流 SHA、
+   资源 4479/3610/6.0、WNS +0.588/WHS +0.310/Fmax 89.4721），但 `technical_report.docx/.pdf`
+   仍是旧产物；本机**没有装 python-docx**，生成脚本跑不起来，PDF 转换工具链也未确认。
+   同理 `release/materials/defense_qa.md`、`video_script.md`、`live_demo_script.md`
+   尚未加入镜像演示段落（用户此前已要求 PPT 不重新生成）。
+2. **soak 复测仍是旧位流的**：`logic_analyzer_board_85m_soak/` 是 `788F1CEB…` 那一版的
+   3 轮 × 80 次记录；新位流只做了 100 次（5 模式 ×20）。若要"新位流也有 soak"，需要再跑 3 轮。
+3. 演示视频、答辩走位与现场话术未重录（镜像页现在是最抢眼的一张图，建议放在 S1 正中间）。
+
+
 
 ## 上位机波形链一致性修复（2026-10-09）
 
@@ -46,6 +586,11 @@ PDS 打开过交付工程后 `pds.log` 被别的进程独占，`Get-FileHash` �
   但 `software/logic_analyzer/logic_analyzer.c` 只认 **0xA5**（`do { packet[0]=uart_getc(); } while (packet[0]!=0xA5u);`）。
   也就是说这条路径在当前交付固件上不可能成功，失败形式是超时（默认 70 s）或按 0xA5 对齐后
   `LA_CONFIG_ERROR`。**现场误用会当场卡住**，建议要么加"当前固件不支持分段"的显式拒绝，要么整段移除。
+  → **2026-10-10 第四轮已按"显式拒绝"处理**（见本轮记录 §2 第 1 条）。
+  同时更正本条的**口径**：发 0xA6 的只有 `-Oneshot`；
+  `-Segmented` / `-Segments N`（不加 `-Oneshot`）拼的是同目录下已有的 `<mode>_NN.log`，
+  不发 0xA6，实测仍可用（`-Segments 20` 重建 `pages=1` PASS）。
+  交付固件实际认的是 **0xA5 与 0xA7** 两个前缀，不是只有 0xA5。
 - `scripts\run_waveform_viewer_test.ps1` 仍未接入 `run_final_regression.ps1`；
   `python/tests/` 也不在 `run_logic_analyzer_python.ps1` 的发现范围内（只发现 `test_logic_analyzer*.py`）。
 - `release/evidence/logic_analyzer_board/` 是另一个位流批次（`cpi50m`）的证据页，本轮未重建。
@@ -508,3 +1053,533 @@ Task 20～32 的自动化 RTL/软件/PDS 证据已经通过，当前执行 Task 
 5. 在“当前已知问题”中记录尚未解决的问题；重要 Bug 同时写入 `docs/debug_log.md`。
 6. 将“下一目标”写成当前任务的具体验收目标。
 7. 更新顶部日期，并确保记录与当前代码和实际测试结果一致。
+
+---
+
+## 2026-10-18 取指 FIFO 与返回地址栈 RAS（两项均已实现、均默认关闭）
+
+两项都是"从开源项目借来的机制 + 完整 Before/After"，**结论都是净收益不成立**，
+因此默认值均为关闭，交付位流与既有证据口径未变。逐条数据见 `docs/rtl_changes.md`。
+
+### 1）取指预取队列（借鉴 lowRISC/ibex 的 prefetch buffer + fetch FIFO）
+
+- 新增 `rtl/fetch_fifo.v` + `tb/tb_fetch_fifo.v`（27 条断言，深度 4/1 全 PASS）。
+  集成路线为 `FETCH_FIFO_DEPTH` 参数（默认 1）＋ 24 个脚本补源文件。
+- **实测收益：0 周期。** CoreMark RTL 仿真在深度 1/2/4、以及去掉 `!mem_block`
+  门控的四种组合下，cycles **全部等于 1,251,724**。
+- 原因：`coremark_imem` 的 `rsp_valid` **保持到被消费**，本身就等价于一个 1 深
+  缓冲；`if_arm` 已消除取指气泡；单发射流水线的吞吐上限不在取指侧。
+  FIFO 隐藏的是"延迟"，此处没有延迟可隐藏。
+- 集成过程中修掉两个真 bug（都已留档）：
+  ① `DEPTH=1` 时指针越界读 `ent_*[1]` 得到 X，顺着 `ifid_inst` 污染流水线；
+  ② 队列内部用自己算的 `in_ready` 判定"接收"，与外部 `i_rsp_ready` 的
+     `!mem_block`/`if_rsp` 门控不一致，导致**同一条指令被提交两次**
+     （M 扩展回归 0x78 的 `sw`）。修法：新增 `in_fire`，由真实握手驱动。
+
+### 2）返回地址栈 RAS（`ENABLE_RAS`，默认 0）
+
+- 新增 `rtl/ras.v` + `tb/tb_ras.v`（27 条断言，深度 8/4/2/1 全 PASS）、
+  `scripts/run_ras_tb.ps1`；`rtl/pipeline_cpu.v` 加 `ENABLE_RAS`/`RAS_DEPTH`、
+  `btb_is_ret[15:0]` 位图与 `predictor_target_eff`；独立工程 `fpga/coremark_ras_85m/`。
+- **rv32i**：仿真 cycles 1,251,724 → 1,226,872（**−1.99%**）
+- **rv32im**：仿真 604,288 → 603,090（−0.20%）；**实体板 ticks
+  1,759,901,953 → 1,755,563,957（−0.25%）、Score 193.192 → 193.669**
+  （四 CRC 全过、`-march=rv32im`、20.653 s）——仿真与实体板互相印证。
+- **但面积 +110 LUT（4198 → 4308，+2.62%）大于分数收益（+0.25%）**，
+  故 **CoreMark/LUT 0.04602 → 0.04496（−2.30%）**；WNS +0.250 → +0.117 ns。
+  深度扫描 4/8/16 周期数完全相同，减小深度也省不下足够 LUT。
+- rv32i 的 −2% 与 rv32im 的 −0.25% 差异原因：rv32i 下每次乘法都调 `__mulsi3`
+  （84.3% 提交落在其中），call/ret 对极多；rv32im 后这些调用整体消失。
+  **引用 RAS 收益必须写明 ISA。**
+
+### 当前状态
+
+- `ALL AUTOMATED FINAL REGRESSION PASS`（RAS 默认 0 与默认 1 两种配置均实测 PASS）。
+- 板子已恢复为交付位流 `la85`。
+- 交付物、位流哈希、`claims_map` **均未改动**。
+- **下一目标**：面积敏感项优先。任何"加分"必须同时给 `ΔScore/ΔLUT`，
+  判据是 `ΔScore/ΔArea > 1`，否则 CoreMark/LUT 一定倒退。
+
+---
+
+## 2026-10-18 编译优化等级：`-O2` → `-O3 -funroll-all-loops -finline-functions`
+
+### 结论：三项指标全部正向，零面积、零时序风险，已在实体板验证
+
+| 指标 | `-O2`（交付基线） | **`-O3 -funroll-all-loops -finline-functions`** | 变化 |
+|---|---:|---:|---:|
+| Score @85 MHz | 193.192 | **201.457** | **+4.28%** |
+| CoreMark/MHz | 2.272 | **2.370** | **+4.31%** |
+| ticks | 1,759,901,953 | **1,687,704,396** | −4.10% |
+| 运行秒数 | 20.704 s | **19.855 s**（≥10 s ✓） | — |
+| LUT | 4198 | **4185** | −0.31% |
+| 路由后 WNS | +0.250 ns | **+0.341 ns** | 余量变大 |
+| **CoreMark/LUT** | 0.046020 | **0.048138** | **+4.60%** |
+
+判据 `ΔScore/ΔLUT = 4.28 / (−0.31)` → 远超 1，**这是至今唯一"三项全赚"的改动**。
+证据：`release/evidence/coremark_uart_opt85_20261018.log`、
+`coremark_board_opt85_20261018.json`、工程 `fpga/coremark_opt_85m/`
+（两次独立采集 ticks 完全一致，确定性可复现）。
+板上自证行：`Compiler flags : -O3 -funroll-all-loops -finline-functions -march=rv32im -mabi=ilp32`。
+
+### 改动内容（全部可开关，默认值仍是 `-O2`）
+
+| 文件 | 改动 |
+|---|---|
+| `software/coremark/Makefile` | 新增 `COREMARK_OPT ?= -O2` 与 `COREMARK_OPT_ESC`（转义空格，使优化选项作为**一个** argv 传给 gcc）；`CFLAGS` 改用 `$(COREMARK_OPT)` |
+| `software/coremark/core_portme.h` | `COMPILER_FLAGS` 由写死 `"-O2"` 改为 `COREMARK_OPT_STR`（未定义时退回 `"-O2"`） |
+| `scripts/generate_coremark_fpga_memory.ps1` | 新增 `-Opt` 参数并透传 `COREMARK_OPT` |
+| `scripts/run_coremark_pipeline_tb.ps1` | 新增 `$env:COREMARK_OPT` 开关 |
+| `fpga/coremark_opt_85m/` | **新增独立工程**（镜像由 `-Opt` 生成），不覆盖交付工程 |
+
+### 修掉的诚信问题（重要）
+
+`core_portme.h` 里 `COMPILER_FLAGS` 原本**写死** `"-O2 -march=…"`。
+用别的优化等级构建时串口自证行会**说谎**（实测第一次 `-O3` 运行仍打印 `-O2`）。
+现在由 Makefile 传入实际选项，已复测确认自证行正确。
+**以后任何改编译选项的动作，都必须先确认这一行跟着变。**
+
+### 待决事项（未擅自改动交付口径）
+
+1. `-O2` 与 `-O3` 是**两个口径**。是否把 `-O3` 升为交付口径由用户决定；
+   若采用，`docs/competition_scoring.md` §2 的三项实测值、`claims_map`、
+   交付包都要同步重出，并保留 `-O2` 作为历史对照点。
+2. **未解释的复现偏差（会话开始前已存在）**：用当前源码树重建的 `-O2` 镜像与
+   10/14 交付的 `fpga/coremark_im_85m/rtl/coremark_imem.mem` **不逐字节一致**
+   （3045/8192 行不同）。该位流 mtime 为 2026-10-14，且会话开始时 `git status`
+   已显示 `M software/coremark/Makefile`、`M software/coremark/core_portme.h`，
+   说明交付镜像并非由当前源码树产生。**提交前必须查清**。本轮只如实记录，未擅自"修好"。
+
+---
+
+## 2026-10-19 乘法并行部分积：`MUL_LAT` 3 → 2（**已成为默认配置**）
+
+> 完整记录见 **`docs/mdu_parallel_partial_product.md`**（算法、三方对照、关键路径、复现命令）。
+> 起因：`docs/coremark_cpi_analysis.md` §8.4 的优先级里，`MDU 去阻塞 ≈4.5%` 是除"数据口"之外
+> 唯一不需要碰取指/预测/提交时序的项。
+
+### 改了什么
+
+`rtl/mdu.v` 的乘法从"两级**串联** 16x32 部分积"改成"四路**并联** 16x16 部分积 + 窄位宽（17/33 位）
+加法树 + 推测进位选择"，乘法占用 ID/EX 的拍数由 3 降到 2；除法通路一行未改。
+新增参数 `MUL_LAT`（3/2/1，**默认 2**）与 `pipeline_cpu` 的 `MDU_MUL_LAT` 透传，
+旧实现在 `MUL_LAT=3` 分支里**完整保留**，可逐拍对照。
+
+### Before / After（实测）
+
+| 项 | MUL_LAT=3（旧） | **MUL_LAT=2（新默认）** | 变化 |
+|---|---:|---:|---:|
+| RTL 仿真 cycles（rv32im 一次迭代） | 604,288 | **594,792** | **−1.571%** |
+| RTL 仿真 `mdu_block` | 24,307 | **14,810** | −9,497（= 每迭代乘法条数） |
+| RTL 仿真 CoreMark/MHz | 1.965 | **2.002** | **+1.88%** |
+| RTL 仿真 cycles（**rv32i**） | 1,251,724 | **1,251,724** | **0（逐位相同）** |
+| RTL 仿真 `instret`（rv32im） | 0x51327 | **0x51327** | **不变** |
+| 官方 CRC 四行 | 全过 | **全过** | 不变 |
+| LUT / FF（85 MHz PnR） | 4185 / 3361 | **4139 / 3324** | **−46 / −37** |
+| 路由后 WNS（85 MHz） | +0.281 ns | **+0.115 ns** | −0.166 ns，仍 `All Constraints Met` |
+| 估算 Fmax | 87.0800 MHz | **85.8391 MHz** | — |
+| **板级 ticks（4000 迭代）** | 1,759,901,953 | **1,722,317,953** | **−2.135%** |
+| **板级 Score** | 193.192 | **197.408** | **+2.183%** |
+| **板级 CoreMark/MHz** | 2.272 | **2.322** | **+2.20%** |
+| 板级耗时 / `crcfinal` | 20.704 s / `0x65c5` | **20.262 s / `0x65c5`** | CRC 相同 |
+
+- **rv32i 逐位不变**（`mdu_block=0`，rv32i 根本没有硬件乘法）⇒ 这条路径只影响 MUL 指令。
+- 收益归因严格对账：`mdu_block` 三档 24,307 / 14,810 / 5,313，相邻差都恰好是 **9,497**（每迭代乘法条数），
+  剩余 5,313 拍是除法（三档相同）。
+- `ΔScore/ΔArea`：分数 +1.88%、面积 −1.10%，**同向为正**（继 `-O3` 之后第二个）。
+- **仿真与实板逐拍吻合**：仿真 CoreMark 窗口 ticks 差 **9,396 拍/迭代**；
+  实板 (1,759,901,953 − 1,722,317,953) ÷ 4000 = **9,396 拍/迭代**，两者完全相同。
+- **基线位流复现归档值**：`ticks = 1,759,901,953` 与 2026-10-14 归档 `cmim85` **逐位相同**。
+
+### 被实测否决的 `MUL_LAT=1`
+
+全组合乘法（挡 0 拍）在 85 MHz **违例 WNS −4.471 ns / 估算 61.59 MHz**：
+关键路径 `core/rf/regs → 前递 MUX → 一级 APM` 就已 12.189 ns，超过 11.7647 ns 周期。
+⇒ 85 MHz 下不存在"乘法输入直连前递操作数"的结构，`M_IDLE` 那一拍是必需的。
+保留为对照工程与证据，不进入任何配置。
+
+### 回归（全在新默认 MUL_LAT=2 下跑，24 项全 PASS）
+
+RV32I 全量、流水线 13 项、GCC 单周期/流水等价、Trap 契约 99 断言、Trap 黄金判据、
+单周期 Reference、MDU 单元（46 项 × 3 档）、M 扩展流水线 vs Reference、性能计数器、
+性能 MMIO、定时器中断、CSR、FPGA dmem、MES50HP 流水 SoC、CoreMark rv32i(固定/随机背压)、
+CoreMark rv32im、CoreMark FPGA 存储器模型（官方 CRC）、逻辑分析仪 SoC / 板级顶层 /
+PLL80 顶层 / 采集引擎 / MMIO / 应用 MUX。
+
+### 未做 / 风险（**必须如实带入材料**）
+
+1. **已在实体板验证**（2026-10-19，MES50HP/COM11）：两颗位流分别上板跑官方 CoreMark 4000 迭代，
+   Score 193.192 → **197.408**、ticks −2.135%、`crcfinal 0x65c5` 两次相同、`flush_count` 两次逐位相同。
+   上板完成后板子**已恢复为交付位流 `la85`**（`C017ED10…`）。
+2. **交付逻辑分析仪位流（la85）未重打**：`release/` 内既有位流与全部哈希一个字节未动。
+   若要把这次收益并入交付配置，需重打 la85 + 重跑 100/100 板级验收 + 同步 `claims_map` 的 4 处哈希。
+3. **CPI 不得引用**：这两次采集用的是默认 `PERF_WINDOW_ALIGN=0` 镜像，性能计数器自由运行，
+   PERF 行的 `cycle/instret/stall/branch` 与 JSON 的 `cpi_x1000` 含启动与等待 `R` 的轮询，两次不可比。
+   可引用只有 `ticks/Score/CoreMark/MHz/CRC/flush`。要做 CPI 归因必须换 `PERF_WINDOW_ALIGN=1` 镜像。
+4. **归档工程用当前源码树重建会失败**：`fpga/coremark_im_85m` 等 09-30/10-14 的配方缺 `rtl/ras.v`，
+   直接 `pds_shell` 会报 `Verilog-4072: 'ras' is referenced to undefined module`。
+   本次三个对照工程已在配方里补上；归档工程按纪律保持不动（位流哈希是交付证据）。
+5. 因上一项，**基线数字只能引用同配方重建的 `fpga/coremark_mul3_85m`**，
+   不得引用归档 `coremark_im_85m` 的 4198 LUT / +0.250 ns（那是另一套源文件集）。
+6. WNS 余量由 +0.281 ns 降到 **+0.115 ns**（仍 `All Constraints Met`）；板级已实测跑通，
+   但余量变小这件事必须在材料里写明。
+
+### 下一目标
+
+①**可选**：若要把这次收益并入交付配置，重打 la85 位流 + 重跑 100/100 板级验收 + 同步
+`claims_map` 4 处哈希（本次**未做**，交付位流与哈希保持原样）；
+②按 `docs/coremark_cpi_analysis.md` §8.4 的顺序继续：store 提前退休（≈3.2%）→ 非阻塞 load（≈12.2%，风险最高）；
+③若要给 CPI 做归因，必须先换 `PERF_WINDOW_ALIGN=1` 的镜像重采，否则只能引用 ticks/Score。
+
+---
+
+## 2026-10-21 提交级 trace 可视化（**全链路已闭环，含实板**；用户当日批准的范围变更）
+
+> **状态：RTL / 固件 / 上位机 / PDS 位流 / SoC 端到端仿真 / 实板两枪 全部 PASS。**
+> 实板证据在 `release/evidence/trace85_board/`（README 里有逐条数字），
+> 位流 `945F36E497740628A635E295F6132E86D88D5FEA2C25CA2C43C221A9664F290D`
+> （`All Constraints Met`，85.000 MHz）。
+> **交付位流 `la85`、100/100 板级验收证据、`claims_map` 四份哈希一个字节未动**；
+> 本能力是附加演示位流，不改交付配置。
+
+### 0. 范围与授权（用户 2026-10-21 明确选择）
+
+- 方案：**A 全量** —— Core 提交级 trace 缓冲 + 逐指令依赖图 / 寄存器热力图 /
+  总线泳道 / 字符↔指令联动 / 反汇编映射 / 时间轴回放。
+- 交付形态：**独立新位流 `fpga/trace85`**。`la85` 位流、100/100 板级验收证据与
+  `claims_map` 四份哈希**一个字节不动**。
+- 同时批准：①范围变更写入本文档与 `docs/application_logic_analyzer.md`；
+  ②由 Agent 代写这部分 Core 外部 RTL。
+
+### 1. 为什么做这个（用户原话与事实校准）
+
+用户判断："再怎么提升 CPU 性能对逻辑分析仪的工程展示效果也没大影响，人眼也区分不出来"。
+**结论采纳、理由纠正**：CoreMark/MHz、Fmax、CoreMark/LUT 是官方三项明确指标，
+评委看数字不看眼睛；停手的正确理由是"剩余空间只剩非阻塞 load（≈12.2%）且风险最高，
+D-7 不值得拿已跑通的交付位流去赌"。
+
+用户要的"实时展示数据流"**物理上不可能逐条实时**：一条提交记录最紧 132 位 ≈ 16 字节，
+85 MHz / IPC≈0.6 下内核产出 ≈600 MB/s，而 115200 8N1 只有 11.52 kB/s —— 差约 5 万倍。
+因此口径按真实仪器来：**触发采集一窗 → 上传 → 回放**，"实时"这个词不进材料。
+
+同时纠正了三处工程事实：
+
+1. `trace_*` 11 个字段**早就是 `pipeline_cpu` 的冻结对外端口**（`docs/interfaces.md` §6.1），
+   而板级顶层把它们全部悬空（`.trace_pc()` …），综合直接优化掉 —— **数据线一直在，我们只是没接**。
+2. 原来的"镜像模式"**并没有让 CPU 处理字符串**：`uart_getc()` 只用来收上位机的命令包，
+   `HELLO,RISC-V` 是被板级 `assign loopback_tx={uart0_rx,...}` 物理环回给分析仪抓的。
+   所以"CPU 处理字符串"这件事本身也要新写固件。
+3. 115200 下一个字符 86.8 µs ≈ 7378 拍，其中 99% 是轮询串口状态位 —— 这正好是
+   "用自研仪器量自研 CPU 在忙什么"的第一个硬数字。
+
+### 2. 新增文件与改动（Core 一行未改）
+
+| 层 | 文件 | 内容 |
+|---|---|---|
+| RTL 新增 | `rtl/trace_buffer.v` | Core 外部提交级 trace 缓冲：4096×132 位记录 + 256×24 打点表；arm/stop/clear/mark；`full` 区分"写满收尾"与"软件 stop" |
+| RTL 新增 | `rtl/core_trace_mmio.v` | 该缓冲的 MMIO 从端口（窗口内 offset 0x00…0x30，共 13 个有效寄存器） |
+| RTL 新增 | `rtl/application_mmio_mux3.v` | APP 窗口三目标汇合：0x0 性能计数器 / 0x1 逻辑分析仪 / **0x2 trace**；既有 `application_mmio_mux.v` 原样复用、一字未改 |
+| RTL 新增 | `fpga/trace85/rtl/mes50hp_trace_top.v`、`mes50hp_trace_pll_top.v` | 新 SoC 顶层与 85 MHz PLL 顶层；与 la85 的差别只有 3 处（mux3 / trace_* 接线 / 多一个实例） |
+| RTL | 无 | `rtl/pipeline_cpu.v`、所有既有外设与 `application_mmio_mux.v` **均未修改** |
+| 固件 | `software/logic_analyzer/logic_analyzer.c` | 新增 **0xAA** 4 字节命令（字符数 + 阶段 + XOR）与 `trace_and_report()`；两个阶段：0=只记处理过程，1=连串口轮询一起记；靠 `TR_MWR` 打点把字符锚到记录位置 |
+| 上位机 新增 | `python/trace_view.py` | 记录位段唯一拆解表、RV32I(+M) 反汇编、数据流依赖边、自动判据、单页生成 |
+| 上位机 新增 | `python/trace_viewer.html` | 单页可视化（模板占位 `__TRACE_DATA__`，与 `waveform_viewer.html` 同一套路，不引框架） |
+| 上位机 新增 | `python/trace_board.py` | 板级抓取（0xAA 帧、等 `TRACE_ARMED` 再发字符串）、落盘 log/json/html |
+| 测试 新增 | `tb/tb_trace_buffer.v`、`tb/tb_core_trace_mmio.v`、`tb/tb_core_trace_soc.v`、`python/tests/test_trace_view.py` | 见下 |
+| 脚本 新增 | `scripts/run_trace_buffer_tb.ps1`、`run_core_trace_mmio_tb.ps1`、`run_core_trace_soc_tb.ps1`、`run_trace85_pds.ps1` | 均支持 `-OutDir`（受限环境下可把产物指到别处） |
+| 脚本 改 | `scripts/program_board.ps1` | 新增 `-Config tr85` 一项，指向 `fpga/trace85/generate_bitstream/mes50hp_trace_pll_top.sbit` |
+| 工程 新增 | `fpga/trace85/` | PDS 工程（recipe 里显式补 `fetch_fifo.v` / `ras.v`，归档 la85 配方缺它们会直接报未定义模块） |
+
+### 3. 已通过的验证
+
+| 验证 | 命令 | 结果 |
+|---|---|---|
+| trace 缓冲单元测试 | `scripts\run_trace_buffer_tb.ps1` | **`ALL TRACE BUFFER TEST PASS`**（10 项：复位/arm/逐字段对拍/idle 不记录/打点/stop/写满/溢出/clear/重新 arm） |
+| trace MMIO + mux3 测试 | `scripts\run_core_trace_mmio_tb.ps1` | **`ALL CORE TRACE MMIO TEST PASS`**（11 项，含零 strobe 无副作用、越界报错、**既有 perf/la 子窗口逐字未变**） |
+| 上位机单测 | `python -m unittest python.tests.test_trace_view` | **30 项 OK**（位段/反汇编/镜像解析/回包解析/判据/依赖边/页面生成/页面 JS 用 `node --check` 解析/JS 引用的 DOM id 全存在/地址不一致必须 FAIL） |
+| 固件编译（两种配置） | `make -C software/logic_analyzer all`（AUTOSTART=0/1） | 均 PASS，`COREMARK ISA CHECK PASS: RV32I-only ELF` |
+| 端到端仿真（两场景） | `scripts\run_core_trace_soc_tb.ps1` | **`ALL CORE TRACE SOC TEST PASS`**：场景 1 `declared=100 lines=100`、`ascii=HELLO,RV`、`status=0x04`；场景 2 `declared=859 lines=859`、`ascii=ABC`、`status=0x04`；UART 零帧错误 |
+| **实板 阶段 0** | `program_board.ps1 -Config tr85` → `python python\trace_board.py --port COM11 --phase 0 --text "hello,rv"` | **`TRACE BOARD PASS`，15/15 条判据**：100 条提交 / 8 打点 / 19 个 PC / `status=0x4`；**每字符 12 条提交**，marks 间隔 `[12,12,12,12,12,9,12]`；`pc 与位流镜像同源` 与 `store 有效地址与记录低 12 位一致` 均不一致 **0 条**；17 次写存储里 **8 次命中 MMIO**（全是打点寄存器 `0x1000222C`）、9 次写数据 RAM |
+| **实板 阶段 1** | 同上 `--phase 1 --text "ABC"` | **`TRACE BOARD PASS`，14/14 条判据**：4096 条（窗口写满）/ 3 打点 / 22 个 PC / `status=0xC`（溢出**合法**，`count==容量`）；**前 4 个热点占整窗 99.49%**，其中三条就是 UART 忙等循环（各 1358/1358/1357 次）；`pc 与位流镜像同源` 在 4096 条上不一致 **0 条** |
+| PDS 综合/布局布线 | `scripts\run_trace85_pds.ps1` | **`All Constraints Met`**；位流 `945F36E497740628A635E295F6132E86D88D5FEA2C25CA2C43C221A9664F290D` |
+| **全量回归** | `scripts\run_final_regression.ps1`（不带 `-RunPds`） | **`ALL AUTOMATED FINAL REGRESSION PASS`，退出码 0**；三条 trace 用例已并入；交付位流 `la85` 哈希复算仍为 `C017ED10195502739BEBF914DD3BC6F3CAA84C0EAEB6E9E97559248B003FAA4F`（**未变**） |
+| 冻结范围审计 | `scripts\run_scope_audit.ps1` | **`SCOPE AUDIT PASS`**（扫描根已加入 `fpga/trace85`，75 → 81 文件） |
+| 资源 | 同上（`pds_trace85_build.log`） | LUT **3810+2144**（两 bank，15% / 13%）、APM 4、**DRM 40 / 134（30%）**、`LUT as Distributed RAM = 0` |
+
+PLL 输出经时序报告确认：`clk_50m|u_pll/u_pll_85m/CLKOUT0_Inferred` 周期 **11.7647 ns = 85.000 MHz**。
+
+实板两枪的**仿真↔实板一致**：阶段 0 的 8 个打点索引在仿真与实板上都是
+`[7,19,31,43,55,67,76,88]`（同一份固件、同样的每字符 12 条提交）。
+
+阶段 0 的热点就是逐字符处理循环，每个字符各命中一次：
+
+| PC | 条数 | 指令 |
+|---|---:|---|
+| `0x9BC` | 8 | `addi x14,x8,0` |
+| `0x9C0` | 8 | `lbu x15,0(x8)` |
+| `0x9C4` | 8 | `sw x15,0(x12)` |
+| `0x9C8` | 8 | `addi x13,x15,-97` |
+
+### 4. 本轮定位到的三个真 bug（都已修）
+1. **假 overflow（RTL）**：`overflow` 原来按 `done && trace_valid` 置起，而软件 `stop` 之后
+   CPU 当然还会继续退休指令 ⇒ 每一次正常收尾都报溢出（实测 `status=0x0C`）。
+   改为只用 `full`（写满收尾）才允许置 overflow。判据补了 `depth` 参数：
+   `overflow==0 or count>=depth`。
+2. **上位机时序纪律（TB/上位机）**：0xAA 命令必须在固件回到命令循环（打印 `LA_READY`）
+   之后再发。UART RX **没有接收 FIFO**，在固件阻塞发 `LA_READY` 期间发命令会被后续字节覆盖，
+   固件再也收不到命令，仿真白等 300 万拍。已在 TB 里加 `wait_mark(M_READY)` 并写进注释。
+
+另外修掉一个**记录读出截断**隐患：132 位装不进 4 个 32 位字，第一版 `RD_W3` 写成
+`{28'b0, rd_record[131:96]}` 会静默丢掉第 128…131 位（error 位与 mem_data 最高 4 位），
+现改为 5 个字读全（`0x30 = RD_W4`）。
+
+### 4.1 界面：一个窗口两页 + 输入框（2026-10-22，用户当场追加）
+
+用户先问"是不是只能固定展示某些字符"，随后明确要求：
+**"一个 UI 界面分成两页，第一页正常的逻辑分析仪界面，第二页就是热力图实时显示 CPU 分析过程"**。
+
+| 层 | 文件 | 内容 |
+|---|---|---|
+| pyUI | `python/mes50hp_validation_ui.py` | 改成 `ttk.Notebook` 两页：**① 逻辑分析仪（八通道波形）** = 原来整套控件一行未改；**② CPU 数据流（寄存器热力图）** = 输入框 + 阶段 + 采集按钮 + **Tk Canvas 现画的热力图/泳道** + 逐条指令表 + 依赖详情 + 播放拖动 + 判据日志 |
+| 同源 | `python/trace_view.py` | `expected_phase0()` —— 固件那段处理逻辑（大写化 + XOR）的**唯一**实现；界面预演与自动判据都调它 |
+| 实时 | 同上 | 「连续采集（实时刷新）」：上一枪跑完立刻再采并重画 |
+| 启动 | `main()` 新增 `--page 2 --capture-text "abc"` | 打开就停在第 2 页并自动采一枪（不带参数时行为与以前完全一样） |
+| 一键 | `python/capture_trace.cmd` | 改成**问你要发什么**（也可 `capture_trace.cmd "abc"`） |
+| 测试 | `python/test_trace_ui.py`（15 项）、`scripts/run_trace_python.ps1` | 两页真的存在且标题对得上、第 2 页控件**真的住在第 2 页**、第 1 页原控件没被搬走、超长/非 ASCII/空串在点按钮前被拦、预演与判据同源 |
+| 板级 | `python/trace_ui_board_check.py` | **真走界面路径**（真构造 pyUI、真填输入框、真点按钮），并断言**界面里真的画出了热力图**（`trace_canvas.find_all()` 非空） |
+| 打包 | `scripts/export_final_submission.ps1` | `trace_view.py`/`trace_board.py`/`trace_viewer.html`/`capture_trace.cmd` 一并进包 |
+
+**实板验证（真界面路径）**：
+`python python\trace_ui_board_check.py --port COM11 --text "hello,rv" --text "abc!XYZ 123"`
+→ `TRACE UI BOARD CHECK PASS`，两串都是 `nodes=100/115、heat_items=94/107、lane_items=20/26`。
+即"任意字符串 + 界面内热力图"这条在板上成立。
+
+**本轮踩到并修掉的两个界面坑**（都不是 RTL）：
+1. **Notebook 子页不能再 `pack()`**：把 page1 pack 一次会把标签页体系挤掉，
+   表现为 `notebook.tabs()` 只剩 1 个（测试直接抓到了）。
+2. **`ttk.Scale.set()` 会触发自己的 `command`**：`set → command → _trace_select → set …`
+   无限递归，窗口一打开就 `RecursionError` 崩掉。加 `_scrub_syncing` 标志后正常。
+
+**仍然成立的两条边界**（已在 §6.11.9 写明）：字符数与 ASCII 限制按阶段不同
+（0/1 档 ≤32、2 档 ≤16）；能选的被测程序只有固件里烧进去那三档，加第四档要改固件重打位流。
+
+### 4.2 热力图"太贫瘠"：加维度 + 加一档被测程序（2026-10-22 用户反馈后）
+
+> 本节记录的"四块画布"版面已在 2026-10-24 合并成**一条时间轴**（见 §4.3）；
+> 这里保留当时的量化过程与"加维度"的结论，数字都是那一版实测值。
+
+用户反馈："现在的热力图有点太贫瘠了，没啥数据。"先量化，再动手：
+
+| | 记录 | 有写回 | 用到的寄存器行 | **填充率** | 读寄存器次数（**原来没画**） |
+|---|---|---|---|---|---|
+| 阶段 0（旧） | 100 | 59 | **8/32** | **1.8%** | 130 |
+| 阶段 1（旧） | 4096 | 2732 | 6/32 | 2.1% | 4093 |
+
+**结论：这是结构性稀疏**——一条指令最多写一个寄存器，填充率天花板 = 写回占比 ÷ 32 行 ≈ 2%。
+所以只能"加维度"或"换被测程序"，美化没用。两件事都做了。
+
+**A. 加维度（纯界面，未动 RTL 与位流）**
+
+| 加了什么 | 效果 |
+|---|---|
+| **把"读"画上**（细横条） | 阶段 0 的绘制元素 59 → 189（+220%）；壳级 `heat_items` 94 → 224 |
+| **填充色改成"值从哪来"** | 青=load 读进来的、绿=ALU 算的、紫=立即数、黄=PC；一眼看出数据来源，不再只是"哪个寄存器被写了" |
+| **PC 热力图** | 纵轴=本窗口出现过的 PC，循环变成整齐的阶梯条纹——**这块最像"看得见的数据流"** |
+| **地址热力图** | 纵轴=写存储地址字序号低 5 位；缓冲与 MMIO（打点寄存器）用不同颜色分开 |
+| 依赖边连线 | 选中指令的每个来源画一条折线到它自己，跨列时能看出跨度 |
+| 鼠标悬停 | 不点也能看到那一列的指令与动作 |
+
+**B. 试过再加一档被测程序（冒泡排序）—— 放不下，已撤回**
+
+思路是加一档"读-改-写成对出现"的负载让依赖链变密。写完、上板确实跑通了：
+16 字符 → **980 条提交、29 个 PC、比较 120 次 = n(n-1)/2**，判据 15/15 PASS。
+
+**但它把镜像模式测坏了**，暴露出一条一直存在的隐患：
+
+- DMEM 只有 4 KB，栈顶固定在 `0x1000`（`start.S` 的 `lui sp,1`）；
+- 加排序后 `.bss` 结束在 `0x0FD4` → **栈余量只剩 44 字节**；
+- 镜像路径实测需要约 **224 字节**栈帧（`-fstack-usage` 量出：`main` 112 +
+  `capture_and_report` 80 + `uart_hex` 32）→ 栈压进 `.bss` 踩坏 `dec[]`，
+  `run_logic_analyzer_mirror_tb` 由 **PASS 变 2 条 FAIL**
+  （`LA TEXT hex=` 里出现空格、`bytes=0000000` 被截断）。
+
+结论：**这个交互固件已经顶到 4 KB DMEM 的天花板**。再加功能必须扩 DMEM，
+而要动 `start.S` 的 sp、`logic_analyzer_program_memory.v` 的 DEPTH、
+`soc_data_interconnect` 的 `RAM_LAST_ADDR` 以及 4 个板级项目与其 TB ——
+那会作废已冻结的 `la85`/`la50` 位流与 100/100 证据，本轮**不做**。
+
+处置：**撤回排序档**，固件恢复到 `used_words=922`，
+`run_logic_analyzer_mirror_tb` 重新 `ALL LOGIC ANALYZER MIRROR TEST PASS`；
+`trace85` 位流随之重打（`All Constraints Met`），最终哈希
+`945F36E497740628A635E295F6132E86D88D5FEA2C25CA2C43C221A9664F290D`。
+
+**教训（值得写进答辩）**：加高日志区会把日志顶出屏幕（窗口本来贴着屏幕底边），
+所以这一轮把四块画布高度压到 150/70/70/38、把播放条从"叠在泳道上"移进布局，
+最大化窗口下实测余量 15 px。
+
+**一个必须如实说的限度**：换程序能让 x 轴和依赖链填满，但**32 行寄存器永远填不满**——
+一个紧凑裸机程序不会用到 32 个寄存器。所以"密度"靠的是加维度，不是指望行填满。
+
+### 4.3 第 2 页重排：一块画布、一根轴、一根光标（2026-10-24，用户反馈"太乱"后）
+
+用户的评语是"第二页太乱了，你可以在网上找找可以借鉴的"。查了三个成熟工具，它们指向同一个范式
+（Perfetto 的 track 视图 / GTKWave·Surfer 的波形栏 / Ripes 的架构状态视图）：
+**多条泳道共享一根时间轴、一个光标、左侧名称栏、详情另开一栏**。
+上一版（四块各自独立的 Canvas、四套刻度、四套标签）恰好把这三条全反着做了。
+
+| 改了什么 | 为什么 |
+|---|---|
+| 四块画布 → **一块**画布，四组泳道（寄存器 / PC / 写存储地址 / 事件）上下叠、共用顶部标尺 | 一套刻度才能横向对齐；上一版四块各画各的，"对不齐"就是"乱"的主因 |
+| 一条黄色虚线光标贯穿全部泳道；选中指令在每组泳道里用**空心**黄框标出自己那一行 | 光标是唯一的"当前时间点"；填色高亮会盖住那一行真正的数据块 |
+| 所有泳道共用同一个行距（下限 7 px、上限 20 px，行数放不下就按热度砍行） | 上一版 PC 泳道 21 行 × 5 px，7 pt 的字直接重叠成糊 |
+| 一条记录**至少 3 px**，超出部分滚动显示；多画一条全览条（整窗密度 + 黄框标出视窗段） | 4096 条压进 1160 px = 一列叠 3～4 条，颜色只能"谁最后写谁说了算"，整块糊成色带（实测截图如此） |
+| 指令表挪到左侧、当前行**整行铺底色**；详情/判据收进底部标签页 | 上一版 4 块画布把高度吃光，指令表/详情被挤到屏幕外 |
+| 静态层与光标层分开重画（`tl_cur` 标签） | 4096 条的窗口播放时不能每次都重建全部图元 |
+
+**验证（2026-10-24 实板，板子重新下载同一位流 `945F36E4…`）**
+
+| 项 | 命令 | 结果 |
+|---|---|---|
+| pyUI 单测 | `python -m unittest test_trace_ui` | **25 项 OK** |
+| 上位机判据 | `python -m unittest tests.test_trace_view` | **30 项 OK** |
+| 真界面路径（阶段 0） | `python python\trace_ui_board_check.py --port COM11 --text hello,rv --phase 0` | `TRACE UI OK nodes=100 可见=100 条 items=411 rows={reg:9,pc:12,mem:8}` → `TRACE UI BOARD CHECK PASS` |
+| 真界面路径（阶段 1） | `... --text ABC --phase 1` | `nodes=4096 可见=308 条 items=1817 rows={reg:6,pc:12,mem:4}` → PASS |
+| 四条 trace 回归 | `run_trace_buffer_tb` / `run_core_trace_mmio_tb` / `run_trace_python` / `run_core_trace_soc_tb` | 全 PASS（本轮只改上位机，RTL 未动） |
+
+本轮踩到并修掉的两个坑（都不是 RTL，详见 `docs/debug_log.md`）：
+
+1. **`tk.Text` 的标签名 `sel` 是保留名**（由 `-selectbackground` 接管），
+   外面 `tag_configure("sel", background=...)` 会被**静默忽略**：`tag_names()` 里有、
+   `tag_cget()` 也读得回颜色，界面上却一点底色都没有。高亮标签改名 `cur` 后立刻正常
+   （是 4 倍放大截图才发现"根本没画出来"的）。
+2. **自动化检查会被模态弹窗挂死**：采集失败时 `_poll_events` 弹 `messagebox.showerror`，
+   `app.update()` 永不返回，检查挂十几分钟；再叠上 `python` 的 stdout 被缓冲，
+   一个字的日志都看不到。现在检查脚本把弹窗换成"记账"，失败立即打印原因。
+3. **指令表被插入点横向顶走**：`tk.Text` 插入后插入点被顶到行尾，Tk 为了让它可见把画面
+   横向滚了几像素，行首的 `>` 与高亮列被切掉。**离线灌数据截图没触发、真采一枪才暴露**，
+   现已 `mark_set("insert","1.0") + xview_moveto(0)` 并加单测钉死。
+4. `scripts/run_final_regression.ps1` 末尾补 `exit 0`：全部 64 项 PASS 时
+   `$LASTEXITCODE` 仍会残留成"某条容忍过 stderr 的原生命令"的返回值（实测带 exit 1 出来），
+   外部 CI / 交接脚本会误判成失败。失败路径仍由 `throw` + `exit 1` 负责。
+
+另：这次失败的根因是**板子断电后丢了 SRAM 位流**（`TimeoutError: bytes=0`，等不到 `TRACE_ARMED`），
+重新 `scripts\program_board.ps1 -Config tr85` 后两条界面路径都通过。
+
+**必须如实说的限度**：一条记录 3 px 意味着 4096 条要看约 11 屏，**不是"一眼看全"**。
+本页从不假装能一次看全 4096 条——要么看全览条的密度，要么看某一段的逐条细节。
+
+### 4.4 波形 + 指令流**按拍对齐**（2026-10-24，用户"按你的来，继续干"之后）
+
+这是"让评委眼前一亮"那条路的第三步（前两步是本次会话的评估与重排）：
+把 8 通道 Core 探针波形和提交级 trace 放进**同一次运行**，并用一条独立的物理信号证明对齐。
+
+| 层 | 改了什么 |
+|---|---|
+| 固件 | 新增 `0xAB` 组合命令（4 字节）：先 arm trace → 再 arm LA（Core 探针源、`div=0`、触发=退休上升沿）→ 跑负载 → 等 LA 采满 → 最后 stop trace；回包内含波形块 + 指令流块 |
+| 镜像 | tr85 固件扩到 **8 KB**（`-DRAM_KB=8` + `link8k.ld`，栈顶 0x2000、DEPTH 2048、`RAM_LAST_ADDR 0x1FFF`）；**la85/la50 仍是 4 KB 且逐字节不变**（生成器默认档不传任何容量变量） |
+| 生成器 | `generate_logic_analyzer_fpga_memory.ps1` 新增 `-RamKb`，并按 `log2(DEPTH)+1` 生成索引位宽（1024→`[11:2]`、2048→`[12:2]`）；对默认档是空操作 |
+| 位流 | tr85 重打：`All Constraints Met`，WNS +361 ps / WHS +186 ps，DRM 44/134（原 38/134）；新哈希 `2148CD6F009FCED49D65800B76E4BBB33627C9872186A8E4892776F80A62B5F5` |
+| 上位机 | `trace_board.run_wave/build_wave_packet/parse_wave_response/capture_wave`；`trace_view.wave_lanes/align_wave/judge_wave`（位序与判据的唯一实现）；第 2 页新增「波形+指令」按钮与窗口档 |
+| 界面 | 载入波形后时间轴横轴**从"记录号"变成"拍号"**：最上面多一组 **Core 探针（每拍）** 泳道，下面每条记录按它退休的那一拍定位、按"退休到下一条退休"的跨度画宽（多拍指令自然变宽） |
+| 仿真 | `tb/tb_core_trace_soc.v` 新增**场景 3**（0xAB）：波形 `count=512`、样本字节数 = count×9、两块自洽；三场景全 PASS |
+
+**实板一枪（证据 `release/evidence/trace85_board_wave/`，判据 21/21 PASS）**
+
+```
+ALIGN offset=1 anchor=1 delta=0 tied=[0, 2] cycles=512 retire=316 dv=97 rec=97 mismatch=0
+```
+
+**交叉校验是关键**：波形里 97 个 `d_req_valid & d_req_ready` 脉冲 ↔ 对齐区间内 97 条
+load/store 指令，**差 0**。一条来自 Core 的握手线、一条来自提交记录，两条完全独立的
+来源对上了，"按拍对齐"因此是**可证的**，不是画出来好看的。
+
+**如实标注的三条限度**：对齐精度 **±1 条记录**（本枪 `tied=[0,2]`）；波形窗口只有
+512/1024 拍（只覆盖 trace 的一段）；仍是**采集后回放**、不是实时流式。
+
+**连带作废与重采**：tr85 的固件扩容让代码地址整体后移，所以
+`release/evidence/trace85_board/` 的两枪在 2026-10-24 **重采**——结构数字全部不变
+（100 条 / 19 个 PC / 每字符 12 条；4096 条 / 22 个 PC / 热点前四 99.49%），
+但阶段 0 的具体 PC 值变了（`0x9BC…`→`0xDF0…`），README 已更新并写明原因。
+
+**本轮踩的坑（详见 `docs/debug_log.md`）**：生成器把索引位宽写成 `log2(DEPTH)-1`，
+2048 深的存储器只认 256 个字 → 取指全部别名 → **板子和仿真同时"CPU 跑飞、串口只剩噪声"**；
+另有一处 `wait_mark` 标记长度数错（13 写成 15）导致 TB 永远匹配不上。
+
+### 4.5 把"对齐"画到画面上 + 像素级冒烟（2026-10-24 下午，用户"感觉没啥变化"之后）
+
+用户的反馈很直接："**我咋感觉效果没啥变化啊**"。核实后确认这不是错觉：
+0xAB 让**能力**变了（波形与指令流同一次采集、可交叉校验），但**画面**没怎么变——
+8 条探针泳道被按"和其它泳道一样的行距"压成了顶部约 56 px 的一条暗蓝带，
+远看就是"又一排条纹"，而且波形和下面的指令块之间没有任何可见联系。改法：
+
+| 改了什么 | 为什么 |
+|---|---|
+| 探针泳道**自己占固定高度**（8 × 11.5 px ≈ 92 px），不再从"统一行距"里挤 | 56 px 的色带在观感上等于没有 |
+| 8 条泳道**按语义成对配色**：数据通道（请求/就绪）同蓝家族、取指通道（请求/就绪/响应）同紫家族 | 8 个互不相关的颜色像彩虹；成对配色能读出"这是同一条通路" |
+| 画**阶跃沿**（上升/下降各一根提亮竖线），不再只是一根根色块 | 从"色带"变成"示波器" |
+| 光标旁加**拍号气泡**（`拍47`）；底部状态行改成 `第 12–13 拍（2 拍后退休）` | 原来"第几拍"只存在于判据日志里 |
+| **把对齐画出来**：选中一条指令时，它那一拍的**提交脉冲**、以及它**块内的数据访问脉冲**都标成白芯琥珀框 | 这是本页最该被看见的一根线：用户不必相信判据日志，眼睛就能对上 |
+| **块的右边界改成"它退休的那一拍"**（原来从退休拍起算） | MEM 在自己的 WB 之前 ⇒ 访存指令的数据请求脉冲落在**自己的块里**。换算之后"每块有且只有一个数据访问脉冲"是肉眼可数的 |
+| 采完自动选中**波形窗口里的第一条记录** | 原来默认选 #0，而 #0 在窗口之前 → 打开就是"不在波形窗口内"，什么标记都看不到 |
+| 窗口档补 **2048 拍**，并新增判据"波形覆盖 trace 的绝大部分（≥95%）" | 512 拍只覆盖 316/323（97.8%）；2048 拍覆盖 1237/1247（99.2%，差的是 LA 采满后 trace 停止前那几条，如实计数） |
+| 新增 `python/test_trace_ui_pixels.py`（4 项**像素级**冒烟） | 今天的两个 bug（`sel` 静默失效、泳道太矮"没变化"）都是**行为断言全绿、画面不对**。这层量的是画出来的东西：探针泳道总高 ≥80 px、每条泳道色块数与样本位数一致、光标落点 = 选中记录退休的那一拍、选中指令的寄存器行被框出 |
+
+**2048 拍那一枪的实测**（`run_wave(..., window=3)`）：
+
+```
+window code=3 -> cycles=2048 records=1247 offset=1 retire_pulses=1237 cover=1..1237
+dv=404 rec=404 mismatch=0        （判据 7/7 PASS）
+```
+
+**关于"±1 条记录"的处置（改了主意，如实记录）**：原计划加"哨兵"消除这 ±1，评估后**放弃**——
+可行的做法只有两种：①故意写一个未映射地址制造 `error=1` 锚点（等于污染"未出错"的语义与既有判据）；
+②靠语义猜测。两者都不如**如实标注**：现在界面、判据文本、证据 README 三处都写"候选 ±1 条"。
+
+### 5. 本轮收尾状态
+
+已完成：
+1. SoC 级仿真两场景全 PASS（`GOT_MAX` 32768 → 65536）。
+2. 实板两枪全 PASS；位流下载 `PROGRAM PASS config=tr85`。
+3. `docs/application_logic_analyzer.md` **§6.11 已写完**（通路/记录格式/寄存器/命令/判据/边界/输入框/页面/验证入口）。
+4. 实板证据归档在 `release/evidence/trace85_board/`（README + 两枪 log/html/json）。
+5. 四条 trace 用例已加入 `scripts\run_final_regression.ps1`（缓冲单元 / MMIO+mux3 / Python 判据+输入框 / 端到端 SoC）。
+6. **界面输入框**已落地并经**真界面路径**上板验证（见 §4.1）。
+7. 全量回归 `ALL AUTOMATED FINAL REGRESSION PASS`（退出码 0），冻结范围审计 PASS。
+
+仍待办（不影响本能力成立）：
+1. `claims_map` 已加 trace85 条目（§15）；**la85 的 4 处哈希保持不动**。
+2. 发布包（`export_final_submission` → `create_release_manifest` → `audit_release_package`）
+   本轮未重跑；trace85 是附加演示位流，是否进交付包由用户决定。
+3. `fpga/logic_analyzer/rtl/logic_analyzer_program.mem` 会被**当前**固件重新生成
+   （跑 `run_logic_analyzer_board_top_tb.ps1` / `run_logic_analyzer_mirror_tb.ps1` 时）。
+   这只影响 50 MHz 配置的**源码**，已冻结的 `la50`/`la85` 位流与哈希不变；
+   但"从当前源码重建会得到不同固件"这件事必须如实记录。
+4. 演示界面的 trace 入口**已接**（pyUI 的「提交级数据流」一栏），另有一键脚本
+   `python\capture_trace.cmd`（会问你要发什么）与命令行 `trace_board.py --text`。
+
+本轮顺带修掉的三处**工程性**问题（都不是 trace 功能本身）：
+- `scripts/generate_logic_analyzer_fpga_memory.ps1`：`make/gcc` 往 stderr 打的
+  `LOAD segment with RWX` 警告在 `$ErrorActionPreference='Stop'` 下会把脚本**就地打停**
+  （表现是外面只看到 gcc 命令行 + 一条警告，退出码 1）。改为调用原生命令期间放开错误动作、
+  一律按 `$LASTEXITCODE` 判定，退出码由 1 → **0**。
+- 改过的 `.ps1`（含中文）必须补 UTF-8 BOM，否则 PowerShell 5.1 按 ANSI 解码后报
+  "语法错误"。本轮被咬三次，已全部跑过 `scripts\ensure_ps1_bom.ps1`。
+- 冻结范围审计原本只扫 `rtl / fpga/logic_analyzer / software/logic_analyzer / python`，
+  **没扫新工程 `fpga/trace85`**；已加入扫描根（文件数 75 → 81）。审计同时拦下了
+  `rtl/trace_buffer.v` 里一句"不做 RLE"的注释（纯关键词扫描不区分"做"与"不做"），
+  已改写为"不做任何压缩"并在该处注明原因；**审计规则没有放宽**。
+
+另发现一处**既有**文档不一致（不是本轮引入，未擅自改结论）：
+`docs/interfaces.md` §5.1 写 `rtl/pipeline_cpu.v` 的 SHA-256 前缀为 `B58496706686E37B`，
+而当前实际值是 `4759E3FD68A31CA20250D54345112CA1465C1035A24CB1C72E51905D5B2C7D17`
+（M 扩展轮次改过该文件）。已在原处加"2026-10-21 复核更正"注记，
+**端口/事务语义未变这条结论不变**，但哈希前缀不能再当证据用。
+
+### 6. 引用纪律（写进材料前必须遵守）
+
+- 在拿到实板 trace 之前，**不得**宣称"逻辑分析仪能展示 CPU 数据流"已完成；
+  只能说"RTL/固件/上位机/位流已就绪，PDS 时序通过，板级待验"。
+- 132 位记录里 `trace_mem_addr` **只在 store 时有效**（`trace_mem_we` 的语义就是"写存储"），
+  所以 **load 地址不在记录里**；页面能显示 load 读到的值，地址只在基址寄存器
+  于窗口内被写过时才推算，推不出来就显示 `?`。这一条必须原样写进材料与答辩。
+- 不把本功能称为 PDS ILA，也不宣称替代它。
