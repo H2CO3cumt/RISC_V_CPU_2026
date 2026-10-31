@@ -1,0 +1,42 @@
+version,2024.2-SP2-EN<build 208883>
+project name,coremark_85m_generated.pds
+
+Single Seed:
+Seed,State,Convergence,Setup(Slow),Setup(Fast),Hold(Slow),Hold(Fast),Recovery(Slow),Recovery(Fast),Removal(Slow),Removal(Fast),PBM-GP,PBM-PreGP,PBM-PostGP,LP,Total Placement Cpu Time,Detailed routing,Total Routing Cpu Time,Wire Length After Post-GP,Wire Length After LP,Wire Length After DP,Routing Arc Length,Worst Slack After GP Timing,Worst Slack After LP Timing,Worst Slack Before RP,Worst Slack Before DP,Worst Slack After DP,Worst Slack After Placement,Worst Slack After TA By Preroute,TNS After DP,TNS Before Route,Setup(Slow) Total Failing TNS,Setup(Slow) Total Failing Endpoints,Hold(Slow) Total Failing THS,Hold(Slow) Total Failing Endpoints,Power
+single,OK,OK,0.435,3.569,0.322,0.258,6.644,8.059,2.222,1.632,NA,NA,NA,NA,29.52,9.11,12.39,NA,NA,NA,60464,NA,NA,NA,-1524,313,376,NA,0,NA,0.000,0,0.000,0,NA
+Pass Rate/Convergence Rate,100.00%,100.00%
+
+Synthesize:
+control_set,107
+Synthesize Performance Summary:
+slack category,Synthesize Setup WNS,Synthesize Setup TNS,Synthesize Recovery WNS,Synthesize Recovery TNS
+slack value,-0.735,-183.570,5.790,0.000
+Synthesize Partition Blocks Summary:
+Name,type,Status,Reason,Start Time,End Time,Real Time,CPU Time
+NA,NA,NA,NA,NA,NA,NA,NA
+partition blocks number:,NA
+Synthesize Cpu Time,0h:0m:13s
+Synthesize Process Cpu Time,0h:0m:14s
+Synthesize Real Time,0h:0m:15s
+
+Device Map:
+Device Map Resource Usage Summary:
+Logic Utilization,LUT,FF,DRM,APM,Distributed RAM,HSSTHP,USCM,HCKB,RCKB
+Used,3657,3081,33,0,0,NA,1,NA,0
+Available,42800,64200,134,84,17000,NA,30,NA,24
+Utilization(%),9%,5%,25%,0%,0%,NA,4%,NA,0%
+Device Map Process Cpu Time,0h:0m:4s
+
+Project Configurations:
+top module,mes50hp_coremark_pll_top
+compile," -force_to_run 
+ -top_module {mes50hp_coremark_pll_top} 
+ -include_path {D:/RISC_V_CPU_2026/fpga/coremark_85m} "
+synthesize," -force_to_run "
+device map," -force_to_run 
+ -packing_io "
+place & route,
+
+Test Parameters Configurations:
+testparam,
+

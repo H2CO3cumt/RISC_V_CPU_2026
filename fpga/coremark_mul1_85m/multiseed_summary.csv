@@ -1,0 +1,42 @@
+version,2024.2-SP2-EN<build 208883>
+project name,coremark_mul1_85m_generated.pds
+
+Single Seed:
+Seed,State,Convergence,Setup(Slow),Setup(Fast),Hold(Slow),Hold(Fast),Recovery(Slow),Recovery(Fast),Removal(Slow),Removal(Fast),PBM-GP,PBM-PreGP,PBM-PostGP,LP,Total Placement Cpu Time,Detailed routing,Total Routing Cpu Time,Wire Length After Post-GP,Wire Length After LP,Wire Length After DP,Routing Arc Length,Worst Slack After GP Timing,Worst Slack After LP Timing,Worst Slack Before RP,Worst Slack Before DP,Worst Slack After DP,Worst Slack After Placement,Worst Slack After TA By Preroute,TNS After DP,TNS Before Route,Setup(Slow) Total Failing TNS,Setup(Slow) Total Failing Endpoints,Hold(Slow) Total Failing THS,Hold(Slow) Total Failing Endpoints,Power
+single,OK,Fail,-4.471,-0.215,0.315,0.254,6.467,7.976,2.018,1.455,NA,NA,NA,NA,26.73,17.95,21.73,NA,NA,NA,64560,NA,NA,NA,-6204,-4720,-4705,NA,-1878897,NA,-1385.597,691,0.000,0,NA
+Pass Rate/Convergence Rate,100.00%,0.00%
+
+Synthesize:
+control_set,109
+Synthesize Performance Summary:
+slack category,Synthesize Setup WNS,Synthesize Setup TNS,Synthesize Recovery WNS,Synthesize Recovery TNS
+slack value,-4.500,-1973.105,5.683,0.000
+Synthesize Partition Blocks Summary:
+Name,type,Status,Reason,Start Time,End Time,Real Time,CPU Time
+NA,NA,NA,NA,NA,NA,NA,NA
+partition blocks number:,NA
+Synthesize Cpu Time,0h:0m:14s
+Synthesize Process Cpu Time,0h:0m:16s
+Synthesize Real Time,0h:0m:17s
+
+Device Map:
+Device Map Resource Usage Summary:
+Logic Utilization,LUT,FF,DRM,APM,Distributed RAM,HSSTHP,USCM,HCKB,RCKB
+Used,4016,3256,33,4,0,NA,1,NA,0
+Available,42800,64200,134,84,17000,NA,30,NA,24
+Utilization(%),10%,6%,25%,5%,0%,NA,4%,NA,0%
+Device Map Process Cpu Time,0h:0m:4s
+
+Project Configurations:
+top module,mes50hp_coremark_pll_top
+compile," -force_to_run 
+ -top_module {mes50hp_coremark_pll_top} 
+ -include_path {D:/RISC_V_CPU_2026/fpga/coremark_mul1_85m} "
+synthesize," -force_to_run "
+device map," -force_to_run 
+ -packing_io "
+place & route,
+
+Test Parameters Configurations:
+testparam,
+

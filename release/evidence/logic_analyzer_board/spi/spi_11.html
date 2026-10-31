@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MES50HP 逻辑分析仪 · 波形查看</title>
+<style>
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; }
+  body { background:#0e1420; color:#e7eefc; font:14px/1.5 "Microsoft YaHei","Segoe UI",sans-serif; display:flex; flex-direction:column; }
+  header { background:#151d2c; border-bottom:1px solid #2b3a55; padding:10px 14px; display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+  h1 { font-size:16px; margin:0 12px 0 0; white-space:nowrap; }
+  button, label.btn { background:#1e2a3d; color:#e7eefc; border:1px solid #33445f; border-radius:6px; padding:6px 12px; cursor:pointer; font-size:13px; }
+  button:hover, label.btn:hover { background:#26364e; }
+  .tabs { display:flex; gap:6px; flex-wrap:wrap; }
+  .tab { background:#1a2436; border:1px solid #2f4058; border-radius:999px; padding:5px 14px; cursor:pointer; font-size:13px; }
+  .tab.active { background:#0d5c86; border-color:#39c0ff; }
+  .spacer { flex:1 1 auto; }
+  #stats { color:#93a4c4; font-size:13px; white-space:pre-wrap; }
+  main { position:relative; flex:1 1 auto; min-height:0; }
+  canvas { display:block; width:100%; height:100%; cursor:grab; }
+  canvas.dragging { cursor:grabbing; }
+  #drop { position:absolute; inset:0; display:none; align-items:center; justify-content:center;
+          background:rgba(11,18,30,.92); border:3px dashed #39c0ff; border-radius:10px; margin:12px;
+          font-size:20px; color:#cfe8ff; text-align:center; padding:24px; }
+  #drop.show { display:flex; }
+  #hint { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; text-align:center;
+          color:#93a4c4; padding:30px; pointer-events:none; }
+  #hint b { color:#e7eefc; }
+  footer { background:#151d2c; border-top:1px solid #2b3a55; padding:6px 14px; color:#93a4c4; font-size:12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>MES50HP 八通道逻辑分析仪 · 波形</h1>
+  <div class="tabs" id="tabs"></div>
+  <span class="spacer"></span>
+  <label class="btn">选择 VCD 文件<input id="file" type="file" accept=".vcd,.txt" style="display:none"></label>
+  <button id="zin">放大 +</button>
+  <button id="zout">缩小 −</button>
+  <button id="zfit">适应窗口</button>
+  <button id="zclr">清除光标</button>
+  <button id="zannot">标注：开</button>
+  <button id="zchan">通道：相关</button>
+  <span id="stats"></span>
+</header>
+<main>
+  <canvas id="cv"></canvas>
+  <div id="drop">松开鼠标即可加载这个波形文件</div>
+  <div id="hint">把 <b>.vcd</b> 波形文件拖到此处，或点右上角「选择 VCD 文件」<br>
+    <span style="font-size:13px">（本页面不联网、不需要安装任何软件，用浏览器打开即可）</span></div>
+</main>
+<footer>鼠标滚轮缩放 · 按住左键拖动平移 · <b>右键点一下放测量光标</b>（再按一次换位置） ·
+  <b>Ctrl+右键</b> 放第二根，两根一起就报 Δt · 红色虚线为触发点 · 未给时基时横轴单位 = 采样点</footer>
+<script>
+//==PARSER_BEGIN==
+// 纯函数解析器（可被 node 单独测试，见 scripts/run_waveform_viewer_test.ps1）。
+// 时间模型：VCD 的 "#t" 只标记时刻，随后的电平行从该时刻起生效；
+// 未重复出现的电平行按"保持不变"处理，最后逐点前向填充成 samples[]。
+function parseVcd(text, channels) {
+  channels = channels || 8;
+  var ids = new Array(channels).fill(null);        // VCD 标识符（如 "!"）
+  var names = [];                                  // 通道名（如 "ch0"）
+  for (var i = 0; i < channels; i++) names.push('ch' + i);
+  var trans = [];                                  // trans[c] = [[时刻, 电平], ...]
+  for (var c = 0; c < channels; c++) trans.push([]);
+  var trigger = null, lastT = -1, maxTime = -1;
+
+  function channelOf(ident, name, width) {
+    if (width !== 1) return -1;
+    var m = /^ch(\d+)$/.exec(name);
+    if (m) { var n = parseInt(m[1], 10); return (n >= 0 && n < channels) ? n : -1; }
+    var byId = ids.indexOf(ident);
+    if (byId >= 0) return byId;
+    return ids.indexOf(null);
+  }
+
+  var lines = String(text).split(/\r?\n/);
+  for (var li = 0; li < lines.length; li++) {
+    var line = lines[li].replace(/^\s+/, '');
+    if (!line) continue;
+    if (line.charAt(0) === '$') {
+      var mt = /^\$comment\s+trigger_index=(\d+)/.exec(line);
+      if (mt) trigger = parseInt(mt[1], 10);
+      var mv = /^\$var\s+wire\s+(\d+)\s+(\S+)\s+([^\s$]+)/.exec(line);
+      if (mv) {
+        var ch = channelOf(mv[2], mv[3], parseInt(mv[1], 10));
+        if (ch >= 0) { ids[ch] = mv[2]; names[ch] = mv[3]; }
+      }
+      continue;
+    }
+    if (line.charAt(0) === '#') {
+      var t = parseInt(line.slice(1), 10);
+      if (isFinite(t)) { lastT = t; if (t > maxTime) maxTime = t; }
+      continue;
+    }
+    if (lastT < 0) continue;
+    if (line.charAt(0) === 'b') {                  // 向量写法 "b1010 <id>"
+      var sp = line.indexOf(' ');
+      if (sp < 0) continue;
+      var bits = line.slice(1, sp), vid = line.slice(sp + 1).trim();
+      for (var v = 0; v < channels; v++) if (ids[v] === vid) trans[v].push([lastT, parseInt(bits, 2) & 1]);
+      continue;
+    }
+    var bit = line.charAt(0);
+    if (bit === '0' || bit === '1') {              // 标量写法 "<bit><id>"
+      var sid = line.slice(1).trim();
+      for (var s = 0; s < channels; s++) if (ids[s] === sid) trans[s].push([lastT, bit === '1' ? 1 : 0]);
+    }
+  }
+
+  if (maxTime < 0) return { channels: channels, names: names, samples: [], trigger: trigger, count: 0 };
+  var count = maxTime + 1, samples = new Array(count).fill(0);
+  for (var ch2 = 0; ch2 < channels; ch2++) {
+    var list = trans[ch2], k = 0, level = 0;
+    for (var t2 = 0; t2 < count; t2++) {
+      while (k < list.length && list[k][0] <= t2) { level = list[k][1]; k++; }
+      if (level) samples[t2] |= (1 << ch2);
+    }
+  }
+  return { channels: channels, names: names, samples: samples, trigger: trigger, count: count };
+}
+
+// 解析板子回传的 "LA RAW count=<hex> trigger=<hex>" + 十六进制样本
+function parseRawText(text, channels) {
+  channels = channels || 8;
+  var m = /LA RAW count=([0-9a-fA-F]{1,8}) trigger=([0-9a-fA-F]{1,8})/.exec(String(text));
+  if (!m) return null;
+  var count = parseInt(m[1], 16), trigger = parseInt(m[2], 16);
+  // \b 必须有：回包里还有 "UART:00000000 SPI:00000000" 这类行，
+  // 没有词边界时 "UART" 里的 'A' 会被当成一个 0xA 样本。
+  var tokens = String(text).slice(m.index + m[0].length).match(/\b[0-9a-fA-F]{1,8}\b/g) || [];
+  var mask = (1 << channels) - 1, samples = [], names = [];
+  for (var i = 0; i < channels; i++) names.push('ch' + i);
+  for (var j = 0; j < tokens.length && samples.length < count; j++) samples.push(parseInt(tokens[j], 16) & mask);
+  return { channels: channels, names: names, samples: samples, trigger: trigger, count: samples.length };
+}
+//==PARSER_END==
+
+//==TIMEBASE_BEGIN==
+// 时基换算与格式化：纯函数，供渲染器统计和 node 侧测试共用。
+// 只要采集方给出"每个采样点多少纳秒"，横轴就能从"采样点序号"变成真实时间。
+function posNum(v) {
+  return (typeof v === 'number' && isFinite(v) && v > 0) ? v : null;
+}
+
+function fmtNs(ns) {
+  if (ns == null || !isFinite(ns)) return '—';
+  if (ns >= 1e6) return (ns / 1e6).toFixed(3) + ' ms';
+  if (ns >= 1e3) return (ns / 1e3).toFixed(3) + ' µs';
+  if (ns >= 1) return ns.toFixed(3) + ' ns';
+  return ns.toFixed(4) + ' ns';
+}
+
+function fmtHz(hz) {
+  if (hz == null || !isFinite(hz) || hz <= 0) return '—';
+  if (hz >= 1e6) return (hz / 1e6).toFixed(4) + ' MHz';
+  if (hz >= 1e3) return (hz / 1e3).toFixed(4) + ' kHz';
+  return hz.toFixed(1) + ' Hz';
+}
+
+// 状态栏的时基段：带单位和真实时间窗；没有时基时**明说"未标定"**，
+// 不猜一个数字上去——仪器把没标定的量报成具体值是更坏的错误。
+// 分段数据额外报"每段多少点、段间空了多少"——这是判断采样率的依据，
+// 因为总时长不能被简单地当成"连续采了这么久"。
+function tbInfo(s) {
+  if (!s) return '';
+  if (s.sample_ns == null) {
+    return '时基未标定（横轴 = 采样点）' + segInfo(s);
+  }
+  var base = '采样率 ' + fmtHz(s.sample_hz) + ' · 每点 ' + fmtNs(s.sample_ns) +
+             ' · 窗口 ' + fmtNs(s.sample_ns * s.samples.length) +
+             ' (' + s.samples.length + ' 点)';
+  return base + segInfo(s);
+}
+
+function segInfo(s) {
+  if (!s || !s.segments || s.segments.length < 2) return '';
+  var lens = s.segments.map(function (g) { return g[1] - g[0] + 1; });
+  var minLen = Math.min.apply(null, lens), maxLen = Math.max.apply(null, lens);
+  var per = (minLen === maxLen) ? String(minLen) : (minLen + '~' + maxLen);
+  var txt = ' · ' + s.segments.length + ' 段 × ' + per + ' 点';
+  if (s.sample_ns != null) {
+    // 关键区别：**实采长度** = 各段点数之和，不等于整条记录的时间跨度。
+    // 段间那些毫秒级空档没被采样，所以"总覆盖时长"必须另外说清楚。
+    var sampled = 0;
+    for (var i = 0; i < lens.length; i++) sampled += lens[i];
+    txt += ' · 实采共 ' + fmtNs(s.sample_ns * sampled);
+    if (s.gap_ns) txt += ' · 段间未采样约 ' + fmtNs(s.gap_ns);
+  }
+  return txt;
+}
+//==TIMEBASE_END==
+
+//==DECODE_BEGIN==
+// 协议解码（纯函数，node 侧单独测试）。**必须与 python/logic_analyzer.py 的
+// decode_uart / decode_spi 保持同一套判据**，否则"波形上标的字节"会和
+// "上位机判 PASS 用的字节"对不上——那比不标还坏。
+//
+// 关键点（都是踩过的坑，别改回去）：
+//  1. UART：窗口相位是任意的，第一个下降沿可能落在**数据位内部**。
+//     所以 stop 位不对时只前进 1 个采样点继续找真正的起始位，
+//     不能记 framing error、也不能直接跳过 10 个比特。
+//  2. 每一位取**位中心**采样（half_bit），不取边界。
+//  3. bit_samples 是"每个比特多少个采样点"，与时间无关：
+//     uart 模式 = pattern_div+1 / sample_div+1 = 434/27 ≈ 16.07，按既有实现取 16。
+//  4. SPI：mode 0，上升沿采 MOSI，CS 低有效；CS 拉高时丢弃不完整的位移。
+// segments（可选）＝各段的 [起点, 终点] 采样下标。段与段之间**没有被采样**，
+// 所以解码必须**逐段进行**：跨段的两个采样点在真实时间里相隔毫秒级，
+// 把它们当成相邻点去拼帧会解出根本不存在的字节。
+function segRanges(samples, segments) {
+  if (!segments || !segments.length) return [[0, samples.length - 1]];
+  var out = [];
+  for (var i = 0; i < segments.length; i++) {
+    var a = Math.max(0, Math.floor(segments[i][0]));
+    var b = Math.min(samples.length - 1, Math.ceil(segments[i][1]));
+    if (b > a) out.push([a, b]);
+  }
+  return out.length ? out : [[0, samples.length - 1]];
+}
+
+function decodeUart(samples, spec) {
+  spec = spec || {};
+  var ch = spec.channel == null ? 0 : spec.channel;
+  var bit = spec.bit_samples == null ? 16 : spec.bit_samples;
+  var which = spec.which == null ? 1 : spec.which;
+  var mask = 1 << ch, level = new Array(samples.length);
+  for (var k = 0; k < samples.length; k++) level[k] = (samples[k] & mask) ? 1 : 0;
+  var half = Math.max(1, bit >> 1), out = [], frames = [], perSegment = [];
+  var ranges = segRanges(samples, spec.segments);
+  var globalIndex = 0, pickedGlobal = -1;
+  for (var r = 0; r < ranges.length; r++) {
+    var s0 = ranges[r][0], s1 = ranges[r][1];
+    var bytesInSeg = [], i = s0 + 1, guard = 0;
+    while (i + bit * 9 + half <= s1) {                    // 整帧必须落在本段内
+      if (guard++ > 20000) break;                         // 防御：异常输入不许让页面卡死
+      if (level[i - 1] === 1 && level[i] === 0) {
+        var value = 0;
+        for (var b = 0; b < 8; b++) value |= level[i + bit * (b + 1) + half] << b;
+        var stop = level[i + bit * 9 + half];
+        if (stop === 1) {
+          out.push(value);
+          bytesInSeg.push(value);
+          if (globalIndex === which - 1) pickedGlobal = out.length - 1;
+          globalIndex++;
+          if (frames.length < (spec.max_frames || 64)) {
+            frames.push({ start: i, end: i + bit * 10, bits: bit, value: value,
+                          index: out.length - 1, segment: r });
+          }
+          i += bit * 10;
+        } else i += 1;                                     // 不是帧起始，继续往后找
+      } else i += 1;
+    }
+    perSegment.push(bytesInSeg);
+  }
+  return { protocol: 'uart', bytes: out, frames: frames, active: [ch],
+           pickedIndex: pickedGlobal, pickedIndexGlobal: pickedGlobal, perSegment: perSegment,
+           segments: ranges.length };
+}
+
+function decodeSpi(samples, spec) {
+  spec = spec || {};
+  var clock = spec.clock == null ? 0 : spec.clock;
+  var mosi = spec.mosi == null ? 1 : spec.mosi;
+  var cs = spec.cs == null ? 2 : spec.cs;
+  var which = spec.which == null ? 1 : spec.which;
+  var cm = 1 << clock, mm = 1 << mosi, csm = 1 << cs;
+  var out = [], frames = [], perSegment = [];
+  var ranges = segRanges(samples, spec.segments);
+  var globalIndex = 0, pickedGlobal = -1;
+  for (var r = 0; r < ranges.length; r++) {
+    var s0 = ranges[r][0], s1 = ranges[r][1];
+    var bytesInSeg = [];
+    var value = 0, bits = 0, prev = 0, firstRise = -1, csFall = -1, csPrev = 0;
+    for (var i = s0; i <= s1; i++) {
+      var active = !(samples[i] & csm);
+      var rising = !prev && !!(samples[i] & cm);
+      prev = (samples[i] & cm) ? 1 : 0;
+      // 帧起点 = min(CS 下降沿, 本字节第一个时钟上升沿)，且必须落在本字节之前。
+      // 边界情形见测试：窗口第一拍的"上一拍"按 CS 总线空闲=高处理。
+      if (active && !csPrev) csFall = i;
+      if (active && rising && firstRise < 0) firstRise = i;
+      if (active && rising) {
+        value = ((value << 1) | ((samples[i] & mm) ? 1 : 0)) & 0xFF;
+        bits++;
+        if (bits === 8) {
+          out.push(value);
+          bytesInSeg.push(value);
+          if (globalIndex === which - 1) pickedGlobal = out.length - 1;
+          globalIndex++;
+          if (frames.length < (spec.max_frames || 64)) {
+            var start = (csFall >= 0 && csFall < i) ? csFall : (firstRise >= 0 ? firstRise : 0);
+            frames.push({ start: start, end: i, bits: 8, value: value,
+                          index: out.length - 1, segment: r, sample: i });
+          }
+          value = 0; bits = 0; firstRise = -1; csFall = -1;
+        }
+      } else if (!active) {
+        // CS 拉高只清移位寄存器，**不要**清 csFall/firstRise：
+        // 它们属于"下一个字节"的定界信息，清掉会让下一字节退回到上升沿起点（实测踩到）。
+        value = 0; bits = 0;
+      }
+      csPrev = active ? 0 : 1;
+    }
+    perSegment.push(bytesInSeg);
+  }
+  return { protocol: 'spi', bytes: out, frames: frames, active: [clock, mosi, cs],
+           pickedIndex: pickedGlobal, pickedIndexGlobal: pickedGlobal, perSegment: perSegment,
+           segments: ranges.length };
+}
+
+function decodeWith(spec, samples, segments) {
+  if (!spec || !samples || !samples.length) return null;
+  var opts = {};
+  for (var key in spec) if (Object.prototype.hasOwnProperty.call(spec, key)) opts[key] = spec[key];
+  opts.segments = segments || null;
+  if (opts.protocol === 'uart') return decodeUart(samples, opts);
+  if (opts.protocol === 'spi') return decodeSpi(samples, opts);
+  return null;
+}
+//==DECODE_END==
+
+(function () {
+  if (typeof document === 'undefined') return;     // node 下只取解析器
+  var cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+  var statsEl = document.getElementById('stats'), tabsEl = document.getElementById('tabs'),
+      hintEl = document.getElementById('hint'), dropEl = document.getElementById('drop');
+  var COLORS = ['#39c0ff', '#7ef0a1', '#ffd479', '#ff9c6e', '#c792ea', '#8ab4ff', '#4ee0d0', '#ff7ba8'];
+  var sets = [], active = 0, view = { start: 0, end: 1 }, drag = null;
+  var cursorA = null, cursorB = null;
+  var showAnnot = true, activeOnly = true;      // 标注 / 只看参与通道
+
+  function resetCursors() { cursorA = null; cursorB = null; }
+
+  // 当前该画哪些通道：协议模式默认只画参与的通道（static/counter 没有解码信息，仍画全部 8 条）
+  function visibleChannels(s) {
+    var all = [];
+    for (var i = 0; i < s.channels; i++) all.push(i);
+    if (!activeOnly || !s.decoded || !s.decoded.active || !s.decoded.active.length) return all;
+    var keep = s.decoded.active.filter(function (c) { return c >= 0 && c < s.channels; });
+    keep.sort(function (a, b) { return a - b; });
+    return keep.length ? keep : all;
+  }
+
+  function normalize(s) {
+    // 嵌入数据（采集脚本注入）只带 samples/trigger/note，没有 names。
+    // 这里补齐默认值——否则 draw() 里读 s.names[c] 会抛异常，页面直接白屏。
+    if (!s || !s.samples) return null;
+    s.channels = s.channels || 8;
+    var n = [];
+    for (var i = 0; i < s.channels; i++) n.push((Array.isArray(s.names) && s.names[i]) || ('ch' + i));
+    s.names = n;
+    if (s.trigger === undefined) s.trigger = null;
+    // 时基字段可选：抓来的 VCD 里没有采样率，只有采集元数据里才有。
+    // 两个方向都要认（外部页面可能只给其中一个），都给不出就保持 null = 未标定。
+    s.sample_ns = posNum(s.sample_ns);
+    s.sample_hz = posNum(s.sample_hz);
+    if (s.sample_hz == null && s.sample_ns != null) s.sample_hz = 1e9 / s.sample_ns;
+    if (s.sample_ns == null && s.sample_hz != null) s.sample_ns = 1e9 / s.sample_hz;
+    s.gap_ns = posNum(s.gap_ns);            // 段间未采样的时间（由采集方给出，缺省就是"未标定"）
+    // 分段（可选）：把多轮采集拼成一条长记录时，每段的 [起点, 终点] 采样下标。
+    // 段与段之间**没有被采样**，页面必须把这件事画出来，不能连成一条看不出接缝的长线。
+    if (Array.isArray(s.segments) && s.segments.length > 1) {
+      var segs = [];
+      for (var si = 0; si < s.segments.length; si++) {
+        var seg = s.segments[si];
+        var a0 = Math.max(0, Math.floor(seg[0])), a1 = Math.min(s.samples.length - 1, Math.ceil(seg[1]));
+        if (a1 > a0) segs.push([a0, a1]);
+      }
+      s.segments = segs.length > 1 ? segs : null;
+    } else {
+      s.segments = null;
+    }
+    // 解码标注（可选）：只认带 protocol 的 spec，缺省就是不标注。
+    s.decoded = decodeWith(s.decode, s.samples, s.segments);
+    return s;
+  }
+
+  function loadSets(list) {
+    sets = (list || []).map(normalize).filter(function (s) { return s && s.samples && s.samples.length; });
+    active = 0;
+    buildTabs();
+    if (!sets.length) { hintEl.style.display = 'flex'; return; }
+    hintEl.style.display = 'none';
+    fit();
+  }
+
+  function buildTabs() {
+    tabsEl.innerHTML = '';
+    if (sets.length < 2) return;
+    sets.forEach(function (s, i) {
+      var d = document.createElement('div');
+      d.className = 'tab' + (i === active ? ' active' : '');
+      d.textContent = s.name || ('波形 ' + (i + 1));
+      d.onclick = function () { active = i; buildTabs(); fit(); };
+      tabsEl.appendChild(d);
+    });
+  }
+
+  function fit() {
+    var s = sets[active]; if (!s) return;
+    view.start = 0; view.end = Math.max(1, s.samples.length - 1);
+    resetCursors();                    // 换波形/换视窗就清掉旧光标：它们只对原来那条波形有意义
+    draw();
+  }
+
+  function zoom(f) {
+    var s = sets[active]; if (!s) return;
+    var span = view.end - view.start, center = (view.start + view.end) / 2;
+    var ns = Math.min(s.samples.length, Math.max(4, span * f));
+    view.start = Math.max(0, center - ns / 2);
+    view.end = Math.min(s.samples.length - 1, view.start + ns);
+    view.start = Math.max(0, view.end - ns);
+    draw();
+  }
+
+  function niceStep(span, target) {
+    var raw = span / Math.max(1, target);
+    var pow = Math.pow(10, Math.floor(Math.log(raw) / Math.LN10));
+    var cands = [1, 2, 5, 10].map(function (m) { return m * pow; });
+    for (var i = 0; i < cands.length; i++) if (cands[i] >= raw) return Math.max(1, Math.round(cands[i]));
+    return Math.max(1, Math.round(cands[cands.length - 1]));
+  }
+
+  // 解出的字节值贴在对应通道那一行上——这是"软件从这段波形里读出了什么"的直接证据，
+  // 比在状态栏里印一行十六进制有说服力得多。
+  function drawByteLabels(s, ch, X, rowTop, rowH, padT, padBtm) {
+    var dec = s.decoded;
+    var picked = dec.frames.filter(function (f) { return f.index === dec.pickedIndex; })[0];
+    ctx.save();
+    ctx.font = '11px Consolas,"Microsoft YaHei",monospace';
+    dec.frames.forEach(function (f) {
+      if (f.end < view.start || f.start > view.end) return;
+      var x = X(Math.max(f.start, view.start));
+      var isPicked = picked && f.index === picked.index;
+      ctx.fillStyle = isPicked ? '#ffd479' : '#7ef0a1';
+      var txt = '0x' + ('0' + f.value.toString(16).toUpperCase()).slice(-2);
+      ctx.fillText(txt, Math.min(x + 3, 240), rowTop + rowH * 0.20);
+      if (isPicked) {
+        ctx.strokeStyle = '#ffd479'; ctx.lineWidth = 1;
+        ctx.strokeRect(x - 1, rowTop + 1, Math.max(2, X(f.end) - x + 2), rowH - 2);
+      }
+    });
+    ctx.restore();
+  }
+
+  // 帧边界：底部一条标注带，画每帧的起止竖线 + 字节序号；视图太长时只画被解出的字节序号。
+  function drawFrameMarkers(s, X, padT, padBtm, W) {
+    var dec = s.decoded;
+    if (!dec.frames.length) return;
+    var y0 = padBtm - 12, y1 = padBtm - 2;
+    ctx.save();
+    ctx.font = '11px Consolas,"Microsoft YaHei",monospace';
+    dec.frames.forEach(function (f) {
+      if (f.end < view.start || f.start > view.end) return;
+      var xa = X(f.start), xb = X(f.end);
+      if (xb - xa < 1) return;                       // 缩放太远时帧线会糊成一片，直接不画
+      var picked = f.index === dec.pickedIndex;
+      ctx.strokeStyle = picked ? '#ffd479' : 'rgba(126,240,161,0.75)';
+      ctx.lineWidth = picked ? 2 : 1;
+      ctx.beginPath();
+      ctx.moveTo(xa, y0); ctx.lineTo(xa, y1);
+      ctx.moveTo(xb, y0); ctx.lineTo(xb, y1);
+      ctx.stroke();
+      if (picked) {
+        ctx.fillStyle = '#ffd479';
+        ctx.fillText('BYTE' + f.index + '=0x' + ('0' + f.value.toString(16).toUpperCase()).slice(-2),
+                     Math.min(xa, W - 110), padT - 6);
+      }
+    });
+    ctx.restore();
+  }
+
+  function draw() {
+    var s = sets[active];
+    var W = cv.clientWidth, H = cv.clientHeight, dpr = window.devicePixelRatio || 1;
+    cv.width = Math.max(1, Math.round(W * dpr)); cv.height = Math.max(1, Math.round(H * dpr));
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+    if (!s) return;
+    var padL = 78, padR = 16, padT = 22, padB = 30;
+    var rowsList = visibleChannels(s);
+    var rows = rowsList.length, rowH = (H - padT - padB) / rows, x0 = padL, x1 = W - padR;
+    var span = Math.max(1e-9, view.end - view.start);
+    function X(t) { return x0 + (t - view.start) / span * (x1 - x0); }
+    var rowTop = {};                       // 真实通道号 -> 行顶 y（标注要用绝对坐标）
+    for (var rr = 0; rr < rows; rr++) rowTop[rowsList[rr]] = padT + rr * rowH;
+
+    ctx.font = '13px "Microsoft YaHei","Segoe UI",sans-serif';
+    for (var c = 0; c < rows; c++) {
+      var chId = rowsList[c];
+      var top = padT + c * rowH, mid = top + rowH / 2;
+      ctx.fillStyle = c % 2 ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.045)';
+      ctx.fillRect(0, top, W, rowH);
+      ctx.strokeStyle = 'rgba(120,150,190,0.16)';
+      ctx.beginPath(); ctx.moveTo(0, top + rowH); ctx.lineTo(W, top + rowH); ctx.stroke();
+      var label = s.names[chId] || ('ch' + chId);
+      if (s.tag_names && s.tag_names[chId]) label += ' · ' + s.tag_names[chId];
+      ctx.fillStyle = '#93a4c4'; ctx.fillText(label, 12, mid);
+      ctx.fillStyle = '#5f7396'; ctx.fillText('J8 ' + (chId * 4 + 3) + '/' + (chId * 4 + 4), 12, mid + 16);
+    }
+
+    var step = niceStep(span, (x1 - x0) / 90);
+    ctx.strokeStyle = 'rgba(120,150,190,0.20)'; ctx.fillStyle = '#7e91b3';
+    var tb = s.sample_ns != null;          // 有时基：刻度标真实时间；没有：标采样点
+    for (var t = Math.ceil(view.start / step) * step; t <= view.end; t += step) {
+      var x = X(t);
+      ctx.beginPath(); ctx.moveTo(x, padT); ctx.lineTo(x, H - padB); ctx.stroke();
+      var lbl = tb ? fmtNs(t * s.sample_ns) : String(Math.round(t));
+      ctx.fillText(lbl, x - 8, H - padB + 18);
+    }
+    if (tb) ctx.fillText('时间', x0 - 46, H - padB + 18);
+
+    var i0v = Math.max(0, Math.floor(view.start)), i1v = Math.min(s.samples.length - 1, Math.ceil(view.end));
+    ctx.lineWidth = 2; ctx.lineJoin = 'round';
+    for (var r2 = 0; r2 < rows; r2++) {
+      var chD = rowsList[r2];
+      var top2 = padT + r2 * rowH, hi = top2 + rowH * 0.24, lo = top2 + rowH * 0.76;
+      ctx.strokeStyle = COLORS[chD % COLORS.length];
+      // 逐段绘制：段与段之间**不连线**，否则看起来像一条连续的记录，
+      // 而真实情况是那一段根本没被采样（固件回传期间的空档）。
+      var ranges = s.segments || [[0, s.samples.length - 1]];
+      for (var rg = 0; rg < ranges.length; rg++) {
+        var a = Math.max(i0v, ranges[rg][0]), b = Math.min(i1v, ranges[rg][1]);
+        if (b < a) continue;
+        ctx.beginPath();
+        for (var i = a; i <= b; i++) {
+          var y = ((s.samples[i] >> chD) & 1) ? hi : lo;
+          if (i === a) ctx.moveTo(X(i), y); else ctx.lineTo(X(i), y);
+        }
+        ctx.stroke();
+      }
+      // 解码出的字节值标在**该通道那一行**上：这是"软件从波形里读出了什么"的直接证据
+      if (showAnnot && s.decoded && s.decoded.active.indexOf(chD) >= 0) {
+        drawByteLabels(s, chD, X, top2, rowH, padT, H - padB);
+      }
+    }
+
+    if (s.segments) drawSegmentMarkers(s, X, padT, H - padB, W);
+
+    if (showAnnot && s.decoded) drawFrameMarkers(s, X, padT, H - padB, W);
+
+    if (s.trigger !== null && s.trigger !== undefined && s.trigger >= view.start && s.trigger <= view.end) {
+      var tx = X(s.trigger);
+      ctx.strokeStyle = '#ff4d6d'; ctx.lineWidth = 1.5; ctx.setLineDash([6, 4]);
+      ctx.beginPath(); ctx.moveTo(tx, padT); ctx.lineTo(tx, H - padB); ctx.stroke();
+      ctx.setLineDash([]); ctx.fillStyle = '#ff8fa3';
+      ctx.fillText('触发 @' + s.trigger, Math.min(tx + 4, W - 90), padT - 6);
+    }
+
+    var info = '样本 ' + s.samples.length + ' 点 · 触发点 ' +
+      (s.trigger === null || s.trigger === undefined ? '未知' : s.trigger) +
+      ' · 窗口 ' + Math.round(view.start) + '–' + Math.round(view.end);
+    statsEl.textContent = (s.note ? s.note + '  |  ' : '') + tbInfo(s) + '  |  ' + info +
+      decodeText(s) + cursorText(s);
+    drawCursors();
+  }
+
+  // 段与段之间的接缝：画成醒目的斜纹竖带 + "段间未采样"字样。
+  // 这是"分段拼长波形"里最容易被含糊过去、也最该被看见的地方。
+  function drawSegmentMarkers(s, X, padT, padBtm, W) {
+    if (!s.segments || s.segments.length < 2) return;
+    ctx.save();
+    ctx.font = '11px "Microsoft YaHei","Segoe UI",sans-serif';
+    for (var i = 1; i < s.segments.length; i++) {
+      var xa = X(s.segments[i - 1][1]), xb = X(s.segments[i][0]);
+      if (xb - xa < 2 || xb < 0 || xa > W) continue;
+      ctx.fillStyle = 'rgba(255,122,168,0.16)';
+      ctx.fillRect(xa, padT, xb - xa, padBtm - padT);
+      ctx.strokeStyle = 'rgba(255,122,168,0.85)';
+      ctx.lineWidth = 1.5; ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      ctx.moveTo(xa, padT); ctx.lineTo(xa, padBtm);
+      ctx.moveTo(xb, padT); ctx.lineTo(xb, padBtm);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      if (xb - xa > 52) {
+        ctx.fillStyle = '#ff7ba8';
+        ctx.fillText('段间未采样', xa + 4, padT + 14);
+      }
+    }
+    ctx.restore();
+  }
+
+  // 状态栏里的解码摘要：解出几个字节、标出来的是哪一帧
+  function decodeText(s) {
+    if (!s.decoded) return '';
+    var dec = s.decoded;
+    var name = dec.protocol.toUpperCase();
+    var used = dec.active.map(function (c) { return 'ch' + c; }).join('/');
+    var txt = '  |  ' + name + ' ' + used + ' 解出 ' + dec.bytes.length + ' 字节';
+    if (dec.bytes.length) {
+      var hex = dec.bytes.map(function (v) { return ('0' + v.toString(16)).slice(-2); }).join('');
+      txt += ' (' + hex + ')';
+      if (dec.pickedIndex >= 0) {
+        txt += ' · 框出第 ' + (dec.pickedIndex + 1) + ' 个 = 0x' +
+               ('0' + dec.bytes[dec.pickedIndex].toString(16).toUpperCase()).slice(-2);
+      }
+    }
+    // 分段时按段报一次：段边界会截断帧，"哪一段里解出了什么"比总数更有信息量
+    if (s.segments && dec.perSegment) {
+      var parts = [];
+      for (var i = 0; i < dec.perSegment.length; i++) {
+        parts.push('段' + (i + 1) + ':' + dec.perSegment[i].length);
+      }
+      txt += ' · 每段字节数 ' + parts.join(' ');
+    }
+    return txt;
+  }
+
+  // 两根测量光标：右键放 A，Ctrl+右键放 B。只有放进**当前视窗**里的才算，
+  // 否则缩放后在别处看到一根莫名其妙的线，反而像 bug。
+  function cursorPosFromEvent(e) {
+    var s = sets[active]; if (!s) return null;
+    var padL = 78, padR = 16, W = cv.clientWidth;
+    var frac = (e.clientX - cv.getBoundingClientRect().left - padL) / Math.max(1, W - padL - padR);
+    frac = Math.min(1, Math.max(0, frac));
+    return Math.round(view.start + (view.end - view.start) * frac);
+  }
+
+  function cursorText(s) {
+    var parts = [], use = [];
+    [['A', cursorA, 'curA'], ['B', cursorB, 'curB']].forEach(function (it) {
+      if (it[1] != null && it[1] >= view.start && it[1] <= view.end) use.push([it[0], it[1], it[2]]);
+    });
+    use.forEach(function (it) {
+      var txt = '光标' + it[0] + ' @' + it[1];
+      if (s.sample_ns != null) txt += ' (' + fmtNs(it[1] * s.sample_ns) + ')';
+      if (s.trigger != null) {
+        var d = it[1] - s.trigger;
+        txt += ' 距触发 ' + (d >= 0 ? '+' : '−') + Math.abs(d) + ' 点';
+        if (s.sample_ns != null) txt += '=' + (d >= 0 ? '+' : '−') + fmtNs(Math.abs(d) * s.sample_ns);
+      }
+      parts.push(txt);
+    });
+    if (use.length === 2) {
+      var n = Math.abs(use[0][1] - use[1][1]);
+      parts.push('Δ ' + n + ' 点' + (s.sample_ns != null ? ' = ' + fmtNs(n * s.sample_ns) : ''));
+    } else if (cursorA != null && cursorB != null) {
+      parts.push('Δ 不在同一视窗内（先点「适应窗口」）');
+    }
+    return parts.length ? '  |  ' + parts.join('  |  ') : '';
+  }
+
+  function drawCursors() {
+    var s = sets[active]; if (!s) return;
+    var W = cv.clientWidth, H = cv.clientHeight;
+    var padL = 78, padR = 16, padT = 22, padB = 30;
+    var span = Math.max(1e-9, view.end - view.start);
+    function X(t) { return padL + (t - view.start) / span * (W - padR - padL); }
+    [['A', cursorA, '#ffd479'], ['B', cursorB, '#4ee0d0']].forEach(function (it) {
+      var pos = it[1]; if (pos == null) return;
+      if (pos < view.start || pos > view.end) return;
+      var x = X(pos);
+      ctx.save();
+      ctx.strokeStyle = it[2]; ctx.lineWidth = 1.5; ctx.setLineDash([2, 3]);
+      ctx.beginPath(); ctx.moveTo(x, padT); ctx.lineTo(x, H - padB); ctx.stroke();
+      ctx.setLineDash([]);
+      var tx = it[0] + ' @' + pos;
+      if (s.sample_ns != null) tx += ' · ' + fmtNs(pos * s.sample_ns);
+      ctx.fillStyle = it[2];
+      ctx.font = '12px "Microsoft YaHei","Segoe UI",sans-serif';
+      ctx.fillText(tx, Math.min(x + 4, W - 130), padT + 16);
+      ctx.restore();
+    });
+  }
+
+  cv.addEventListener('wheel', function (e) {
+    var s = sets[active]; if (!s) return;
+    e.preventDefault();
+    var padL = 78, padR = 16, W = cv.clientWidth;
+    var frac = Math.min(1, Math.max(0, (e.clientX - cv.getBoundingClientRect().left - padL) / Math.max(1, W - padL - padR)));
+    var span = view.end - view.start, center = view.start + span * frac;
+    var ns = Math.min(s.samples.length, Math.max(4, span * (e.deltaY < 0 ? 0.8 : 1.25)));
+    view.start = Math.max(0, center - ns * frac);
+    view.end = Math.min(s.samples.length - 1, view.start + ns);
+    view.start = Math.max(0, view.end - ns);
+    draw();
+  }, { passive: false });
+
+  cv.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+  cv.addEventListener('mousedown', function (e) {
+    if (e.button === 2) {                 // 右键 = 放测量光标（不放第二根：Ctrl+右键）
+      var pos = cursorPosFromEvent(e);
+      if (pos != null) { if (e.ctrlKey) cursorB = pos; else cursorA = pos; draw(); }
+      e.preventDefault();
+      return;
+    }
+    if (e.button !== 0) return;
+    drag = { x: e.clientX, start: view.start, end: view.end }; cv.classList.add('dragging');
+  });
+  window.addEventListener('mouseup', function () { drag = null; cv.classList.remove('dragging'); });
+  window.addEventListener('mousemove', function (e) {
+    if (!drag) return;
+    var s = sets[active]; if (!s) return;
+    var W = cv.clientWidth, dx = e.clientX - drag.x, span = drag.end - drag.start;
+    var a = Math.max(0, Math.min(s.samples.length - 1 - span, drag.start - dx / Math.max(1, W - 78 - 16) * span));
+    view.start = a; view.end = a + span;
+    draw();
+  });
+  window.addEventListener('resize', function () { draw(); });
+
+  document.getElementById('zin').onclick = function () { zoom(0.7); };
+  document.getElementById('zout').onclick = function () { zoom(1.4); };
+  document.getElementById('zfit').onclick = fit;
+  var clrEl = document.getElementById('zclr');
+  if (clrEl) clrEl.onclick = function () { resetCursors(); draw(); };
+  // 标注/通道两个开关：默认"标注开、只画参与通道"——协议模式下八条全画会让真正在动的那条淹没在直线里
+  var annotEl = document.getElementById('zannot');
+  var chanEl = document.getElementById('zchan');
+  function syncToggles() {
+    if (annotEl) annotEl.textContent = '标注：' + (showAnnot ? '开' : '关');
+    if (chanEl) chanEl.textContent = '通道：' + (activeOnly ? '相关' : '全部');
+  }
+  if (annotEl) annotEl.onclick = function () { showAnnot = !showAnnot; syncToggles(); draw(); };
+  if (chanEl) chanEl.onclick = function () { activeOnly = !activeOnly; syncToggles(); draw(); };
+  syncToggles();
+
+  function addFromText(text, name) {
+    var d = parseVcd(text, 8);
+    if (!d.samples.length) { var r = parseRawText(text, 8); if (r && r.samples.length) d = r; }
+    if (!d.samples.length) { alert('这个文件里没有解析到波形数据（需要 .vcd 或 LA RAW 文本）'); return; }
+    if (name) d.name = name;
+    sets.push(d); active = sets.length - 1;
+    buildTabs(); hintEl.style.display = 'none'; fit();
+  }
+
+  document.getElementById('file').addEventListener('change', function (e) {
+    var f = e.target.files[0]; if (!f) return;
+    var fr = new FileReader();
+    fr.onload = function () { addFromText(String(fr.result), f.name); };
+    fr.readAsText(f);
+  });
+
+  ['dragenter', 'dragover'].forEach(function (ev) {
+    window.addEventListener(ev, function (e) { e.preventDefault(); dropEl.classList.add('show'); });
+  });
+  window.addEventListener('dragleave', function (e) {
+    e.preventDefault();
+    if (e.relatedTarget) return;
+    dropEl.classList.remove('show');
+  });
+  window.addEventListener('drop', function (e) {
+    e.preventDefault();
+    dropEl.classList.remove('show');
+    var files = e.dataTransfer && e.dataTransfer.files; if (!files) return;
+    for (var i = 0; i < files.length; i++) (function (f) {
+      var fr = new FileReader();
+      fr.onload = function () { addFromText(String(fr.result), f.name); };
+      fr.readAsText(f);
+    })(files[i]);
+  });
+
+  // 采集脚本会把这一行替换成真实数据；保持单行，便于精确替换。
+  window.WAVEFORMS = [{"name": "spi \u6a21\u5f0f \u7b2c12\u6b21", "channels": 8, "samples": [0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 2, 2, 2, 2, 3, 3, 3, 3, 2, 2, 2, 2, 3, 3, 3, 3, 2, 2, 2, 2, 3, 3, 3, 3, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 4, 4, 4, 4, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 2], "trigger": 4, "note": "mode=spi samples=85 trigger=4", "sample_ns": 11.764705882352942, "sample_hz": 85000000.0, "decode": {"protocol": "spi", "clock": 0, "mosi": 1, "cs": 2, "which": 1}, "tag_names": {"0": "SCLK", "1": "MOSI", "2": "CS"}}];
+
+  if (window.WAVEFORMS) loadSets(Array.isArray(window.WAVEFORMS) ? window.WAVEFORMS : [window.WAVEFORMS]);
+  else hintEl.style.display = 'flex';
+})();
+</script>
+</body>
+</html>

@@ -49,7 +49,7 @@
 /* ---- 提交级 trace 子窗口 0x1000_2200（rtl/core_trace_mmio.v）----------------
    这是"逻辑分析仪的探针伸进流水线"的那一环：窗口里存的不是 8 根数字线，
    而是**每一条退休指令**（pc / 指令字 / 写回目的与数据 / 写存储地址数据字节使能）。
-   数据来源是 Core 的既有冻结输出 trace_*，Core 一行未改。
+   数据来源是 Core 已有的对外观测输出 trace_*，Core 一行未改。
    寄存器（窗口内 byte offset）：
      0x00 CTRL    写 [0]=arm [1]=stop [2]=clear（三个自清脉冲）
      0x04 STATUS  [0]=armed [1]=recording [2]=done [3]=overflow

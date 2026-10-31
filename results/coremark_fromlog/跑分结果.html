@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>CoreMark 跑分结果</title></head>
+<body style="font:15px/1.6 'Microsoft YaHei',Segoe UI,sans-serif;max-width:900px;margin:32px auto;padding:0 18px;color:#101828">
+<h1 style="margin:0 0 6px">MES50HP CoreMark 跑分结果
+  <span style="background:#1a7f37;color:#fff;border-radius:6px;padding:2px 12px;font-size:16px;vertical-align:middle">PASS</span></h1>
+<p style="color:#475467;margin:0 0 18px">串口 (离线解析) · 115200 8N1 · 由本页同目录的 coremark_uart.log 原始输出解析而来（本页不联网、不需要任何软件）</p>
+<table style="border-collapse:collapse;margin-bottom:18px"><tr><th style="text-align:left;padding:6px 14px 6px 0;color:#475467;font-weight:600">CoreMark 分数</th><td style="padding:6px 0;font-family:Consolas,monospace">193.192</td></tr>
+<tr><th style="text-align:left;padding:6px 14px 6px 0;color:#475467;font-weight:600">CoreMark/MHz</th><td style="padding:6px 0;font-family:Consolas,monospace">2.272</td></tr>
+<tr><th style="text-align:left;padding:6px 14px 6px 0;color:#475467;font-weight:600">Total ticks</th><td style="padding:6px 0;font-family:Consolas,monospace">1759901953</td></tr>
+<tr><th style="text-align:left;padding:6px 14px 6px 0;color:#475467;font-weight:600">运行时间</th><td style="padding:6px 0;font-family:Consolas,monospace">20.705 s</td></tr>
+<tr><th style="text-align:left;padding:6px 14px 6px 0;color:#475467;font-weight:600">CPU 时钟</th><td style="padding:6px 0;font-family:Consolas,monospace">85,000,000 Hz</td></tr>
+<tr><th style="text-align:left;padding:6px 14px 6px 0;color:#475467;font-weight:600">迭代次数</th><td style="padding:6px 0;font-family:Consolas,monospace">4000</td></tr>
+<tr><th style="text-align:left;padding:6px 14px 6px 0;color:#475467;font-weight:600">crclist / crcmatrix</th><td style="padding:6px 0;font-family:Consolas,monospace">0xe714 / 0x1fd7</td></tr>
+<tr><th style="text-align:left;padding:6px 14px 6px 0;color:#475467;font-weight:600">crcstate / crcfinal</th><td style="padding:6px 0;font-family:Consolas,monospace">0x8e3a / 0x65c5</td></tr>
+<tr><th style="text-align:left;padding:6px 14px 6px 0;color:#475467;font-weight:600">CPI（性能计数器推算）</th><td style="padding:6px 0;font-family:Consolas,monospace">1.547（窗口敏感，只能写约数）</td></tr>
+<tr><th style="text-align:left;padding:6px 14px 6px 0;color:#475467;font-weight:600">官方自校验</th><td style="padding:6px 0;font-family:Consolas,monospace">Correct operation validated.</td></tr>
+<tr><th style="text-align:left;padding:6px 14px 6px 0;color:#475467;font-weight:600">运行时间 ≥10 s（赛题要求）</th><td style="padding:6px 0;font-family:Consolas,monospace">满足</td></tr></table>
+<h2 style="font-size:16px;margin:18px 0 6px">与金标准核对</h2>
+<ul style="margin:0 0 18px"><li>ticks 金标准 2670014377 → 实测 1759901953 —— 不一致</li>
+<li>分数 金标准 79587 → 实测 193192 —— 不一致</li>
+<li>CoreMark/MHz 金标准 936 → 实测 2272</li>
+<li>crcfinal 金标准 0x5275 → 实测 0x65c5</li>
+<li>PERF 行的 cycle/instret 等计数器有窗口敏感性（约 ±1%），两次实跑不同属正常，不得据此写精确 CPI</li></ul>
+<h2 style="font-size:16px;margin:18px 0 6px">原始串口输出</h2>
+<pre style="background:#0e1420;color:#d7f9ff;padding:14px;border-radius:8px;overflow:auto;font:13px/1.45 Consolas,monospace">COREMARK_START
+2K performance run parameters for coremark.
+CoreMark Size    : 666
+Total ticks      : 1759901953
+Total time (secs): 20
+Iterations/Sec   : 200
+Iterations       : 4000
+Compiler version : GCC 15.2.0
+Compiler flags   : -O2 -march=rv32im -mabi=ilp32
+Memory location  : STATIC BRAM
+seedcrc          : 0xe9f5
+[0]crclist       : 0xe714
+[0]crcmatrix     : 0x1fd7
+[0]crcstate      : 0x8e3a
+[0]crcfinal      : 0x65c5
+Correct operation validated. See README.md for run and reporting rules.
+CoreMark score x1000 : 193192
+CoreMark/MHz x1000  : 2272
+PERF cycle=7cb3e4b3 instret=50984862 stall=21c24d46 load=08e61563 branch=10a573e5 taken=0afa13a9 flush=029653c2
+COREMARK_DONE
+</pre>
+</body></html>

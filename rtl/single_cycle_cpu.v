@@ -83,6 +83,8 @@ wire branch;
 wire jump;
 wire jalr;
 wire illegal;
+wire mdu_en;
+wire [2:0] mdu_op;
     imm_gen u_imm_gen(
         .instruction(instruction),
         .imm(imm)
@@ -99,7 +101,12 @@ wire illegal;
         .branch(branch),
         .jump(jump),
         .jalr(jalr),
-        .illegal(illegal)
+        .illegal(illegal),
+        // M 扩展（RV32IM）：与流水线共用同一个 decoder 和同一个 mdu。
+        // Reference Model 必须和流水线支持同一套 ISA，否则任何用到乘除法的
+        // 程序都无法做"最终架构状态一致"的比较。
+        .mdu_en(mdu_en),
+        .mdu_op(mdu_op)
     );//指令产生控制信号和立即数
 wire [31:0] rs1_data;
 wire [31:0] rs2_data;
@@ -127,6 +134,32 @@ alu u_alu(
     .result(alu_result)/*ADDI/ADD/SUB 的待写回结果；
 LW/SW 的字节地址；
 BEQ/JAL 的跳转目标 PC+imm。*/
+);
+//---------------------------------------------------------------------------
+// M 扩展：乘除法单元（与流水线共用 rtl/mdu.v）
+// MUL 组是组合乘法，当拍出结果，不需要等待状态；
+// DIV 组要迭代 32 拍，因此这里加一个"忙"等待：mdu_exec_now 表示"当前正是
+// 那条除法指令的执行拍"，mdu_busy 在结果算完之前保持 1，把 PC、取指状态机
+// 和寄存器写全部冻住。注意 mdu_busy 不能反过来进 mdu_exec_now 的判据，
+// 否则会形成组合环。
+//---------------------------------------------------------------------------
+wire [31:0] mdu_result;
+wire        mdu_busy;
+// run 覆盖两组（乘法 2 拍、除法 32 拍），由 mdu 内部按 op[2] 分流。
+// 注意 mdu_busy 不能反过来进 mdu_exec_now 的判据，否则会形成组合环。
+wire        mdu_exec_now = (mem_state==MEM_RUN) && !mem_access &&
+                           (if_state==IF_DONE) && mdu_en && !reset;
+mdu u_mdu(
+    .clk(clk),
+    .reset(reset),
+    .run(mdu_exec_now),
+    .op(mdu_op),
+    .a(rs1_data),
+    .b(rs2_data),
+    // 单周期 CPU 里"被消费"就是这条指令退休的那一拍（结果同时写进 rd）。
+    .ack(nonmem_retire && mdu_en),
+    .busy(mdu_busy),
+    .result(mdu_result)
 );
 wire [31:0] load_data;
 wire [31:0] store_wdata;
@@ -158,7 +191,7 @@ assign store_complete=mem_rsp_fire && mem_write && !d_rsp_error;
 //普通指令在MEM_RUN当拍完成，合法LOAD/Store必须等响应握手
 wire mem_access;
 //只有取指完成后的普通指令才能退休；取指等待周期不算执行
-assign nonmem_retire=(mem_state==MEM_RUN) && !mem_access && (if_state==IF_DONE);
+assign nonmem_retire=(mem_state==MEM_RUN) && !mem_access && (if_state==IF_DONE) && !mdu_busy;
 assign retire_valid= nonmem_retire|| mem_rsp_fire;
 assign mem_access=(mem_read||mem_write) && !misaligned;
 //只有进入MEM_REQ才向SoC声明一笔有效访存请求。
@@ -172,14 +205,14 @@ assign d_req_wstrb=store_wstrb;
 assign d_rsp_ready=(mem_state==MEM_RSP);
 //ALU/JAL等非访存指令在MEM_RUN写回;Load只能使用完成响应的数据写回
 assign reg_write_effective=
-    ((mem_state==MEM_RUN)&& reg_write && !mem_read && (if_state==IF_DONE))||
+    ((mem_state==MEM_RUN)&& reg_write && !mem_read && (if_state==IF_DONE) && !mdu_busy)||
     load_complete;
 assign wb_data = 
-        (result_src==2'b00)?alu_result:
+        (result_src==2'b00)?(mdu_en?mdu_result:alu_result):
         (result_src==2'b01)?load_data:
         (result_src==2'b10)?pc_plus4:
                             imm;
-/*00：ADDI / ADD / SUB 的 ALU 结果
+/*00：ADDI / ADD / SUB 的 ALU 结果；M 扩展指令也走这一格，值换成 mdu 的结果
 01：LW 从 DMEM 得到、经 load_store_unit 处理的数据
 10：JAL 要写入 rd 的返回地址 PC+4
 11：LUI 的 imm*/
@@ -229,6 +262,13 @@ always@(posedge clk)begin
         case(mem_state)
         //指令尚未从SoC返回时，不能把旧的instruction_reg当作新的指令执行
             MEM_RUN:if(if_state!=IF_DONE)begin
+                pc<=pc;
+                mem_state<=MEM_RUN;
+            end
+            // M 扩展的除法要 32 拍：结果没出来之前 PC 必须停住，否则同一条
+            // 除法会被取下一条指令覆盖。指令本身一直躺在 instruction_reg 里，
+            // 所以 mdu 的迭代输入是稳定的。
+            else if(mdu_busy)begin
                 pc<=pc;
                 mem_state<=MEM_RUN;
             end

@@ -124,7 +124,7 @@ module tb_cpi_attribution;
   integer w_iv_low_memblk = 0;                       // 数据阻塞期间取指请求也不在场
   integer w_ifrq_acc = 0, w_ifrsp_acc = 0, w_ifid_write = 0, w_ifrsp_drop = 0;
   integer w_memblk = 0, w_memblk_req = 0, w_memblk_rsp = 0, w_memblk_front = 0;
-  integer w_memblk_hold_rsp = 0;                     // 阻塞期间响应被扣住（IF 冻结）的拍数
+  integer w_memblk_hold_rsp = 0;                     // 阻塞期间响应被扣住（IF 停住）的拍数
   integer w_load_acc = 0, w_store_acc = 0, w_drsp_acc = 0;
   integer w_ldstall = 0, w_redir = 0, w_idstall = 0;
   integer w_exmem_busy = 0;                          // EX/MEM 持有且未完成

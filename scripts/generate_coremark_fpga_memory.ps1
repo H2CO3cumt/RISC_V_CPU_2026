@@ -4,14 +4,25 @@ param(
   [int]$AutoStart = 0,
   [int]$PerfWindowAlign = 0,
   [string]$OutputFile = 'fpga/coremark/rtl/coremark_program_memory.v',
-  [string]$MemoryDirectory = 'fpga/coremark/rtl'
+  [string]$MemoryDirectory = 'fpga/coremark/rtl',
+  # ISA ??:?? rv32i(????)?? rv32im ?? M ????,
+  # ?? fpga/coremark_im ??(RV32I vs RV32IM ??? Before/After)?
+  # ?? ?????**? make ????**,??????????????????;
+  #    ?? rv32im ???? OutputFile / MemoryDirectory / SimDirectory ???
+  #    fpga/coremark_im/rtl,??????? 50 MHz rv32i ?????
+  #    (2026-09-30 ?? generate_coremark_80m_memory.ps1 ?????)?
+  [string]$March = 'rv32i',
+  [string]$Opt = '-O2',
+  # `ifdef COREMARK_SIM ??? $readmemh ???(????;PDS ????? rtl/)?
+  [string]$SimDirectory = 'fpga/coremark/rtl'
 )
 $ErrorActionPreference='Stop'
 if(-not $env:RISCV_PREFIX){$env:RISCV_PREFIX='riscv-none-elf-'}
 & make.exe -C software/coremark clean
 if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
-& make.exe -C software/coremark all "ITERATIONS=$Iterations" "CLOCK_HZ=$ClockHz" "AUTOSTART=$AutoStart" "PERF_WINDOW_ALIGN=$PerfWindowAlign"
+& make.exe -C software/coremark all "ITERATIONS=$Iterations" "CLOCK_HZ=$ClockHz" "AUTOSTART=$AutoStart" "PERF_WINDOW_ALIGN=$PerfWindowAlign" "MARCH=$March" "COREMARK_OPT=$Opt"
 if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+Write-Host "COREMARK BUILD ISA = $March"
 
 function Read-VerilogWords([string]$Path){
   $result=[ordered]@{}
@@ -36,7 +47,7 @@ foreach($entry in $dmem.GetEnumerator()){
   $drom[[uint32]$entry.Key-8192]=$entry.Value
 }
 
-# 固定深度镜像让 PDS 识别同步 DRM 模板，也保证未使用存储位确定为零。
+# ??????? PDS ???? DRM ??,??????????????
 $imemImage=[Collections.Generic.List[string]]::new()
 for($index=0;$index -lt 8192;$index++){
   $key=[uint32]$index
@@ -66,7 +77,7 @@ $lines.Add('// The data port coremark_dmem is serialized by the Core dstate and 
 $lines.Add(" reg [31:0] mem[0:8191]; wire address_ok=(req_addr[1:0]==2'b00)&&(req_addr<32'h0000_8000); assign req_ready=!rsp_valid||rsp_ready;")
 $lines.Add(' initial begin')
 $lines.Add('`ifdef COREMARK_SIM')
-$lines.Add('  $readmemh("fpga/coremark/rtl/coremark_imem.mem",mem);')
+$lines.Add('  $readmemh("' + $SimDirectory + '/coremark_imem.mem",mem);')
 $lines.Add('`else')
 $lines.Add('  $readmemh("rtl/coremark_imem.mem",mem);')
 $lines.Add('`endif')
@@ -80,8 +91,8 @@ $lines.Add(" wire drom_hit=req_addr>=32'h0000_8000&&req_addr<32'h0000_c000; wire
 $lines.Add(" assign init_done=1'b1; assign req_ready=!rsp_valid;")
 $lines.Add(' initial begin')
 $lines.Add('`ifdef COREMARK_SIM')
-$lines.Add('  $readmemh("fpga/coremark/rtl/coremark_drom.mem",drom);')
-$lines.Add('  $readmemh("fpga/coremark/rtl/coremark_ram.mem",ram);')
+$lines.Add('  $readmemh("' + $SimDirectory + '/coremark_drom.mem",drom);')
+$lines.Add('  $readmemh("' + $SimDirectory + '/coremark_ram.mem",ram);')
 $lines.Add('`else')
 $lines.Add('  $readmemh("rtl/coremark_drom.mem",drom);')
 $lines.Add('  $readmemh("rtl/coremark_ram.mem",ram);')

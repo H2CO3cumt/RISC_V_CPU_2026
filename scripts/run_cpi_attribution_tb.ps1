@@ -4,9 +4,9 @@ param(
   [switch]$DisablePredictor,
   [int]$MaxCycles = 4000000
 )
-# T1：CPI 归因观测台。只读采样 Core 内部信号，不修改任何被测 RTL。
-# 存储器时序与实体板 coremark_imem/coremark_dmem 逐拍一致，统计窗口与板上
-# PERF_WINDOW_ALIGN=1 的窗口一致（由 start_time() 的 perf_clear 脉冲界定）。
+# T1:CPI ?????????? Core ????,??????? RTL?
+# ????????? coremark_imem/coremark_dmem ????,???????
+# PERF_WINDOW_ALIGN=1 ?????(? start_time() ? perf_clear ????)?
 $ErrorActionPreference='Stop'
 if(-not $env:RISCV_PREFIX){$env:RISCV_PREFIX='riscv-none-elf-'}
 $env:PATH="$(Resolve-Path $IcarusRoot)\bin;"+$env:PATH
@@ -16,8 +16,8 @@ if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
 & make.exe -C software/coremark all ITERATIONS=1 CLOCK_HZ=1 AUTOSTART=1 PERF_WINDOW_ALIGN=1
 if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
 $sources=@(
- 'rtl/pipeline_cpu.v','rtl/branch_predictor.v','rtl/forward_unit.v','rtl/hazard_unit.v',
- 'rtl/perf_monitor.v','rtl/perf_mmio.v','rtl/regfile.v','rtl/alu.v',
+ 'rtl/pipeline_cpu.v','rtl/fetch_fifo.v','rtl/ras.v','rtl/branch_predictor.v','rtl/csr_unit.v','rtl/forward_unit.v','rtl/hazard_unit.v',
+ 'rtl/perf_monitor.v','rtl/perf_mmio.v','rtl/regfile.v','rtl/mdu.v','rtl/alu.v',
  'rtl/imm_gen.v','rtl/decoder.v','rtl/branch_unit.v','rtl/load_store_unit.v',
  'rtl/soc_data_interconnect.v','rtl/uart_tx.v','rtl/uart_rx.v',
  'rtl/uart_mmio.v','rtl/gpio_mmio.v',

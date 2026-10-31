@@ -8,7 +8,7 @@
 // 其余（PLL 外的时钟、UART、GPIO、定时器、性能计数器、逻辑分析仪、J8 回环、
 // 上电复位、镜像 ch7）逐行保持不变。
 //
-// **Core 一行未改**：trace_* 是 pipeline_cpu 已经冻结的对外观测输出
+// **Core 一行未改**：trace_* 是 pipeline_cpu 已有的对外观测输出
 // （docs/interfaces.md §6.1），本文件只是把它们接到了一个 Core 外部的观察者上。
 module mes50hp_trace_top #(
  parameter UART_BAUD_CYCLES = 50_000_000 / 115200,
@@ -38,7 +38,7 @@ module mes50hp_trace_top #(
  wire a_req_v,a_req_r,a_rsp_v,a_rsp_r,a_err; wire [31:0] a_addr,a_wdata,a_rdata; wire a_write; wire [3:0] a_wstrb; wire [7:0] sample_outputs;
  // trace 子窗口
  wire t_req_v,t_req_r,t_rsp_v,t_rsp_r,t_err; wire [31:0] t_addr,t_wdata,t_rdata; wire t_write; wire [3:0] t_wstrb;
- // 提交级 trace（Core 的既有冻结输出）
+ // 提交级 trace（Core 已有的对外观测输出）
  wire [31:0] tp_pc,tp_inst,tp_rd_data,tp_mem_addr,tp_mem_data;
  wire        tp_rd_we,tp_mem_we,tp_error;
  wire [4:0]  tp_rd_addr;

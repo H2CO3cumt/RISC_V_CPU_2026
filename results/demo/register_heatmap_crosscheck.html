@@ -1,0 +1,93 @@
+<!doctype html><meta charset="utf-8"><title>寄存器写回热力图</title>
+<style>
+ body{margin:0;background:#0d1117;color:#c9d1d9;font:13px/1.6 "Segoe UI",sans-serif}
+ .wrap{padding:14px 18px}.h{font-size:15px;font-weight:600;color:#e6edf3}
+ .sub{color:#8b949e;margin:6px 0 12px}
+ #heat{width:100%;height:420px;display:block;background:#0b111d;border:1px solid #30363d;
+       border-radius:6px}
+ table{border-collapse:collapse;width:100%;font:12px Consolas,monospace}
+ th,td{border-bottom:1px solid #21262d;padding:2px 6px;text-align:left}
+ th{color:#8b949e;font-weight:600;position:sticky;top:0;background:#0d1117}
+ tr.sel{background:rgba(255,212,121,.12)}
+ .num{color:#8b949e}#tbl{max-height:40vh;overflow:auto;margin-top:12px}
+</style>
+<div class="wrap">
+<div class="h">CPU 数据流 · 寄存器写回热力图</div>
+<div class="sub">发送 'HELLO,RV' · 记录 32 条 · 打点 8 个 · 写回方格 19 个 · 状态 0x4</div>
+<canvas id="heat"></canvas>
+<div id="tbl"><table><thead><tr><th>#</th><th>pc</th><th>指令</th><th>写回</th><th>访存</th></tr></thead>
+<tbody><tr id="r0"><td class="num">0</td><td class="num">0x998</td><td>sw x14,512(x15)</td><td>—</td><td>0x200 ← 0x00000001</td></tr>
+<tr id="r1"><td class="num">1</td><td class="num">0x99C</td><td>addi x27,x18,0</td><td>x27 ← 0x00000000</td><td>—</td></tr>
+<tr id="r2"><td class="num">2</td><td class="num">0x9A0</td><td>addi x12,x15,556</td><td>x12 ← 0x1000222C</td><td>—</td></tr>
+<tr id="r3"><td class="num">3</td><td class="num">0x9A4</td><td>addi x11,x0,25</td><td>x11 ← 0x00000019</td><td>—</td></tr>
+<tr id="r4"><td class="num">4</td><td class="num">0x9A8</td><td>jal x0,20</td><td>—</td><td>—</td></tr>
+<tr id="r5"><td class="num">5</td><td class="num">0x9BC</td><td>addi x14,x8,0</td><td>x14 ← 0x00000EE8</td><td>—</td></tr>
+<tr id="r6"><td class="num">6</td><td class="num">0x9C0</td><td>lbu x15,0(x8)</td><td>x15 ← 0x00000068</td><td>—</td></tr>
+<tr id="r7"><td class="num">7</td><td class="num">0x9C4</td><td>sw x15,0(x12)</td><td>—</td><td>0x22C ← 0x00000068</td></tr>
+<tr id="r8"><td class="num">8</td><td class="num">0x9C8</td><td>addi x13,x15,-97</td><td>x13 ← 0x00000007</td><td>—</td></tr>
+<tr id="r9"><td class="num">9</td><td class="num">0x9CC</td><td>bltu x11,x13,-32</td><td>—</td><td>—</td></tr>
+<tr id="r10"><td class="num">10</td><td class="num">0x9D0</td><td>addi x15,x15,-32</td><td>x15 ← 0x00000048</td><td>—</td></tr>
+<tr id="r11"><td class="num">11</td><td class="num">0x9D4</td><td>addi x18,x18,1</td><td>x18 ← 0x00000001</td><td>—</td></tr>
+<tr id="r12"><td class="num">12</td><td class="num">0x9D8</td><td>jal x0,-44</td><td>—</td><td>—</td></tr>
+<tr id="r13"><td class="num">13</td><td class="num">0x9AC</td><td>sb x15,0(x14)</td><td>—</td><td>0xEE8 ← 0x00000048</td></tr>
+<tr id="r14"><td class="num">14</td><td class="num">0x9B0</td><td>xor x27,x27,x15</td><td>x27 ← 0x00000048</td><td>—</td></tr>
+<tr id="r15"><td class="num">15</td><td class="num">0x9B4</td><td>addi x8,x8,1</td><td>x8 ← 0x00000EE9</td><td>—</td></tr>
+<tr id="r16"><td class="num">16</td><td class="num">0x9B8</td><td>beq x8,x19,36</td><td>—</td><td>—</td></tr>
+<tr id="r17"><td class="num">17</td><td class="num">0x9BC</td><td>addi x14,x8,0</td><td>x14 ← 0x00000EE9</td><td>—</td></tr>
+<tr id="r18"><td class="num">18</td><td class="num">0x9C0</td><td>lbu x15,0(x8)</td><td>x15 ← 0x00000065</td><td>—</td></tr>
+<tr id="r19"><td class="num">19</td><td class="num">0x9C4</td><td>sw x15,0(x12)</td><td>—</td><td>0x22C ← 0x00000065</td></tr>
+<tr id="r20"><td class="num">20</td><td class="num">0x9C8</td><td>addi x13,x15,-97</td><td>x13 ← 0x00000004</td><td>—</td></tr>
+<tr id="r21"><td class="num">21</td><td class="num">0x9CC</td><td>bltu x11,x13,-32</td><td>—</td><td>—</td></tr>
+<tr id="r22"><td class="num">22</td><td class="num">0x9D0</td><td>addi x15,x15,-32</td><td>x15 ← 0x00000045</td><td>—</td></tr>
+<tr id="r23"><td class="num">23</td><td class="num">0x9D4</td><td>addi x18,x18,1</td><td>x18 ← 0x00000002</td><td>—</td></tr>
+<tr id="r24"><td class="num">24</td><td class="num">0x9D8</td><td>jal x0,-44</td><td>—</td><td>—</td></tr>
+<tr id="r25"><td class="num">25</td><td class="num">0x9AC</td><td>sb x15,0(x14)</td><td>—</td><td>0xEE9 ← 0x00004500</td></tr>
+<tr id="r26"><td class="num">26</td><td class="num">0x9B0</td><td>xor x27,x27,x15</td><td>x27 ← 0x0000000D</td><td>—</td></tr>
+<tr id="r27"><td class="num">27</td><td class="num">0x9B4</td><td>addi x8,x8,1</td><td>x8 ← 0x00000EEA</td><td>—</td></tr>
+<tr id="r28"><td class="num">28</td><td class="num">0x9B8</td><td>beq x8,x19,36</td><td>—</td><td>—</td></tr>
+<tr id="r29"><td class="num">29</td><td class="num">0x9BC</td><td>addi x14,x8,0</td><td>x14 ← 0x00000EEA</td><td>—</td></tr>
+<tr id="r30"><td class="num">30</td><td class="num">0x9C0</td><td>lbu x15,0(x8)</td><td>x15 ← 0x0000006C</td><td>—</td></tr>
+<tr id="r31"><td class="num">31</td><td class="num">0x9C4</td><td>sw x15,0(x12)</td><td>—</td><td>0x22C ← 0x0000006C</td></tr></tbody></table></div>
+</div>
+<script>
+const N = [{"i": 0, "pc": 2456, "raw_pc": 2456, "instr": 552050723, "asm": "sw x14,512(x15)", "mnemonic": "sw", "reads": [15, 14], "writes": [], "rd": 0, "rd_we": 0, "rd_data": 0, "mem_we": 1, "mem_addr": 512, "mem_data": 1, "mem_wstrb": 15, "error": 0, "srcs": [{"reg": 15, "from": null}, {"reg": 14, "from": null}], "marks": []}, {"i": 1, "pc": 2460, "raw_pc": 2460, "instr": 593299, "asm": "addi x27,x18,0", "mnemonic": "addi", "reads": [18], "writes": [27], "rd": 27, "rd_we": 1, "rd_data": 0, "mem_we": 0, "mem_addr": 0, "mem_data": 0, "mem_wstrb": 0, "error": 0, "srcs": [{"reg": 18, "from": null}], "marks": []}, {"i": 2, "pc": 2464, "raw_pc": 2464, "instr": 583501331, "asm": "addi x12,x15,556", "mnemonic": "addi", "reads": [15], "writes": [12], "rd": 12, "rd_we": 1, "rd_data": 268444204, "mem_we": 0, "mem_addr": 0, "mem_data": 0, "mem_wstrb": 0, "error": 0, "srcs": [{"reg": 15, "from": null}], "marks": []}, {"i": 3, "pc": 2468, "raw_pc": 2468, "instr": 26215827, "asm": "addi x11,x0,25", "mnemonic": "addi", "reads": [], "writes": [11], "rd": 11, "rd_we": 1, "rd_data": 25, "mem_we": 0, "mem_addr": 0, "mem_data": 0, "mem_wstrb": 0, "error": 0, "srcs": [], "marks": []}, {"i": 4, "pc": 2472, "raw_pc": 2472, "instr": 20971631, "asm": "jal x0,20", "mnemonic": "jal", "reads": [], "writes": [], "rd": 0, "rd_we": 0, "rd_data": 0, "mem_we": 0, "mem_addr": 0, "mem_data": 0, "mem_wstrb": 0, "error": 0, "srcs": [], "marks": ["H"]}, {"i": 5, "pc": 2492, "raw_pc": 2492, "instr": 263955, "asm": "addi x14,x8,0", "mnemonic": "addi", "reads": [8], "writes": [14], "rd": 14, "rd_we": 1, "rd_data": 3816, "mem_we": 0, "mem_addr": 0, "mem_data": 0, "mem_wstrb": 0, "error": 0, "srcs": [{"reg": 8, "from": null}], "marks": []}, {"i": 6, "pc": 2496, "raw_pc": 2496, "instr": 280451, "asm": "lbu x15,0(x8)", "mnemonic": "lbu", "reads": [8], "writes": [15], "rd": 15, "rd_we": 1, "rd_data": 104, "mem_we": 0, "mem_addr": 0, "mem_data": 0, "mem_wstrb": 0, "error": 0, "srcs": [{"reg": 8, "from": null}], "marks": []}, {"i": 7, "pc": 2500, "raw_pc": 2500, "instr": 16130083, "asm": "sw x15,0(x12)", "mnemonic": "sw", "reads": [12, 15], "writes": [], "rd": 0, "rd_we": 0, "rd_data": 0, "mem_we": 1, "mem_addr": 556, "mem_data": 104, "mem_wstrb": 15, "error": 0, "srcs": [{"reg": 12, "from": 2}, {"reg": 15, "from": 6}], "marks": []}, {"i": 8, "pc": 2504, "raw_pc": 2504, "instr": 4193748627, "asm": "addi x13,x15,-97", "mnemonic": "addi", "reads": [15], "writes": [13], "rd": 13, "rd_we": 1, "rd_data": 7, "mem_we": 0, "mem_addr": 0, "mem_data": 0, "mem_wstrb": 0, "error": 0, "srcs": [{"reg": 15, "from": 6}], "marks": []}, {"i": 9, "pc": 2508, "raw_pc": 2508, "instr": 4275429603, "asm": "bltu x11,x13,-32", "mnemonic": "bltu", "reads": [11, 13], "writes": [], "rd": 0, "rd_we": 0, "rd_data": 0, "mem_we": 0, "mem_addr": 0, "mem_data": 0, "mem_wstrb": 0, "error": 0, "srcs": [{"reg": 11, "from": 3}, {"reg": 13, "from": 8}], "marks": ["E"]}, {"i": 10, "pc": 2512, "raw_pc": 2512, "instr": 4261906323, "asm": "addi x15,x15,-32", "mnemonic": "addi", "reads": [15], "writes": [15], "rd": 15, "rd_we": 1, "rd_data": 72, "mem_we": 0, "mem_addr": 0, "mem_data": 0, "mem_wstrb": 0, "error": 0, "srcs": [{"reg": 15, "from": 6}], "marks": []}, {"i": 11, "pc": 2516, "raw_pc": 2516, "instr": 1640723, "asm": "addi x18,x18,1", "mnemonic": "addi", "reads": [18], "writes": [18], "rd": 18, "rd_we": 1, "rd_data": 1, "mem_we": 0, "mem_addr": 0, "mem_data": 0, "mem_wstrb": 0, "error": 0, "srcs": [{"reg": 18, "from": null}], "marks": []}, {"i": 12, "pc": 2520, "raw_pc": 2520, "instr": 4250923119, "asm": "jal x0,-44", "mnemonic": "jal", "reads": [], "writes": [], "rd": 0, "rd_we": 0, "rd_data": 0, "mem_we": 0, "mem_addr": 0, "mem_data": 0, "mem_wstrb": 0, "error": 0, "srcs": [], "marks": []}, {"i": 13, "pc": 2476, "raw_pc": 2476, "instr": 16187427, "asm": "sb x15,0(x14)", "mnemonic": "sb", "reads": [14, 15], "writes": [], "rd": 0, "rd_we": 0, "rd_data": 0, "mem_we": 1, "mem_addr": 3816, "mem_data": 72, "mem_wstrb": 1, "error": 0, "srcs": [{"reg": 14, "from": 5}, {"reg": 15, "from": 10}], "marks": []}, {"i": 14, "pc": 2480, "raw_pc": 2480, "instr": 16633267, "asm": "xor x27,x27,x15", "mnemonic": "xor", "reads": [27, 15], "writes": [27], "rd": 27, "rd_we": 1, "rd_data": 72, "mem_we": 0, "mem_addr": 0, "mem_data": 0, "mem_wstrb": 0, "error": 0, "srcs": [{"reg": 27, "from": 1}, {"reg": 15, "from": 10}], "marks": ["L"]}, {"i": 15, "pc": 2484, "raw_pc": 2484, "instr": 1311763, "asm": "addi x8,x8,1", "mnemonic": "addi", "reads": [8], "writes": [8], "rd": 8, "rd_we": 1, "rd_data": 3817, "mem_we": 0, "mem_addr": 0, "mem_data": 0, "mem_wstrb": 0, "error": 0, "srcs": [{"reg": 8, "from": null}], "marks": []}, {"i": 16, "pc": 2488, "raw_pc": 2488, "instr": 53740131, "asm": "beq x8,x19,36", "mnemonic": "beq", "reads": [8, 19], "writes": [], "rd": 0, "rd_we": 0, "rd_data": 0, "mem_we": 0, "mem_addr": 0, "mem_data": 0, "mem_wstrb": 0, "error": 0, "srcs": [{"reg": 8, "from": 15}, {"reg": 19, "from": null}], "marks": []}, {"i": 17, "pc": 2492, "raw_pc": 2492, "instr": 263955, "asm": "addi x14,x8,0", "mnemonic": "addi", "reads": [8], "writes": [14], "rd": 14, "rd_we": 1, "rd_data": 3817, "mem_we": 0, "mem_addr": 0, "mem_data": 0, "mem_wstrb": 0, "error": 0, "srcs": [{"reg": 8, "from": 15}], "marks": []}, {"i": 18, "pc": 2496, "raw_pc": 2496, "instr": 280451, "asm": "lbu x15,0(x8)", "mnemonic": "lbu", "reads": [8], "writes": [15], "rd": 15, "rd_we": 1, "rd_data": 101, "mem_we": 0, "mem_addr": 0, "mem_data": 0, "mem_wstrb": 0, "error": 0, "srcs": [{"reg": 8, "from": 15}], "marks": []}, {"i": 19, "pc": 2500, "raw_pc": 2500, "instr": 16130083, "asm": "sw x15,0(x12)", "mnemonic": "sw", "reads": [12, 15], "writes": [], "rd": 0, "rd_we": 0, "rd_data": 0, "mem_we": 1, "mem_addr": 556, "mem_data": 101, "mem_wstrb": 15, "error": 0, "srcs": [{"reg": 12, "from": 2}, {"reg": 15, "from": 18}], "marks": ["L"]}, {"i": 20, "pc": 2504, "raw_pc": 2504, "instr": 4193748627, "asm": "addi x13,x15,-97", "mnemonic": "addi", "reads": [15], "writes": [13], "rd": 13, "rd_we": 1, "rd_data": 4, "mem_we": 0, "mem_addr": 0, "mem_data": 0, "mem_wstrb": 0, "error": 0, "srcs": [{"reg": 15, "from": 18}], "marks": []}, {"i": 21, "pc": 2508, "raw_pc": 2508, "instr": 4275429603, "asm": "bltu x11,x13,-32", "mnemonic": "bltu", "reads": [11, 13], "writes": [], "rd": 0, "rd_we": 0, "rd_data": 0, "mem_we": 0, "mem_addr": 0, "mem_data": 0, "mem_wstrb": 0, "error": 0, "srcs": [{"reg": 11, "from": 3}, {"reg": 13, "from": 20}], "marks": []}, {"i": 22, "pc": 2512, "raw_pc": 2512, "instr": 4261906323, "asm": "addi x15,x15,-32", "mnemonic": "addi", "reads": [15], "writes": [15], "rd": 15, "rd_we": 1, "rd_data": 69, "mem_we": 0, "mem_addr": 0, "mem_data": 0, "mem_wstrb": 0, "error": 0, "srcs": [{"reg": 15, "from": 18}], "marks": []}, {"i": 23, "pc": 2516, "raw_pc": 2516, "instr": 1640723, "asm": "addi x18,x18,1", "mnemonic": "addi", "reads": [18], "writes": [18], "rd": 18, "rd_we": 1, "rd_data": 2, "mem_we": 0, "mem_addr": 0, "mem_data": 0, "mem_wstrb": 0, "error": 0, "srcs": [{"reg": 18, "from": 11}], "marks": []}, {"i": 24, "pc": 2520, "raw_pc": 2520, "instr": 4250923119, "asm": "jal x0,-44", "mnemonic": "jal", "reads": [], "writes": [], "rd": 0, "rd_we": 0, "rd_data": 0, "mem_we": 0, "mem_addr": 0, "mem_data": 0, "mem_wstrb": 0, "error": 0, "srcs": [], "marks": ["O"]}, {"i": 25, "pc": 2476, "raw_pc": 2476, "instr": 16187427, "asm": "sb x15,0(x14)", "mnemonic": "sb", "reads": [14, 15], "writes": [], "rd": 0, "rd_we": 0, "rd_data": 0, "mem_we": 1, "mem_addr": 3817, "mem_data": 17664, "mem_wstrb": 2, "error": 0, "srcs": [{"reg": 14, "from": 17}, {"reg": 15, "from": 22}], "marks": []}, {"i": 26, "pc": 2480, "raw_pc": 2480, "instr": 16633267, "asm": "xor x27,x27,x15", "mnemonic": "xor", "reads": [27, 15], "writes": [27], "rd": 27, "rd_we": 1, "rd_data": 13, "mem_we": 0, "mem_addr": 0, "mem_data": 0, "mem_wstrb": 0, "error": 0, "srcs": [{"reg": 27, "from": 14}, {"reg": 15, "from": 22}], "marks": []}, {"i": 27, "pc": 2484, "raw_pc": 2484, "instr": 1311763, "asm": "addi x8,x8,1", "mnemonic": "addi", "reads": [8], "writes": [8], "rd": 8, "rd_we": 1, "rd_data": 3818, "mem_we": 0, "mem_addr": 0, "mem_data": 0, "mem_wstrb": 0, "error": 0, "srcs": [{"reg": 8, "from": 15}], "marks": []}, {"i": 28, "pc": 2488, "raw_pc": 2488, "instr": 53740131, "asm": "beq x8,x19,36", "mnemonic": "beq", "reads": [8, 19], "writes": [], "rd": 0, "rd_we": 0, "rd_data": 0, "mem_we": 0, "mem_addr": 0, "mem_data": 0, "mem_wstrb": 0, "error": 0, "srcs": [{"reg": 8, "from": 27}, {"reg": 19, "from": null}], "marks": []}, {"i": 29, "pc": 2492, "raw_pc": 2492, "instr": 263955, "asm": "addi x14,x8,0", "mnemonic": "addi", "reads": [8], "writes": [14], "rd": 14, "rd_we": 1, "rd_data": 3818, "mem_we": 0, "mem_addr": 0, "mem_data": 0, "mem_wstrb": 0, "error": 0, "srcs": [{"reg": 8, "from": 27}], "marks": [","]}, {"i": 30, "pc": 2496, "raw_pc": 2496, "instr": 280451, "asm": "lbu x15,0(x8)", "mnemonic": "lbu", "reads": [8], "writes": [15], "rd": 15, "rd_we": 1, "rd_data": 108, "mem_we": 0, "mem_addr": 0, "mem_data": 0, "mem_wstrb": 0, "error": 0, "srcs": [{"reg": 8, "from": 27}], "marks": []}, {"i": 31, "pc": 2500, "raw_pc": 2500, "instr": 16130083, "asm": "sw x15,0(x12)", "mnemonic": "sw", "reads": [12, 15], "writes": [], "rd": 0, "rd_we": 0, "rd_data": 0, "mem_we": 1, "mem_addr": 556, "mem_data": 108, "mem_wstrb": 15, "error": 0, "srcs": [{"reg": 12, "from": 2}, {"reg": 15, "from": 30}], "marks": []}];
+const CV = document.getElementById('heat'), CTX = CV.getContext('2d');
+function hue(r){ return 'hsl(' + ((r * 47) % 360) + ', 72%, 62%)'; }
+let sel = -1;
+function draw(){
+  const w = CV.width = CV.clientWidth, h = CV.height = CV.clientHeight;
+  CTX.clearRect(0,0,w,h); CTX.fillStyle='#0b111d'; CTX.fillRect(0,0,w,h);
+  const left=44, top=18, bottom=10, rows=32, rowH=(h-top-bottom)/rows;
+  const n = Math.max(1, N.length), bw = (w-left)/n;
+  CTX.font='9px Consolas, monospace'; CTX.textAlign='right'; CTX.fillStyle='#6d80a0';
+  for (let r=0; r<rows; r+=4){
+    CTX.fillText('x'+r, left-6, top+r*rowH+rowH*0.8);
+    CTX.strokeStyle='#141d2c'; CTX.beginPath();
+    CTX.moveTo(left, top+r*rowH); CTX.lineTo(w, top+r*rowH); CTX.stroke();
+  }
+  if (sel >= 0 && N[sel]){
+    for (const r of N[sel].reads){
+      CTX.fillStyle='#242b3a';
+      CTX.fillRect(left, top+r*rowH, w-left, rowH);
+    }
+  }
+  for (const nd of N){
+    if (!nd.rd_we || !nd.rd) continue;
+    CTX.fillStyle = hue(nd.rd);
+    CTX.fillRect(left+nd.i*bw, top+nd.rd*rowH+0.5, Math.max(1,bw), Math.max(1,rowH-1));
+  }
+  if (sel >= 0){
+    const sx = left+(sel+0.5)*bw;
+    CTX.strokeStyle='#ffd479'; CTX.beginPath();
+    CTX.moveTo(sx, top); CTX.lineTo(sx, h-bottom); CTX.stroke();
+  }
+}
+function pick(i){
+  sel = i;
+  document.querySelectorAll('tr.sel').forEach(e => e.classList.remove('sel'));
+  const row = document.getElementById('r'+i); if (row) row.classList.add('sel');
+  draw();
+}
+draw();
+window.addEventListener('resize', draw);
+</script>

@@ -415,5 +415,112 @@ class TraceInputTests(unittest.TestCase):
             trace_board.build_trace_packet(TRACE_MAX_CHARS + 1, 0)
 
 
+def _replay_payload(replay=""):
+    """按 _load_trace_log 的口径造一份 payload（同源：样本 → build_flow → judge）。"""
+    sample = Path(__file__).resolve().parent / "samples" / "trace_hello_rv.log"
+    mem = (Path(__file__).resolve().parent.parent
+           / "fpga" / "trace85" / "rtl" / "logic_analyzer_program.mem")
+    if not sample.exists():
+        raise unittest.SkipTest("没有离线回放样本 python/samples/trace_hello_rv.log")
+    import trace_board
+
+    cap = tv.parse_capture(sample.read_bytes().decode("utf-8", errors="replace"))
+    sent = "".join(chr(m["value"]) for m in cap["marks"])
+    imem = tv.load_program_mem(mem) if mem.exists() else None
+    flow = tv.build_flow(cap, imem)
+    return {
+        "text": sent, "phase": 0, "count": cap["count"], "status": cap["status"],
+        "marks": cap["marks"], "nodes": flow["nodes"],
+        "judgements": tv.judge(cap, sent, 0, imem, depth=4096),
+        "summary": trace_board.summarise(cap, flow, sent),
+        "html": "", "pass": True, "replay": replay,
+    }
+
+
+class OfflineReplaySampleTests(unittest.TestCase):
+    """离线回放那份样本必须与当前 trace85 固件镜像同源（2026-10-28 修）。
+
+    这三条守的是本轮真实的三个缺陷，任何一个复发都会红：
+    ① 样本换过镜像没重录 → `pc 与位流镜像同源` 全错；
+    ② 判据拿回包 `TRACE TEXT`（大写化之后）当输入 → 2 条假 FAIL；
+    ③ 回放与实采的口径分叉 → 用户没法判断屏幕上是不是板子刚采的。
+    """
+
+    SAMPLE = Path(__file__).resolve().parent / "samples" / "trace_hello_rv.log"
+    MEM = (Path(__file__).resolve().parent.parent
+           / "fpga" / "trace85" / "rtl" / "logic_analyzer_program.mem")
+
+    def setUp(self):
+        if not self.SAMPLE.exists():
+            raise unittest.SkipTest("没有离线回放样本")
+        self.capture = tv.parse_capture(
+            self.SAMPLE.read_bytes().decode("utf-8", errors="replace"))
+
+    def test_sent_text_is_the_mark_values(self):
+        sent = "".join(chr(m["value"]) for m in self.capture["marks"])
+        self.assertEqual(sent, "hello,rv")
+        self.assertEqual(len(sent), self.capture["mark_count"])
+
+    def test_trailer_text_is_not_the_sent_text(self):
+        """回包 TRACE TEXT 是大写化之后的；拿它判据会稳定出 2 条假 FAIL。"""
+        trailer = "".join(chr(c) for c in self.capture["text"])
+        self.assertEqual(trailer, "HELLO,RV")
+        imem = tv.load_program_mem(self.MEM) if self.MEM.exists() else None
+        bad = [n for n, ok, _d in tv.judge(self.capture, trailer, 0, imem, depth=4096)
+               if not ok]
+        self.assertIn("打点值等于发送的字符", bad)
+        self.assertIn("大写字符计数", bad)
+
+    def test_sample_is_same_image_as_current_firmware(self):
+        """换过 program.mem 就必须重录样本，否则这条会红（这是本次修的根因）。"""
+        if not self.MEM.exists():
+            raise unittest.SkipTest("没有 trace85 固件镜像")
+        imem = tv.load_program_mem(self.MEM)
+        sent = "".join(chr(m["value"]) for m in self.capture["marks"])
+        results = tv.judge(self.capture, sent, 0, imem, depth=4096)
+        self.assertTrue(tv.judgements_pass(results),
+                        "样本与当前镜像不同源，请重录或重新对齐：%r"
+                        % [n for n, ok, _d in results if not ok])
+
+
+class ReplayBannerTests(unittest.TestCase):
+    """第 ② 页必须一眼看得出"这是回放"还是"板子刚采的"。"""
+
+    def setUp(self):
+        self.app = _build_app()
+
+    def tearDown(self):
+        self.app.destroy()
+
+    def test_replay_shows_a_warning_banner(self):
+        self.app._show_trace(_replay_payload("samples/trace_hello_rv.log"))
+        self.app.update()
+        self.assertIn("离线回放", self.app._trace_replay_note)
+        self.assertIn("仅供参考", self.app._trace_replay_note)
+        self.assertEqual(self.app.trace_replay_label.winfo_manager(), "pack",
+                         "徽标建了但没 pack 出来，现场等于没有")
+
+    def test_live_capture_clears_the_banner(self):
+        self.app._show_trace(_replay_payload("samples/trace_hello_rv.log"))
+        self.app.update()
+        self.app._show_trace(_replay_payload(""))
+        self.app.update()
+        self.assertEqual(self.app._trace_replay_note, "")
+        self.assertEqual(self.app.trace_replay_label.winfo_manager(), "",
+                         "实采之后必须把回放徽标撤掉，否则把实时数据标成录像")
+
+    def test_load_trace_log_marks_itself_as_replay(self):
+        sample = Path(__file__).resolve().parent / "samples" / "trace_hello_rv.log"
+        if not sample.exists():
+            raise unittest.SkipTest("没有离线回放样本")
+        self.app._load_trace_log(sample)
+        kind, payload = self.app.events.get_nowait()
+        self.assertEqual(kind, "trace")
+        self.assertEqual(payload["text"], "hello,rv", "必须用打点值，不是大写化的回包文本")
+        self.assertTrue(payload["pass"])
+        self.assertIn("trace_hello_rv.log", payload["replay"],
+                      "payload 必须带 replay 来源，第 ② 页据此显示「离线回放」徽标")
+
+
 if __name__ == "__main__":
     unittest.main()

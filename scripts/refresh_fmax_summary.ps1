@@ -1,4 +1,4 @@
-param(
+﻿param(
   [Parameter(Mandatory=$true)][string]$SweepProjectRoot,
   [Parameter(Mandatory=$true)][string]$Tag,
   [string]$SweepRoot = 'D:\RISC_V_CPU_2026\tmp\fmax_sweep'

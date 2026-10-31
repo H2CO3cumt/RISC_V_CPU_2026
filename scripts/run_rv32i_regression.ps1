@@ -1,10 +1,10 @@
-param(
+﻿param(
     [string]$IcarusRoot = $(if ($env:IVERILOG_ROOT) { $env:IVERILOG_ROOT } else { 'D:\Tools\iverilog-v12' })
 )
 
 $ErrorActionPreference = 'Stop'
-$powerShell = (Get-Command pwsh -ErrorAction SilentlyContinue).Source
-if (-not $powerShell) { $powerShell = (Get-Command powershell -ErrorAction Stop).Source }
+. (Join-Path $PSScriptRoot 'resolve_host.ps1')
+$powerShell = Resolve-PowerShellHost
 
 $scripts = @(
     'run_regfile_tb.ps1',
@@ -35,9 +35,14 @@ foreach ($script in $scripts) {
     Write-Output "RUN $script"
     # Run each suite in a child process because the legacy suite scripts use
     # `exit` to return their status.
+    # 子进程 stderr 在 Windows PowerShell 5.1 里会被包成 ErrorRecord，配合
+    # $ErrorActionPreference='Stop' 会把"测试其实 PASS"误判成脚本中断；成败只看退出码。
+    $ErrorActionPreference = 'Continue'
     & $powerShell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot $script) -IcarusRoot $IcarusRoot
-    if ($LASTEXITCODE -ne 0) {
-        exit $LASTEXITCODE
+    $suiteExit = $LASTEXITCODE
+    $ErrorActionPreference = 'Stop'
+    if ($suiteExit -ne 0) {
+        exit $suiteExit
     }
 }
 

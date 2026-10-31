@@ -1,0 +1,52 @@
+﻿<mxfile host="app.diagrams.net" type="device">
+  <diagram name="图2-3 板级信号连接与引脚图" id="fig2_3">
+    <mxGraphModel dx="1720" dy="1000" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1720" pageHeight="1000" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="FDEV" value="FPGA：紫光同创 PGL50H-6IFBG484" style="rounded=0;whiteSpace=wrap;html=1;fontSize=16;fontFamily=Microsoft YaHei;fontStyle=1;fontColor=#B5641A;fillColor=#FFF9F3;strokeColor=#D9822B;strokeWidth=2;dashed=1;verticalAlign=top;align=left;spacingLeft=16;spacingTop=10;" vertex="1" parent="1"><mxGeometry x="560" y="120" width="520" height="780" as="geometry" /></mxCell>
+
+        <mxCell id="cfgblk" value="配置与复位&#10;上电复位 · JTAG 加载" style="rounded=0;whiteSpace=wrap;html=1;fontSize=15;fontFamily=Microsoft YaHei;fillColor=#CCE2F7;strokeColor=#2E6FB7;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="600" y="180" width="440" height="90" as="geometry" /></mxCell>
+        <mxCell id="clkblk" value="时钟管理 PLL&#10;50 MHz → 85 MHz" style="rounded=0;whiteSpace=wrap;html=1;fontSize=15;fontFamily=Microsoft YaHei;fillColor=#CCE2F7;strokeColor=#2E6FB7;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="600" y="300" width="440" height="90" as="geometry" /></mxCell>
+        <mxCell id="coreblk" value="处理器核与 SoC&#10;取指 · 数据 · 外设互连" style="rounded=0;whiteSpace=wrap;html=1;fontSize=15;fontFamily=Microsoft YaHei;fontStyle=1;fillColor=#FFD9B0;strokeColor=#C86F17;strokeWidth=2.5;" vertex="1" parent="1"><mxGeometry x="600" y="420" width="440" height="180" as="geometry" /></mxCell>
+        <mxCell id="capblk" value="采集与激励通道&#10;八通道采样 · 八路激励" style="rounded=0;whiteSpace=wrap;html=1;fontSize=15;fontFamily=Microsoft YaHei;fillColor=#D6C2F5;strokeColor=#6335C6;strokeWidth=2.5;" vertex="1" parent="1"><mxGeometry x="600" y="630" width="440" height="110" as="geometry" /></mxCell>
+        <mxCell id="ioblk" value="I/O 电平转换&#10;按键低有效 · LED 高有效" style="rounded=0;whiteSpace=wrap;html=1;fontSize=15;fontFamily=Microsoft YaHei;fillColor=#CCE2F7;strokeColor=#2E6FB7;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="600" y="770" width="440" height="90" as="geometry" /></mxCell>
+
+        <mxCell id="pwr" value="12 V 电源输入&#10;板上稳压至 3.3 V" style="rounded=0;whiteSpace=wrap;html=1;fontSize=15;fontFamily=Microsoft YaHei;fillColor=#CCE2F7;strokeColor=#2E6FB7;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="60" y="120" width="380" height="90" as="geometry" /></mxCell>
+        <mxCell id="clk" value="系统时钟 50 MHz&#10;FPGA_GCLK_50M" style="rounded=0;whiteSpace=wrap;html=1;fontSize=15;fontFamily=Microsoft YaHei;fillColor=#CCE2F7;strokeColor=#2E6FB7;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="60" y="250" width="380" height="90" as="geometry" /></mxCell>
+        <mxCell id="cfg" value="JTAG 配置下载&#10;板载 USB 下载器" style="rounded=0;whiteSpace=wrap;html=1;fontSize=15;fontFamily=Microsoft YaHei;fillColor=#CCE2F7;strokeColor=#2E6FB7;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="60" y="380" width="380" height="90" as="geometry" /></mxCell>
+        <mxCell id="uart" value="CP2102 USB-UART&#10;UART0_RX · UART0_TX" style="rounded=0;whiteSpace=wrap;html=1;fontSize=15;fontFamily=Microsoft YaHei;fillColor=#EDEDED;strokeColor=#5F5F5F;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="60" y="510" width="380" height="110" as="geometry" /></mxCell>
+        <mxCell id="key" value="用户按键 KEY1～KEY8&#10;K18 L15 J17 K16 J16 J19 H20 H17" style="rounded=0;whiteSpace=wrap;html=1;fontSize=14;fontFamily=Microsoft YaHei;fillColor=#D8EEDA;strokeColor=#2E7D32;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="60" y="660" width="380" height="90" as="geometry" /></mxCell>
+        <mxCell id="j8" value="J8 扩展口&#10;八组隔行相邻脚对" style="rounded=0;whiteSpace=wrap;html=1;fontSize=15;fontFamily=Microsoft YaHei;fillColor=#D6C2F5;strokeColor=#6335C6;strokeWidth=2.5;" vertex="1" parent="1"><mxGeometry x="60" y="790" width="380" height="110" as="geometry" /></mxCell>
+
+        <mxCell id="pintab" value="J8 脚对与 FPGA 引脚对照&#10;组   J8 脚（激励 / 采集）   FPGA 引脚（激励 / 采集）&#10;0    3 / 4                AB13 / Y13&#10;1    7 / 8                W11 / V11&#10;2    11 / 12              Y10 / W10&#10;3    15 / 16              Y12 / W12&#10;4    19 / 20              U10 / T10&#10;5    23 / 24              V9 / U9&#10;6    27 / 28              W8 / V7&#10;7    31 / 32              Y6 / W6&#10;共地 J8-1 · 电源脚 J8-2 / 39 / 40 不接 I/O" style="rounded=0;whiteSpace=wrap;html=1;fontSize=14;fontFamily=Consolas;align=left;verticalAlign=top;spacingLeft=16;spacingTop=12;fillColor=#FFFFFF;strokeColor=#6335C6;strokeWidth=2;dashed=1;" vertex="1" parent="1"><mxGeometry x="1140" y="300" width="520" height="220" as="geometry" /></mxCell>
+
+        <mxCell id="led" value="用户 LED1～LED8&#10;高电平点亮" style="rounded=0;whiteSpace=wrap;html=1;fontSize=15;fontFamily=Microsoft YaHei;fillColor=#D8EEDA;strokeColor=#2E7D32;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="1140" y="560" width="520" height="90" as="geometry" /></mxCell>
+        <mxCell id="ledpin" value="LED 引脚：B2  A2  B3  A3  C5  A5  F7  F8" style="rounded=0;whiteSpace=wrap;html=1;fontSize=14;fontFamily=Consolas;align=center;fillColor=#FFFFFF;strokeColor=#2E7D32;strokeWidth=1.5;dashed=1;" vertex="1" parent="1"><mxGeometry x="1140" y="660" width="520" height="70" as="geometry" /></mxCell>
+
+        <mxCell id="e_pwr" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2E6FB7;strokeWidth=2;exitX=1;exitY=0.5;entryX=0;entryY=0.12;" edge="1" parent="1" source="pwr" target="FDEV"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="l_pwr" value="12 V" style="edgeLabel;html=1;horizontal=1;fontSize=13;fontFamily=Microsoft YaHei;fontColor=#1F5E9E;align=center;" vertex="1" connectable="0" parent="e_pwr"><mxGeometry x="0.25" relative="1" as="geometry"><mxPoint x="0" y="-14" as="offset" /></mxGeometry></mxCell>
+
+        <mxCell id="e_clk" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2E6FB7;strokeWidth=2;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="clk" target="clkblk"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="520" y="295" /><mxPoint x="520" y="345" /></Array></mxGeometry></mxCell>
+        <mxCell id="l_clk" value="P20" style="edgeLabel;html=1;horizontal=1;fontSize=14;fontFamily=Consolas;fontColor=#C0392B;fontStyle=1;align=center;" vertex="1" connectable="0" parent="e_clk"><mxGeometry x="0.16" relative="1" as="geometry"><mxPoint x="0" y="-14" as="offset" /></mxGeometry></mxCell>
+
+        <mxCell id="e_cfg" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2E6FB7;strokeWidth=2;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="cfg" target="cfgblk"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="500" y="425" /><mxPoint x="500" y="225" /></Array></mxGeometry></mxCell>
+        <mxCell id="l_cfg" value="配置" style="edgeLabel;html=1;horizontal=1;fontSize=13;fontFamily=Microsoft YaHei;fontColor=#1F5E9E;align=center;" vertex="1" connectable="0" parent="e_cfg"><mxGeometry x="0.10" relative="1" as="geometry"><mxPoint x="0" y="-12" as="offset" /></mxGeometry></mxCell>
+
+        <mxCell id="e_uart" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#5F5F5F;strokeWidth=2;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="uart" target="coreblk"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="530" y="565" /><mxPoint x="530" y="510" /></Array></mxGeometry></mxCell>
+        <mxCell id="l_uart" value="RX R8 / TX R9" style="edgeLabel;html=1;horizontal=1;fontSize=14;fontFamily=Consolas;fontColor=#C0392B;fontStyle=1;align=center;" vertex="1" connectable="0" parent="e_uart"><mxGeometry x="0.22" relative="1" as="geometry"><mxPoint x="-6" y="-14" as="offset" /></mxGeometry></mxCell>
+
+        <mxCell id="e_key" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2E7D32;strokeWidth=2;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="key" target="ioblk"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="480" y="705" /><mxPoint x="480" y="815" /></Array></mxGeometry></mxCell>
+        <mxCell id="l_key" value="按键输入" style="edgeLabel;html=1;horizontal=1;fontSize=13;fontFamily=Microsoft YaHei;fontColor=#23692A;align=center;" vertex="1" connectable="0" parent="e_key"><mxGeometry x="0.12" relative="1" as="geometry"><mxPoint x="-4" y="12" as="offset" /></mxGeometry></mxCell>
+
+        <mxCell id="e_j8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#6335C6;strokeWidth=2.5;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="j8" target="capblk"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="460" y="845" /><mxPoint x="460" y="685" /></Array></mxGeometry></mxCell>
+        <mxCell id="l_j8" value="8 组采样 / 激励" style="edgeLabel;html=1;horizontal=1;fontSize=13;fontFamily=Microsoft YaHei;fontColor=#5B31A8;align=center;" vertex="1" connectable="0" parent="e_j8"><mxGeometry x="0.14" relative="1" as="geometry"><mxPoint x="0" y="12" as="offset" /></mxGeometry></mxCell>
+
+        <mxCell id="e_led" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2E7D32;strokeWidth=2;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="ioblk" target="led"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="1100" y="815" /><mxPoint x="1100" y="605" /></Array></mxGeometry></mxCell>
+        <mxCell id="l_led" value="LED 输出" style="edgeLabel;html=1;horizontal=1;fontSize=13;fontFamily=Microsoft YaHei;fontColor=#23692A;align=center;" vertex="1" connectable="0" parent="e_led"><mxGeometry x="0.14" relative="1" as="geometry"><mxPoint x="6" y="12" as="offset" /></mxGeometry></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
+

@@ -29,6 +29,35 @@ module mes50hp_logic_analyzer_top #(
  gpio_mmio gpio(.clk(clk_50m),.reset(reset),.gpio_req_valid(gpio_v),.gpio_req_ready(gpio_r),.gpio_req_addr(ta),.gpio_req_write(tw),.gpio_req_wdata(twd),.gpio_req_wstrb(tws),.gpio_rsp_valid(gpio_sv),.gpio_rsp_ready(gpio_sr),.gpio_rsp_rdata(gpio_rd),.gpio_rsp_error(gpio_se),.gpio_out(gpio_out));
  application_mmio_mux appmux(.clk(clk_50m),.reset(reset),.req_valid(app_v),.req_ready(app_r),.req_addr(ta),.req_write(tw),.req_wdata(twd),.req_wstrb(tws),.rsp_valid(app_sv),.rsp_ready(app_sr),.rsp_rdata(app_rd),.rsp_error(app_se),.perf_req_valid(p_req_v),.perf_req_ready(p_req_r),.perf_req_addr(p_addr),.perf_req_write(p_write),.perf_req_wdata(p_wdata),.perf_req_wstrb(p_wstrb),.perf_rsp_valid(p_rsp_v),.perf_rsp_ready(p_rsp_r),.perf_rsp_rdata(p_rdata),.perf_rsp_error(p_err),.la_req_valid(a_req_v),.la_req_ready(a_req_r),.la_req_addr(a_addr),.la_req_write(a_write),.la_req_wdata(a_wdata),.la_req_wstrb(a_wstrb),.la_rsp_valid(a_rsp_v),.la_rsp_ready(a_rsp_r),.la_rsp_rdata(a_rdata),.la_rsp_error(a_err));
  perf_mmio perf_mmio(.clk(clk_50m),.reset(reset),.req_valid(p_req_v),.req_ready(p_req_r),.req_addr(p_addr),.req_write(p_write),.req_wdata(p_wdata),.req_wstrb(p_wstrb),.rsp_valid(p_rsp_v),.rsp_ready(p_rsp_r),.rsp_rdata(p_rdata),.rsp_error(p_err),.clear(perf_clear),.cycle_count(perf_cycles),.instret_count(perf_instret),.stall_count(perf_stalls),.load_stall_count(perf_loads),.branch_count(perf_branches),.branch_taken_count(perf_taken_count),.flush_count(perf_flushes),.predict_count(perf_predicts),.btb_hit_count(perf_btb_hits),.mispredict_count(perf_mispredicts));
- logic_analyzer_mmio analyzer(.clk(clk_50m),.reset(reset),.req_valid(a_req_v),.req_ready(a_req_r),.req_addr(a_addr),.req_write(a_write),.req_wdata(a_wdata),.req_wstrb(a_wstrb),.rsp_valid(a_rsp_v),.rsp_ready(a_rsp_r),.rsp_rdata(a_rdata),.rsp_error(a_err),.channels(capture_ch),.sample_outputs(sample_outputs));
- assign led=gpio_out[7:0]; assign loopback_tx=sample_outputs;
+ // ---- 采集源"双源可选"：J8 外部 8 路 / Core 内部观测点 ----
+ // 这 8 根全部是 Core 已有的**对外观测输出**与统一事务端口，Core 一行不改
+ // （docs/interfaces.md §293~299：提交 trace 与通用性能事件都是 Core 的对外端口）。
+ // 选择由 MMIO 寄存器 18 控制（默认 0 = J8 外部物理输入，与加这个功能前逐位一致）：
+ //   ch0 i_req_valid   取指请求在场
+ //   ch1 i_req_ready   SoC 接受取指
+ //   ch2 i_rsp_valid   取指响应返回
+ //   ch3 d_req_valid   访存请求在场
+ //   ch4 d_req_ready   SoC 接受访存
+ //   ch5 event_stall   流水线暂停（mem_block / load_use / M 扩展除法迭代）
+ //   ch6 event_flush   控制流重定向（含 Trap）
+ //   ch7 trace_valid   退休一条指令：数它的脉冲数除以窗口长度就是窗口 IPC
+ // 典型用法：触发 ch6 上升沿，往回看"这次冲刷是怎么来的"；或者长窗口同时采
+ // ch0/ch7，直接量出取指是否满速、IPC 是多少，与 PDS ILA 的结论互相印证。
+ // 为什么这里要**打一拍**：Core 的这些事件都是组合信号，直接接到采集引擎会让
+ // "Core 事件逻辑 -> 采集使能"成为一条长组合路径。实测 85 MHz 下它就是最差路径
+ // （Endpoint `analyzer/cap/capture_count[3]/CE`，Slack −0.980 ns）。
+ // 在板级顶层加一级寄存器属于 Core 外部的观测层，不改变 Core 任何行为；
+ // 代价只是探针比真实事件晚 1 个采样点——对逻辑分析仪没有意义（窗口整体平移一格）。
+ // 注意：只给**探针**打拍，J8 外部那 8 路仍走原来的通路，所以既有四模式/镜像
+ // 判据与 100/100 证据不受任何影响。
+ reg [7:0] core_probe_q;
+ always @(posedge clk_50m) core_probe_q <= {perf_retire,perf_flush,perf_stall,dr,dv,rv,ir,iv};
+ wire [7:0] core_probe = core_probe_q;
+ logic_analyzer_mmio analyzer(.clk(clk_50m),.reset(reset),.req_valid(a_req_v),.req_ready(a_req_r),.req_addr(a_addr),.req_write(a_write),.req_wdata(a_wdata),.req_wstrb(a_wstrb),.rsp_valid(a_rsp_v),.rsp_ready(a_rsp_r),.rsp_rdata(a_rdata),.rsp_error(a_err),.channels(capture_ch),.probe_channels(core_probe),.sample_outputs(sample_outputs));
+ // ch7 镜像上位机串口线（CP2102 → uart0_rx）：J8-31↔32 的物理回环线保留，逻辑分析仪因此能
+ // 直接抓到"上位机真正发出去的波形"。选 ch7 是因为它是四模式里唯一空闲的通道——uart 只用 ch0、
+ // spi 只用 ch0~2、static 要求全等 0xA5（此时 PC 线空闲为 1，正好等于 0xA5 的 bit7）、
+ // counter 只要求采样值有变化——所以四模式原有判据全部不受影响。
+ // 面板就是仪器的"指示灯"，脱离电脑也得会说状态。gpio_out 仍可由 CPU 读写，只是不再上 LED。
+ assign led=gpio_out[7:0]; assign loopback_tx={uart0_rx,sample_outputs[6:0]};
 endmodule

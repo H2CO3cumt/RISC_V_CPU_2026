@@ -1,0 +1,18 @@
+{
+  "captures": 6,
+  "runs_per_trigger": 3,
+  "flush_trigger_samples": [
+    1987,
+    1987,
+    1987
+  ],
+  "stall_trigger_samples": [
+    1984,
+    1984,
+    1984
+  ],
+  "total_commit_pulses": 7116,
+  "min_commits_per_window": 1185,
+  "total_stall_pulses": 4707,
+  "total_flush_pulses": 24
+}

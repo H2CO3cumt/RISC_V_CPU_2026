@@ -5,7 +5,7 @@ module final_program_imem #(parameter DEPTH=1024)(input wire clk,input wire rese
  reg [31:0] mem[0:DEPTH-1];wire address_ok=(req_addr[1:0]==0)&&(req_addr[31:2]<DEPTH);assign req_ready=!rsp_valid||rsp_ready;
  initial begin
 `ifdef FINAL_SIM
-  $readmemh("rtl/program.mem",mem);
+  $readmemh("fpga/logic_analyzer_85m/rtl/program.mem",mem);
 `else
   $readmemh("rtl/program.mem",mem);
 `endif
@@ -16,7 +16,7 @@ module final_program_dmem #(parameter DEPTH=1024)(input wire clk,input wire rese
  reg [31:0] mem[0:DEPTH-1];wire address_ok=req_addr[31:2]<DEPTH;assign req_ready=!rsp_valid;
  initial begin
 `ifdef FINAL_SIM
-  $readmemh("rtl/program.mem",mem);
+  $readmemh("fpga/logic_analyzer_85m/rtl/program.mem",mem);
 `else
   $readmemh("rtl/program.mem",mem);
 `endif

@@ -1,0 +1,93 @@
+Designs:
+1. D:/RISC_V_CPU_2026/rtl/pipeline_cpu.v
+Size: 55956bytes
+Last modified time: 2026/09/28 22:05:03
+2. D:/RISC_V_CPU_2026/rtl/branch_predictor.v
+Size: 3741bytes
+Last modified time: 2026/09/28 20:29:42
+3. D:/RISC_V_CPU_2026/rtl/csr_unit.v
+Size: 10837bytes
+Last modified time: 2026/09/28 20:21:18
+4. D:/RISC_V_CPU_2026/rtl/forward_unit.v
+Size: 1348bytes
+Last modified time: 2026/09/22 19:01:26
+5. D:/RISC_V_CPU_2026/rtl/hazard_unit.v
+Size: 1533bytes
+Last modified time: 2026/09/22 16:52:00
+6. D:/RISC_V_CPU_2026/rtl/perf_monitor.v
+Size: 3706bytes
+Last modified time: 2026/09/28 20:29:42
+7. D:/RISC_V_CPU_2026/rtl/perf_mmio.v
+Size: 2698bytes
+Last modified time: 2026/09/16 15:20:47
+8. D:/RISC_V_CPU_2026/rtl/capture_engine.v
+Size: 3923bytes
+Last modified time: 2026/09/17 13:45:06
+9. D:/RISC_V_CPU_2026/rtl/logic_analyzer_pattern_gen.v
+Size: 1990bytes
+Last modified time: 2026/09/26 14:08:39
+10. D:/RISC_V_CPU_2026/rtl/logic_analyzer_mmio.v
+Size: 3905bytes
+Last modified time: 2026/09/26 13:30:39
+11. D:/RISC_V_CPU_2026/rtl/application_mmio_mux.v
+Size: 2386bytes
+Last modified time: 2026/09/25 12:26:53
+12. D:/RISC_V_CPU_2026/rtl/regfile.v
+Size: 437bytes
+Last modified time: 2026/09/03 18:20:26
+13. D:/RISC_V_CPU_2026/rtl/alu.v
+Size: 1059bytes
+Last modified time: 2026/09/16 15:14:28
+14. D:/RISC_V_CPU_2026/rtl/imm_gen.v
+Size: 1077bytes
+Last modified time: 2026/09/04 16:53:34
+15. D:/RISC_V_CPU_2026/rtl/decoder.v
+Size: 13416bytes
+Last modified time: 2026/09/28 21:31:35
+16. D:/RISC_V_CPU_2026/rtl/branch_unit.v
+Size: 666bytes
+Last modified time: 2026/09/07 14:03:26
+17. D:/RISC_V_CPU_2026/rtl/load_store_unit.v
+Size: 3953bytes
+Last modified time: 2026/09/23 12:33:59
+18. D:/RISC_V_CPU_2026/rtl/soc_data_interconnect.v
+Size: 8248bytes
+Last modified time: 2026/09/28 22:18:41
+19. D:/RISC_V_CPU_2026/rtl/uart_tx.v
+Size: 3854bytes
+Last modified time: 2026/09/14 16:24:25
+20. D:/RISC_V_CPU_2026/rtl/uart_rx.v
+Size: 3799bytes
+Last modified time: 2026/09/13 14:29:51
+21. D:/RISC_V_CPU_2026/rtl/uart_mmio.v
+Size: 7310bytes
+Last modified time: 2026/09/13 14:32:38
+22. D:/RISC_V_CPU_2026/rtl/gpio_mmio.v
+Size: 2796bytes
+Last modified time: 2026/09/13 13:34:49
+23. D:/RISC_V_CPU_2026/rtl/timer_mmio.v
+Size: 7403bytes
+Last modified time: 2026/09/28 22:18:26
+24. D:/RISC_V_CPU_2026/fpga/logic_analyzer_90m/rtl/pll_90m.v
+Size: 5614bytes
+Last modified time: 2026/09/30 19:21:53
+25. D:/RISC_V_CPU_2026/fpga/logic_analyzer_90m/rtl/logic_analyzer_program_memory.v
+Size: 2152bytes
+Last modified time: 2026/09/17 20:48:33
+26. D:/RISC_V_CPU_2026/fpga/logic_analyzer_90m/rtl/mes50hp_logic_analyzer_pll_top.v
+Size: 1689bytes
+Last modified time: 2026/09/30 19:21:53
+27. D:/RISC_V_CPU_2026/fpga/logic_analyzer_90m/rtl/mes50hp_logic_analyzer_top.v
+Size: 7273bytes
+Last modified time: 2026/09/28 22:20:19
+
+Constraints:
+1. D:/RISC_V_CPU_2026/fpga/logic_analyzer_90m/constraints/mes50hp_logic_analyzer_90m.fdc
+Size: 6357bytes
+Last modified time: 2026/09/17 10:15:57
+
+Physical Constraint Editor (Post-Map):
+1. D:/RISC_V_CPU_2026/fpga/logic_analyzer_90m/device_map/mes50hp_logic_analyzer_pll_top.pcf
+Size: 1751bytes
+Last modified time: 2026/09/30 19:22:29
+

@@ -1,0 +1,17 @@
+[
+  {
+    "run": 0,
+    "mode": "core",
+    "view": "core",
+    "value": 0,
+    "samples": 1987,
+    "trigger": 3,
+    "uart": "",
+    "uart_errors": 0,
+    "spi": "",
+    "core_commits": 1187,
+    "core_stalls": 785,
+    "core_flushes": 4,
+    "text": ""
+  }
+]

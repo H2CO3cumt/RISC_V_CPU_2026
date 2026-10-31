@@ -1,0 +1,50 @@
+﻿[
+    {
+        "run":  "run01",
+        "t_after_program_s":  0,
+        "exit_code":  0,
+        "records":  30,
+        "run_count":  4,
+        "median_ticks":  12517376,
+        "median_ms":  250.348,
+        "self_timed_ok":  true,
+        "anchored":  true,
+        "raw_bytes":  240
+    },
+    {
+        "run":  "run02",
+        "t_after_program_s":  12,
+        "exit_code":  0,
+        "records":  30,
+        "run_count":  4,
+        "median_ticks":  12517376,
+        "median_ms":  250.348,
+        "self_timed_ok":  true,
+        "anchored":  true,
+        "raw_bytes":  240
+    },
+    {
+        "run":  "run03",
+        "t_after_program_s":  24,
+        "exit_code":  0,
+        "records":  31,
+        "run_count":  4,
+        "median_ticks":  12517376,
+        "median_ms":  250.348,
+        "self_timed_ok":  true,
+        "anchored":  true,
+        "raw_bytes":  245
+    },
+    {
+        "run":  "run04",
+        "t_after_program_s":  36,
+        "exit_code":  0,
+        "records":  29,
+        "run_count":  3,
+        "median_ticks":  12517376,
+        "median_ms":  250.348,
+        "self_timed_ok":  true,
+        "anchored":  true,
+        "raw_bytes":  240
+    }
+]

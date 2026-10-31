@@ -1,0 +1,20 @@
+COREMARK_START
+2K performance run parameters for coremark.
+CoreMark Size    : 666
+Total ticks      : 2670014377
+Total time (secs): 31
+Iterations/Sec   : 80
+Iterations       : 2500
+Compiler version : GCC 15.2.0
+Compiler flags   : -O2 -march=rv32i -mabi=ilp32
+Memory location  : STATIC BRAM
+seedcrc          : 0xe9f5
+[0]crclist       : 0xe714
+[0]crcmatrix     : 0x1fd7
+[0]crcstate      : 0x8e3a
+[0]crcfinal      : 0x5275
+Correct operation validated. See README.md for run and reporting rules.
+CoreMark score x1000 : 79587
+CoreMark/MHz x1000  : 936
+PERF cycle=b2d0ffab instret=774b279e stall=1549443a load=0705257d branch=21742ef4 taken=16409457 flush=098f24f4
+COREMARK_DONE

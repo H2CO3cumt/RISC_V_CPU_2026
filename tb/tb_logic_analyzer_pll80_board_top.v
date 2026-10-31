@@ -1,5 +1,5 @@
 `timescale 1ns/1ps
-// 80 MHz 逻辑分析仪顶层（PLL 版）闭环测试。
+// 80 MHz 逻辑分析仪顶层（PLL 版）端到端测试。
 // 自测点：
 //  1) PLL 必须锁定，且 clk_80m 周期为 12.5 ns（80 MHz），防止 PLL 参数写错导致频点偏移；
 //  2) 板级固件在 80 MHz 域仍输出 LA_READY 前缀，UART 分频 694 无帧错误；
@@ -78,6 +78,9 @@ module tb_logic_analyzer_pll80_board_top;
    freq_mhz=1000000.0/clk80_period_ps;
    $display("PLL80 FREQ PASS period_ps=%0d freq=%0.4f MHz",clk80_period_ps,freq_mhz);
   end
+  // 注意：本 TB 测的是 **80m 归档工程**（位流与源码已归档，不含 ch7 镜像抓取），
+  // 所以仍按"8 路全部由 pattern_gen 驱动"断言。镜像抓取的断言在
+  // tb_logic_analyzer_board_top.v（50m 交互工程）与 tb_logic_analyzer_mirror.v。
   if(led!==8'h5a||loopback_tx!==8'h01) begin
    $display("PLL80 OUTPUT FAIL led=%h loopback=%h",led,loopback_tx); failures=failures+1;
   end

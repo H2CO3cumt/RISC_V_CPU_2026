@@ -1,0 +1,44 @@
+[
+  {
+    "run": 0,
+    "mode": "static",
+    "value": 165,
+    "samples": 5,
+    "trigger": 0,
+    "uart": "",
+    "uart_errors": 0,
+    "spi": "",
+    "core_commits": 0,
+    "core_stalls": 0,
+    "core_flushes": 0,
+    "text": ""
+  },
+  {
+    "run": 1,
+    "mode": "static",
+    "value": 165,
+    "samples": 5,
+    "trigger": 0,
+    "uart": "",
+    "uart_errors": 0,
+    "spi": "",
+    "core_commits": 0,
+    "core_stalls": 0,
+    "core_flushes": 0,
+    "text": ""
+  },
+  {
+    "run": 2,
+    "mode": "static",
+    "value": 165,
+    "samples": 5,
+    "trigger": 0,
+    "uart": "",
+    "uart_errors": 0,
+    "spi": "",
+    "core_commits": 0,
+    "core_stalls": 0,
+    "core_flushes": 0,
+    "text": ""
+  }
+]

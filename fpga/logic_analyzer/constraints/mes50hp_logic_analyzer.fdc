@@ -109,3 +109,5 @@ define_attribute {p:loopback_tx[4]} {PAP_IO_STANDARD} {LVCMOS33}
 define_attribute {p:loopback_tx[5]} {PAP_IO_STANDARD} {LVCMOS33}
 define_attribute {p:loopback_tx[6]} {PAP_IO_STANDARD} {LVCMOS33}
 define_attribute {p:loopback_tx[7]} {PAP_IO_STANDARD} {LVCMOS33}
+
+

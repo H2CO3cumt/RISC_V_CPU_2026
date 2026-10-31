@@ -249,3 +249,77 @@ D:\Python313\python.exe python\coremark_serial.py COM11 --clock-hz 50000000 `
 D:\Python313\python.exe python\coremark_cpi_analysis.py `
   --board release/evidence/coremark_board_cpi50m.json
 ```
+
+---
+
+## 8. T4 归因（2026-10-18）：把 `event_stall` 拆成 mem_block 与 mdu_block
+
+### 8.1 为什么必须拆
+
+历轮优化都集中在**控制流前端**（取指交接、分支预测、RAS），但板级计数器显示
+前端相关只剩 8.29%。rv32im @85 MHz 4000 迭代（`coremark_board_cmim85_20261014.json`）：
+
+| 项 | 周期 | 占 cycles | 每 1000 条指令 |
+|---|---:|---:|---:|
+| 理想 | 1,352,157,282 | 64.63% | 1000.0 |
+| **stall 合计** | 566,381,894 | **27.07%** | 418.9 |
+| 　load-use | 149,296,483 | 7.14% | 110.4 |
+| **　mem_block / mdu_block** | **417,085,411** | **19.94%** | **308.5** |
+| flush | 43,406,274 | 2.07% | 32.1 |
+| 其余（前端/重填） | 130,218,825 | 6.22% | 96.3 |
+
+`event_stall = front_hold = mem_block || mdu_block || load_use`，
+`event_load_stall = load_use && !mem_block`，两者相减得到 `mem_block || mdu_block`，
+但**这一项内部没有拆分**，而它是仅次于"理想执行"的最大单项。
+
+### 8.2 拆分方法（零 RTL 改动、零端口改动）
+
+`docs/interfaces.md` §6.1 冻结了 `pipeline_cpu` 的观测端口，因此**不新增端口**，
+改为在 `tb/tb_coremark_pipeline.v` 里用**层次引用**采样 Core 内部信号：
+
+```verilog
+if (core.mem_block)                                           c_memblk <= c_memblk + 1;
+if (core.mdu_block)                                           c_mdublk <= c_mdublk + 1;
+if (core.d_req_valid && core.d_req_ready)                      c_dxact  <= c_dxact  + 1;
+if (core.d_req_valid && core.d_req_ready && core.d_req_write)  c_store  <= c_store  + 1;
+if (core.load_use)                                            c_loaduse<= c_loaduse+ 1;
+if (core.front_hold)                                          c_stall  <= c_stall  + 1;
+```
+
+**关键口径**：`mem_block` 的每笔拍数与存储器模型有关——
+板上 `coremark_dmem.req_ready = !rsp_valid`（每笔 **1 拍**），
+而仿真 `tb/ram_adapter.v` 默认 `RANDOM_DELAY=1`（实测每笔约 **1.89 拍**）。
+所以**向板级折算必须用 `data_xact` × 1 拍**，不能直接乘 `c_memblk`。
+
+### 8.3 实测（rv32im，1 次迭代，`-O2`）
+
+```text
+ATTR cycles=604288 retired=340119 mem_block=157954 mdu_block=24307
+     data_xact=83552 store=17351 load_use=32854 stall=212251
+```
+
+`mdu_block` 与存储器模型无关（纯 Core 内部），可直接按比例折算。
+按板级测得的 `mem||mdu = 417.09M` 与仿真内部分摊比例（mdu 占 22.5%）拆分：
+
+| 来源 | 板级周期（估） | 占全部 cycles | 可行动性 |
+|---|---:|---:|---|
+| **load 阻塞** | ≈256M（占 mem 的 79.2%） | **≈12.2%** | 需非阻塞 load（scoreboard / 延迟写回），**风险最高** |
+| load-use 气泡 | 149.3M（实测） | **7.14%** | MEM→EX 前递，但会加长 ALU 关键路径，**与 Fmax 冲突** |
+| **MDU 冻结** | ≈94M | **≈4.5%** | 乘法流水化 / 除法基数-4，改动封闭、不碰前端 |
+| **store 阻塞** | ≈67M（占 mem 的 20.8%） | **≈3.2%** | store 提前退休（请求被接受即退休），中风险 |
+| flush | 43.4M | 2.07% | 已在 A1 优化过 |
+| 其余（前端） | 130.2M | 6.22% | FIFO 实测 0、RAS 实测 0.25%，已证明不值得再投入 |
+
+### 8.4 结论与优先级修正
+
+1. **数据口（load+store）是最大单项 ≈15.4%**，其中 load 占 79%。
+   代价最低的是 **store 提前退休 ≈3.2%**；load 那 12.2% 必须靠非阻塞 load，
+   属"重新设计访存/提交时序"，建议最后做。
+2. **MDU 只有 ≈4.5%**，比按静态指令数估计的低得多；改动封闭，作中风险项。
+3. **load-use 7.14%** 需 MEM→EX 前递，会加长 ALU 关键路径，与 85→90 MHz
+   直接冲突，**不建议在 Fmax 之前做**。
+4. 前端已无余量（FIFO 0%、RAS 0.25% 且 LUT +2.62% 使 CoreMark/LUT −2.30%）。
+
+**由此修正 §5 的旧建议**，新优先级：
+`Fmax 85→90` > `MDU 去阻塞` > `store 提前退休` > `非阻塞 load`；
+`load-use 前递` 推迟到 Fmax 稳定之后再评估。

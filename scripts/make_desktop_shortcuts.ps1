@@ -61,7 +61,10 @@ New-Lnk '03_位流_CoreMark_85MHzPLL.sbit.lnk' 'fpga\coremark_85m\generate_bitst
 New-Lnk '04_位流_CoreMark_50MHz.sbit.lnk' 'fpga\coremark\generate_bitstream\mes50hp_coremark_top.sbit' 'CoreMark 计分位流（50 MHz）'
 New-Lnk '05_位流_ILA诊断_DebugCore.sbit.lnk' 'fpga\coremark_ila\generate_bitstream\mes50hp_coremark_top.sbit' '含 DebugCore，抓 CPU 内部流水线波形用'
 Write-Host '=== 上位机（现场演示入口）==='
-New-Lnk '06_上位机_启动逻辑分析仪.lnk' 'release\final_submission\启动逻辑分析仪.cmd' '上位机 GUI 启动入口（交付包内，自带工具副本）'
+New-Lnk '06_上位机_启动逻辑分析仪.lnk' 'release\final_submission\启动逻辑分析仪.cmd' '上位机 GUI 启动入口（交付包内，自带工具副本；停在第①页八通道波形，需接板子）'
+# 2026-10-28 新增：没有开发板也能看第②页（寄存器热力图）。页面顶部会显示「离线回放」徽标，
+# 与"板子刚采的一枪"明确区分；两者是两条独立入口，不要混用。
+New-Lnk '06b_上位机_离线演示_无板可看.lnk' 'release\final_submission\离线演示.cmd' '第②页寄存器热力图离线回放（不需要开发板，顶部有「离线回放」徽标，判据仅供参考）'
 New-Lnk '07_上位机_四模式采集.lnk' 'release\final_submission\采集四模式.cmd' '零依赖采集：Windows 自带 PowerShell + .NET 串口'
 New-Lnk '08_波形总览页_双击看波形.lnk' 'release\final_submission\波形预览.html' '四模式波形 + UART/SPI 解码标注，浏览器直接打开'
 New-Lnk '09_上位机_GUI源码.lnk' 'python\mes50hp_validation_ui.py' '上位机 GUI 源码（仓库版，Tkinter + 实时波形面板）'
@@ -78,7 +81,7 @@ New-Lnk '17_最终交付包_文件夹.lnk' 'release\final_submission' '与审计
 New-Lnk '18_最终交付包_zip.lnk' 'release\MES50HP_RISCV_Logic_Analyzer_Final.zip' '可分发的 zip'
 New-Lnk '19_技术报告PDF.lnk' 'release\materials\technical_report.pdf' '技术报告（以 claims_map.md 的数字为准）'
 New-Lnk '20_答辩PPT.lnk' 'release\materials\defense_presentation.pptx' '答辩演示稿'
-New-Lnk '21_现场演示Runbook.lnk' 'docs\demo_runbook.md' '分镜 + 一键命令 + 预期输出'
+New-Lnk '21_现场演示Runbook.lnk' 'docs\demo_runbook.md' '分镜 + 命令 + 预期输出'
 New-Lnk '22_性能与CPI分析.lnk' 'docs\coremark_cpi_analysis.md' 'CPI 归因与 Score 提升记录'
 New-Lnk '23_项目仓库.lnk' '.' '完整源码仓库（权威开发状态）'
 

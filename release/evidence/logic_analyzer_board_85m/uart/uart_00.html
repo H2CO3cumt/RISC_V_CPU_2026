@@ -231,10 +231,14 @@ function decodeUart(samples, spec) {
   var globalIndex = 0, pickedGlobal = -1;
   for (var r = 0; r < ranges.length; r++) {
     var s0 = ranges[r][0], s1 = ranges[r][1];
-    var bytesInSeg = [], i = s0 + 1, guard = 0;
+    var bytesInSeg = [], i = s0, guard = 0;
     while (i + bit * 9 + half <= s1) {                    // 整帧必须落在本段内
       if (guard++ > 20000) break;                         // 防御：异常输入不许让页面卡死
-      if (level[i - 1] === 1 && level[i] === 0) {
+      // 段首那一拍的"上一拍"按 UART 空闲电平=高处理。镜像抓取用 pre=0：窗口第 0 个采样点
+      // **就是**起始位的第一个低电平，从 s0+1 起扫会跳过真正的帧头、锁到数据位内部的
+      // 假下降沿上（2026-10-10 实板实测：板上固件解出 HELLO,RISC-V，页面上却是乱码）。
+      var previous = (i > s0) ? level[i - 1] : 1;
+      if (previous === 1 && level[i] === 0) {
         var value = 0;
         for (var b = 0; b < 8; b++) value |= level[i + bit * (b + 1) + half] << b;
         var stop = level[i + bit * 9 + half];
@@ -247,7 +251,10 @@ function decodeUart(samples, spec) {
             frames.push({ start: i, end: i + bit * 10, bits: bit, value: value,
                           index: out.length - 1, segment: r });
           }
-          i += bit * 10;
+          // 不固定跳 10 个比特：实板边沿有 ±1 点抖动、帧长在 79~81 点浮动，固定跳 bit*10
+          // 会让误差逐帧累积（实测 12 个字符错 5 个）。从停止位取样点之后继续逐点扫，
+          // 等于每帧用自己的起始位重新对齐 —— 与 logic_analyzer.py、采集脚本同一套判据。
+          i = i + bit * 9 + half + 1;
         } else i += 1;                                     // 不是帧起始，继续往后找
       } else i += 1;
     }
@@ -434,7 +441,10 @@ function decodeWith(spec, samples, segments) {
       var x = X(Math.max(f.start, view.start));
       var isPicked = picked && f.index === picked.index;
       ctx.fillStyle = isPicked ? '#ffd479' : '#7ef0a1';
-      var txt = '0x' + ('0' + f.value.toString(16).toUpperCase()).slice(-2);
+      // 可打印 ASCII 就把字符一起标出来：这是"上位机发出去的那句话"和"板上抓到的波形"
+      // 之间最直接的对账方式（0x48 -> 'H'）。不可打印时只标十六进制，不硬凑一个字符。
+      var ch = (f.value >= 0x20 && f.value < 0x7F) ? ("'" + String.fromCharCode(f.value) + "' ") : '';
+      var txt = ch + '0x' + ('0' + f.value.toString(16).toUpperCase()).slice(-2);
       ctx.fillText(txt, Math.min(x + 3, 240), rowTop + rowH * 0.20);
       if (isPicked) {
         ctx.strokeStyle = '#ffd479'; ctx.lineWidth = 1;
@@ -463,9 +473,10 @@ function decodeWith(spec, samples, segments) {
       ctx.moveTo(xb, y0); ctx.lineTo(xb, y1);
       ctx.stroke();
       if (picked) {
+        var pickedCh = (f.value >= 0x20 && f.value < 0x7F) ? ("'" + String.fromCharCode(f.value) + "' ") : '';
         ctx.fillStyle = '#ffd479';
-        ctx.fillText('BYTE' + f.index + '=0x' + ('0' + f.value.toString(16).toUpperCase()).slice(-2),
-                     Math.min(xa, W - 110), padT - 6);
+        ctx.fillText('BYTE' + f.index + '=' + pickedCh + '0x' + ('0' + f.value.toString(16).toUpperCase()).slice(-2),
+                     Math.min(xa, W - 130), padT - 6);
       }
     });
     ctx.restore();
@@ -592,6 +603,14 @@ function decodeWith(spec, samples, segments) {
     if (dec.bytes.length) {
       var hex = dec.bytes.map(function (v) { return ('0' + v.toString(16)).slice(-2); }).join('');
       txt += ' (' + hex + ')';
+      // 整句报文：全部字节都是可打印 ASCII 时才还原成一句话（镜像演示正是这种场景，
+      // 页面上直接出现 "HELLO,RISC-V"，不用人去对着十六进制念）。
+      // 限制长度避免超长采集把 apply 的实参压爆。
+      var printable = dec.bytes.length > 0 && dec.bytes.length <= 256 &&
+        dec.bytes.every(function (v) { return v >= 0x20 && v < 0x7F; });
+      if (printable) {
+        txt += ' · 报文 "' + String.fromCharCode.apply(null, dec.bytes) + '"';
+      }
       if (dec.pickedIndex >= 0) {
         txt += ' · 框出第 ' + (dec.pickedIndex + 1) + ' 个 = 0x' +
                ('0' + dec.bytes[dec.pickedIndex].toString(16).toUpperCase()).slice(-2);
@@ -752,7 +771,7 @@ function decodeWith(spec, samples, segments) {
   });
 
   // 采集脚本会把这一行替换成真实数据；保持单行，便于精确替换。
-  window.WAVEFORMS = [{"name":"uart 模式（板级实测）","channels":8,"samples":[255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,254,254,254,254,254,254,254,254,254,254,254,254,254,254,254,254,254,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,254,254,254,254,254,254,254,254,254,254,254,254,254,254,254,254,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,254,254,254,254,254,254,254,254,254,254,254,254,254,254,254,254,254,254,254,254,254,254,254,254,254,254,254,254,254,254,254,254,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,254,254,254,254,254,254,254,254,254,254,254,254,254,254,254,254,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,254,254,254,254,254,254,254,254,254,254,254,254,254,254,254,254,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,254,254,254,254,254,254,254,254,254,254,254,254,254,254,254,254],"trigger":48,"note":"mode=uart samples=240 trigger=48 框出=0xa5 板级实测（uart_00.log）","sample_ns":317.647059,"sample_hz":3148148.148,"decode":{"protocol":"uart","channel":0,"bit_samples":16,"which":1},"tag_names":{"0":"UART_TX"}}];
+  window.WAVEFORMS = [{"name":"uart 模式（板级实测）","channels":8,"samples":[255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,254,254,254,254,254,254,254,254,254,254,254,254,254,254,254,254,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,254,254,254,254,254,254,254,254,254,254,254,254,254,254,254,254,254,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,254,254,254,254,254,254,254,254,254,254,254,254,254,254,254,254,254,254,254,254,254,254,254,254,254,254,254,254,254,254,254,254,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,254,254,254,254,254,254,254,254,254,254,254,254,254,254,254,254,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,254,254,254,254,254,254,254,254,254,254,254,254,254,254,254],"trigger":15,"note":"mode=uart samples=207 trigger=15 框出=0xa5 板级实测（uart_00.log）","sample_ns":317.647059,"sample_hz":3148148.148,"decode":{"protocol":"uart","channel":0,"bit_samples":16,"which":1},"tag_names":{"0":"UART_TX"}}];
 
   if (window.WAVEFORMS) loadSets(Array.isArray(window.WAVEFORMS) ? window.WAVEFORMS : [window.WAVEFORMS]);
   else hintEl.style.display = 'flex';

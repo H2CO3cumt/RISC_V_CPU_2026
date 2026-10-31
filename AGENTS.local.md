@@ -16,7 +16,9 @@
 
 ## 2. 接班后的工作边界
 
-- 严格遵循 `docs/roadmap.md` 的当前 Gate，不提前实现后续 Gate，不恢复本届已冻结的 RLE、BTB、Cache、异常/中断等功能。
+- 严格遵循 `docs/roadmap.md` 的当前 Gate，不提前实现后续 Gate，不恢复本届已冻结的 RLE、BTB 等功能。
+  注：**Cache/burst/外部 DDR3 已于 2026-09-29 经用户批准解冻**并纳入本届路线（`AGENTS.md` §1.14、
+  `docs/handoff_next.md` §3.3），按 S1→S2→S3→S4 闸门推进；此处"已冻结"不再包含 Cache。
 - 保留用户和前一个 Agent 的已有改动；修改保持最小、可审查，不因风格偏好重写或大规模重构。
 - Core/SoC 边界以 `docs/interfaces.md` 为准，不得把外设专用逻辑引入 CPU Core。
 - Debug 必须从第一个错误周期和第一个错误信号开始，沿 `IF -> ID -> EX -> MEM -> WB` 定位，不得先猜根因。

@@ -1,5 +1,5 @@
 `timescale 1ns/1ps
-// 提交级 trace 端到端闭环测试：**真实 SoC 顶层 + 真实固件 + 真实 trace 外设**。
+// 提交级 trace 端到端测试：**真实 SoC 顶层 + 真实固件 + 真实 trace 外设**。
 //
 // 为什么必须有这一层：模块级 TB（tb_trace_buffer / tb_core_trace_mmio）只证明了
 // "寄存器读写对、记录位段对"。真正会翻车的是**整条链**：

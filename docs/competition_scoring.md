@@ -40,6 +40,35 @@
 - 应用场景：基于实际用途构建完整系统。
 - 技术实现与文档：模块化、合理时序约束、代码注释、性能分析报告，以及用 ILA 分析 CoreMark 关键算法时的流水线效率。
 
+### 官方三个指标的**实测值**（2026-10-14 更新：新增 RV32IM 增强配置）
+
+| 指南指标 | 实测值 | 证据 |
+|---|---|---|
+| (1) 执行效率 **CoreMark/MHz** | **rv32im 2.272**（`cmim85` @85 MHz：**Score 193.192**、4000 迭代、20.704 s、官方 CRC 全过；`cmim` @50 MHz：Score 113.642、2000 迭代、17.599 s）<br>rv32i **0.936**（`cm85` @85 MHz Score 79.587；`cm50` @50 MHz Score 46.816）——**两套 ISA 并列，默认与可比口径仍是 rv32i** | `release/evidence/coremark_board_cmim85_20261014.json`、`coremark_board_im.json`、`coremark_board_cm85_20260930.json`、`release/evidence/board/run01/` |
+| (2) 时钟频率（最高工作频率） | **板级实测 85.000 MHz**（PLL 变体，CoreMark Score 79.587 + 逻辑分析仪 80/80）；PDS 估算 Fmax 89.2538 MHz | `release/evidence/board_85m/` |
+| (3) 资源效率 **CoreMark/LUT** | **同源同频（85 MHz，同一份 RTL）**：rv32im **0.0460**（193.192 ÷ **4198 LUT**） vs rv32i **0.0190**（79.587 ÷ 4198 LUT）⇒ **2.43×**，且两颗位流的 LUT/FF/WNS 完全一致（面积不随程序变，涨的全是分数）<br>其他口径：rv32im 50 MHz 0.0291（113.642 ÷ 3903）；rv32i 50 MHz 0.0137（46.816 ÷ 3416）——**不同频/不同 ISA 的分母不许混用** | `fpga/coremark_im_85m/flow.log`、`fpga/coremark_85m_r/flow.log`、`fpga/coremark_im/flow.log`、`fpga/coremark/flow.log` |
+
+- **运行时间**：rv32i 50 MHz 21.360 s；**rv32im 50 MHz 17.599 s / 85 MHz 20.704 s**；80/85 MHz 位流 33.375 / 31.412 s —— **均 ≥10 秒** ✓
+- **RV32IM 是并列的增强配置**（2026-10-14 用户批准，`AGENTS.md` §1.7）：`-march=rv32im`，
+  CoreMark 输出自带 `Compiler flags` 一行可自证；**引用分数必须写明哪一套 ISA**，
+  且**不得**把 2.272 说成"rv32i 的成绩"。
+- **RV32IM 现在有两个频点**：50 MHz（Score 113.642）与 **85 MHz（Score 193.192，与交付同频）**。
+  两个点的 `ticks/迭代` 都是 **439,975 拍**（逐位一致），CoreMark/MHz 都是 **2.272** ——
+  这既证明 Score 随频率线性，也证明 85 MHz 的 M 扩展位流与 50 MHz 点跑的是同一份工作负载
+  （`docs/progress.md` §1「RV32IM 85 MHz 计分点」）。
+- **应用场景**：八通道多协议逻辑分析仪 P0 闭环 + **采集源双源可选**
+  （J8 外部 / Core 内部观测点，`docs/application_logic_analyzer.md` §6.10）；
+  板级五模式 **100/100 PASS** + Core 探针 6 次采集 PASS。
+- **补充分析证据**：`release/evidence/core_probe_board/`（**作品自带的逻辑分析仪**采自研 CPU：
+  窗口 IPC ≈0.597、停顿占 39.5%）。
+- **应用场景**：八通道多协议逻辑分析仪 P0 闭环（指南原文把"逻辑分析仪"列为适用场景），
+  板级 J8 四模式 **80/80 PASS**
+- **分析报告**：`release/evidence/ila_coremark/`（512 拍窗口，IPC 0.635 / CPI 1.575，
+  84.3% 提交落在 `__mulsi3`）
+- ⚠️ 引用纪律：CoreMark 分数来自 **CoreMark 专用位流**，不是交付的逻辑分析仪位流；
+  板级 **CPI 有窗口敏感性**（1.494–1.508），只能写 **≈1.50**。
+  完整清单见 `release/evidence/claims_map.md` §3.3 与 §12。
+
 ## 3. 本项目的得分主线
 
 | 赛题维度 | 本项目交付证据 | 优先级 | 完成条件 |
@@ -75,14 +104,27 @@
 
 ### 本届不做
 
-- I/D Cache、2 路组相联和 burst。
-- 完整异常/中断。
-- AI/YOLO、自定义指令、外部 DDR、HDMI、PCIe、千兆网。
-- 16 通道、I²C 解析、协议感知或多级复杂触发、复杂 GUI。
+> ⚠️ **2026-09-30 更新：本节原先的前两条已经作废**，不要照旧引用。
+> 经用户 2026-09-29 批准，**I/D Cache、2 路组相联、burst 与外部 DDR3 已纳入本届**
+> （`AGENTS.md` §1.14），并且 **S1～S4 已全部执行完毕**；
+> **机器模式 CSR/Trap 与定时器中断也已实现并进入交付配置**（`docs/trap_contract.md` M-01…M-24 全 PASS）。
+> 详见 `docs/progress.md` 与 `docs/handoff_next.md` §3.3。
+
+- ~~I/D Cache、2 路组相联和 burst~~ → **已做**：S2 行式突发 PASS（总线周期 48→30，−37.5%）；
+  S3 I-Cache 与 S4 D-Cache 功能正确但**净收益为负，按止损默认关闭**（片上 BRAM 延迟已优于 Cache 命中）。
+  S1 DDR3 板级打通但**未接入 CPU 存储路径**。
+- ~~完整异常/中断~~ → **已做**：机器模式 CSR/Trap/MRET + 三根通用中断输入，
+  契约 M-01…M-24 全 PASS、99/99 断言，板级定时器中断演示 + ILA 抓到 Trap 进入/返回。
+- **确实仍未做**：AI/YOLO、自定义指令、HDMI、PCIe、千兆网；外部 DDR 仅到板级连通（未接入）。
+- **确实仍未做**：16 通道、I²C 解析、协议感知或多级复杂触发、复杂 GUI。
+- RLE 仍冻结为赛后研究。
 
 ## 5. 本届增强冻结规则
 
-本届目标已经切换为单人 60 天国赛冲刺。RLE 继续冻结；BTB 按最终完善路线纳入，但不得扩展到 Cache 或完整异常/中断。其余时间投入：
+本届目标已经切换为单人 60 天国赛冲刺。RLE 继续冻结；BTB 按最终完善路线纳入。
+**2026-09-29 范围变更**：Cache/burst/外部 DDR3 经用户批准纳入本届，作为官方高阶项①
+（`AGENTS.md` §1.14、`docs/handoff_next.md` §3.3），因此本句原先"不得扩展到 Cache"已作废；
+"完整异常/中断"仍按下文既有边界。其余时间投入：
 
 1. RV32I、Pipeline、Hazard、GCC、UART/GPIO、FPGA、CoreMark 和逻辑分析仪 P0 的完整 Regression。
 2. Timing、资源和 CoreMark 三项指标的重复构建与复现。
@@ -104,3 +146,24 @@
 | D60 | Release、报告、视频、答辩演练 | 冻结 `competition_final`；冻结后修改必须重跑完整最终 Regression |
 
 这些是项目管理止损线，不是官方赛程或官方分值。
+
+> **D52 的三条例外（用户明确批准，与 Cache 那次同性质的显式范围变更）**：
+> ① **镜像抓取**：上位机串口线镜像到 ch7，采集深度 256→2048（`docs/application_logic_analyzer.md` §6.7）；
+> ② **仪器化：读数**：每通道/协议读数与测量报告（同文 §6.8）。
+>    （其中八键八灯面板于同日经用户决定**整套移除**，LED 回 `gpio_out`；详见 §6.8.2。）
+> ③ **仪器面板：交互旋钮**（2026-10-10 批准，同文 §6.9）：把固件一直都在收、
+>    却写死在模式默认里的时基、触发方式/通道/电平、`pre`/`post`、激励速率与数据接到 pyUI 上，
+>    并加连续采集停止条件。**只动主机端**：`rtl/*.v`、固件与位流一字未改，位流哈希不变。
+>    它补的是 G11 既有验收项"现场改变数据、速率、触发边沿或触发值，无需重新综合"——
+>    原来这条只能靠命令行参数证明。
+> 三条都必须同时满足：Core 端口与事务语义不变、原 P0 验收（现为 5 模式 ×20 = 100/100）复测通过、
+> 位流哈希与 `claims_map` 同步、新增测试进入 `run_final_regression.ps1`。
+> 其中第 ③ 条的新增测试**已自动进入最终回归**：新用例在
+> `python/test_logic_analyzer_serial.py` 与 `python/test_logic_analyzer_ui.py`（新增），
+> 都落在 `run_logic_analyzer_python.ps1` 的发现范围 `test_logic_analyzer*.py` 内，
+> 而该入口由 `run_final_regression.ps1` 第 70 行调用（本轮实测 24 项 OK）；
+> 板级 100/100 复测**已于 2026-10-12 完成**（la85 交付位流，五模式 ×20 =
+> `LOGIC ANALYZER PHYSICAL BOARD ACCEPTANCE PASS captures=100`，退出码 0），
+> 证据刷新到 `release/evidence/logic_analyzer_board_85m/`，交付包已按
+> export → manifest → audit 重新导出并通过审计。
+> **除这三条外 D52 依然有效**：不得新增通道数、协议种类、协议感知触发或复杂 GUI。

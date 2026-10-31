@@ -23,7 +23,7 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 iverilog -g2012 -s tb_rv32ui_add -o tmp/tb_rv32ui_add `
-    rtl/single_cycle_cpu.v rtl/regfile.v rtl/alu.v rtl/imm_gen.v rtl/decoder.v `
+    rtl/single_cycle_cpu.v rtl/regfile.v rtl/mdu.v rtl/alu.v rtl/imm_gen.v rtl/decoder.v `
     rtl/branch_unit.v rtl/load_store_unit.v rtl/dmem.v rtl/imem.v tb/ram_adapter.v tb/imem_adapter.v tb/core_harness.v `
     tb/tb_rv32ui_add.v
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

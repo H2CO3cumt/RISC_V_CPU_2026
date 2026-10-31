@@ -7,7 +7,7 @@ New-Item -ItemType Directory -Force tmp/branch_predictor | Out-Null
 if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
 & "${prefix}objcopy" -O verilog --verilog-data-width=4 tmp/branch_predictor/loop.elf tmp/branch_predictor/loop.mem
 if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
-$src=@('rtl/pipeline_cpu.v','rtl/branch_predictor.v','rtl/forward_unit.v','rtl/hazard_unit.v','rtl/regfile.v','rtl/alu.v','rtl/imm_gen.v','rtl/decoder.v','rtl/branch_unit.v','rtl/load_store_unit.v','tb/imem_adapter.v','tb/ram_adapter.v','tb/tb_pipeline_branch_predictor.v')
+$src=@('rtl/pipeline_cpu.v','rtl/fetch_fifo.v','rtl/ras.v','rtl/branch_predictor.v','rtl/csr_unit.v','rtl/forward_unit.v','rtl/hazard_unit.v','rtl/regfile.v','rtl/mdu.v','rtl/alu.v','rtl/imm_gen.v','rtl/decoder.v','rtl/branch_unit.v','rtl/load_store_unit.v','tb/imem_adapter.v','tb/ram_adapter.v','tb/tb_pipeline_branch_predictor.v')
 & iverilog -g2012 -s tb_pipeline_branch_predictor -o tmp/branch_predictor/tb @src
 if($LASTEXITCODE-ne0){exit $LASTEXITCODE}
 & vvp tmp/branch_predictor/tb

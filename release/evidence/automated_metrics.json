@@ -1,34 +1,34 @@
 {
   "board_evidence": "not claimed by this extractor",
   "final": {
-    "estimated_fmax_mhz": 58.1801,
-    "estimated_period_ns": 17.188,
-    "setup_wns_ns": 2.812,
-    "hold_whs_ns": 0.314,
-    "lut": 3550,
-    "ff": 3136,
-    "drm": 5.5,
-    "ff_implemented": 3127,
-    "bitstream": "fpga/logic_analyzer/generate_bitstream/mes50hp_logic_analyzer_top.sbit",
-    "bitstream_sha256": "17FD57D8F12FF4DCC8FC3A66D644561973E9D75AB9286F09D2F506F94BCDB092"
+    "estimated_fmax_mhz": 89.3841,
+    "estimated_period_ns": 11.1877,
+    "setup_wns_ns": 0.577,
+    "hold_whs_ns": 0.308,
+    "lut": 4995,
+    "ff": 3908,
+    "drm": 6.0,
+    "ff_implemented": 3907,
+    "bitstream": "fpga/logic_analyzer_85m/generate_bitstream/mes50hp_logic_analyzer_pll_top.sbit",
+    "bitstream_sha256": "C017ED10195502739BEBF914DD3BC6F3CAA84C0EAEB6E9E97559248B003FAA4F"
   },
   "coremark_predictor_on": {
     "source": "tmp/coremark/uart-random-0-predictor-1.log",
     "validation": "official CRC validated in RTL simulation",
-    "ticks_per_iteration": 1179190,
-    "cycles": 1295932,
-    "instret": 783550,
-    "stall": 186129,
-    "load_stall": 28489,
-    "branch": 214993,
-    "branch_taken": 134585,
-    "flush": 81562,
-    "cpi": 1.6539238083083403,
-    "coremark_per_mhz": 0.8480397561037661,
+    "ticks_per_iteration": 1137390,
+    "cycles": 1251724,
+    "instret": 786925,
+    "stall": 188313,
+    "load_stall": 29581,
+    "branch": 216077,
+    "branch_taken": 135673,
+    "flush": 69120,
+    "cpi": 1.5906522222575215,
+    "coremark_per_mhz": 0.8792059012300091,
     "enabled": 1,
-    "predict": 214993,
-    "btb_hit": 204729,
-    "mispredict": 51947
+    "predict": 245803,
+    "btb_hit": 221615,
+    "mispredict": 69120
   },
   "coremark_predictor_off": {
     "source": "tmp/coremark/uart-random-0-predictor-0.log",
@@ -44,8 +44,8 @@
     "cpi": 2.0669829334474024,
     "coremark_per_mhz": 0.6763822208874947,
     "enabled": 0,
-    "predict": 212537,
+    "predict": 242152,
     "btb_hit": 0,
-    "mispredict": 132127
+    "mispredict": 161742
   }
 }

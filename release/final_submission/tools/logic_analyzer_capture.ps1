@@ -11,7 +11,11 @@
   [int]$ClkHz = 85000000,
   [int]$Segments = 0,
   [double]$GapNs = 0,
-  [switch]$Oneshot
+  [string]$MirrorText = 'HELLO,RISC-V',
+  [switch]$Oneshot,
+  # 【2026-10-10】当前交付固件不支持 0xA6 分段命令（只认 0xA5/0xA7）。
+  # 只有确实在用支持 0xA6 的自编译固件时才打开；默认关闭 = 现场误加 -Oneshot 立刻失败。
+  [switch]$AllowUnsupportedFirmwareSegments
 )
 # MES50HP 八通道逻辑分析仪 · 零依赖采集器
 #
@@ -23,27 +27,53 @@
 #
 # 协议（PC -> 板子，13 字节）：
 #   A5 <mode> <data> <pd_lo> <pd_hi> <sd_lo> <sd_hi> <trig_type> <trig_mask> <trig_value> <pre> <post> <XOR>
+#   A7 <mode=4> <每比特采样点数> <忽略> <忽略> <sd_lo> <sd_hi> <trig_type> <mask> <value> <post_lo> <post_hi> <XOR>（镜像）
+# 当前交付固件**只认 0xA5 与 0xA7 这两个前缀**（logic_analyzer.c 第 214 行）；
+# 历史上的 0xA6（固件分段）不认，见文件末尾的显式拒绝。
 # 板子回包（ASCII 文本）：... LA RAW count=<hex> trigger=<hex> <样本十六进制...> ... LA_DONE LA_READY
 #
 # 注意：Windows PowerShell 5.1 把无 BOM 的 .ps1 当 ANSI 解码，本文件含中文，必须保留 UTF-8 BOM。
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
-$MODE_VALUES = @{ static = 0xA5; counter = 0x00; uart = 0xA5; spi = 0x3C }
+$MODE_VALUES = @{ static = 0xA5; counter = 0x00; uart = 0xA5; spi = 0x3C; mirror = 0x00 }
 $TRIGGERS = @{ level = 0; rise = 1; fall = 2 }
+# 镜像模式（0xA7）固定参数：字符串由上位机经 CP2102 发到 uart0_rx，板级顶层把它镜像到
+# J8-31/32（ch7）。每比特 8 个采样点：整句 12 字符 = 120 bit 需要 960 点，而深度 2048 点
+# 给出的窗口约 2.2 ms（报文 1.04 ms），留一倍余量吸收 USB 串口的字节间间隙。
+$MIRROR_CHANNEL = 7
+$MIRROR_BIT_SAMPLES = 8
+$MIRROR_DEPTH = 2048
 
-function Get-ModeConfig([string]$mode, [int]$data) {
+function Get-ModeConfig([string]$mode, [int]$data, [int]$ClockHz = 85000000, [int]$BaudHz = 115200) {
+  if ($mode -eq 'mirror') {
+    # 采样间隔由"比特时间 / 每比特采样点数"反算 —— 这里的比特率是**上位机真实串口波特率**，
+    # 不是 pattern_gen 的分频，所以不能照抄 uart 模式那套常数。
+    $bitCycles = $ClockHz / [double]$BaudHz
+    $sampleDiv = [int][Math]::Max(0, [Math]::Round($bitCycles / [double]$MIRROR_BIT_SAMPLES) - 1)
+    $bitSamples = [int][Math]::Round($bitCycles / [double]($sampleDiv + 1))
+    return @{ mode = 4; data = $bitSamples; pattern_div = 0; sample_div = $sampleDiv;
+              trigger_type = 2; trigger_mask = (1 -shl $MIRROR_CHANNEL); trigger_value = 0;
+              pre = 0; post = ($MIRROR_DEPTH - 1); prefix = 0xA7; post16 = $true;
+              channel = $MIRROR_CHANNEL; bit_samples = $bitSamples }
+  }
   if ($mode -eq 'uart') {
     return @{ mode = 2; data = $data; pattern_div = 433; sample_div = 26;
-              trigger_type = 2; trigger_mask = 1; trigger_value = 0; pre = 64; post = 191 }
+              trigger_type = 2; trigger_mask = 1; trigger_value = 0; pre = 64; post = 191;
+              prefix = 0xA5; post16 = $false; channel = 0; bit_samples = 16 }
   }
   if ($mode -eq 'spi') {
+    # [2026-10-10 修] 触发从"SCLK 上升沿"改成"CS 下降沿"：pattern_gen 自由运行，按 SCLK 上升沿
+    # 触发会让窗口落在字节的任意一个 bit 上（落在 b6 就只剩 7 个脉冲、CS 提前拉高、整字节被丢弃）。
+    # 触发 CS 下降沿 = 教科书用法，窗口确定从字节边界开始。
     return @{ mode = 3; data = $data; pattern_div = 3; sample_div = 0;
-              trigger_type = 1; trigger_mask = 1; trigger_value = 1; pre = 4; post = 80 }
+              trigger_type = 2; trigger_mask = 4; trigger_value = 0; pre = 4; post = 80;
+              prefix = 0xA5; post16 = $false; channel = 0; bit_samples = 16 }
   }
   $m = if ($mode -eq 'counter') { 1 } else { 0 }
   return @{ mode = $m; data = $data; pattern_div = 3; sample_div = 0;
-            trigger_type = 0; trigger_mask = 1; trigger_value = ($data -band 1); pre = 4; post = 4 }
+            trigger_type = 0; trigger_mask = 1; trigger_value = ($data -band 1); pre = 4; post = 4;
+            prefix = 0xA5; post16 = $false; channel = 0; bit_samples = 16 }
 }
 
 function Get-Timebase([int]$ClockHz, [int]$SampleDiv) {
@@ -63,11 +93,18 @@ function Format-TbJson($Tb) {
 }
 
 function Build-Packet($cfg) {
-  $values = @(0xA5, $cfg.mode, $cfg.data,
+  # 0xA5（四模式）：[10]=pre、[11]=post，各 1 字节，与历史报文逐字节一致。
+  # 0xA7（镜像）  ：[10]|[11] 是**16 位 post**（小端），pre 由固件固定为 0 ——
+  #                 镜像抓取必须是"窗口从起始位开始"，pre 没有意义。
+  if ($cfg.post16) {
+    $slots = @(($cfg.post -band 0xFF), (($cfg.post -shr 8) -band 0xFF))
+  } else {
+    $slots = @($cfg.pre, $cfg.post)
+  }
+  $values = @($cfg.prefix, $cfg.mode, $cfg.data,
               ($cfg.pattern_div -band 0xFF), (($cfg.pattern_div -shr 8) -band 0xFF),
               ($cfg.sample_div -band 0xFF), (($cfg.sample_div -shr 8) -band 0xFF),
-              $cfg.trigger_type, $cfg.trigger_mask, $cfg.trigger_value,
-              $cfg.pre, $cfg.post)
+              $cfg.trigger_type, $cfg.trigger_mask, $cfg.trigger_value) + $slots
   $checksum = 0
   foreach ($v in $values) { $checksum = $checksum -bxor $v }
   return [byte[]]($values + $checksum)
@@ -202,16 +239,22 @@ function Decode-Uart([int[]]$Samples, [int]$Channel = 0, [int]$BitSamples = 16) 
   $out = New-Object System.Collections.Generic.List[byte]
   $errors = 0
   $half = [Math]::Max(1, [int]($BitSamples / 2))
-  $i = 1
+  # 从下标 0 开始扫：镜像抓取用 pre=0，窗口第 0 个采样点**就是**起始位的第一个低电平；
+  # 从 1 起扫会跳过真正的帧头、锁到数据位内部的假下降沿上（2026-10-10 实板实测：
+  # 板上固件已解出 HELLO,RISC-V，上位机却解出乱码）。i=0 时"上一拍"按空闲电平=高处理。
+  $i = 0
   while (($i + $BitSamples * 9 + $half) -lt $level.Length) {
-    if ($level[$i - 1] -eq 1 -and $level[$i] -eq 0) {
+    $previous = if ($i -gt 0) { $level[$i - 1] } else { 1 }
+    if ($previous -eq 1 -and $level[$i] -eq 0) {
       $value = 0
       for ($bit = 0; $bit -lt 8; $bit++) {
         if ($level[$i + $BitSamples * ($bit + 1) + $half] -eq 1) { $value = $value -bor (1 -shl $bit) }
       }
       if ($level[$i + $BitSamples * 9 + $half] -eq 1) {
         $out.Add([byte]$value)
-        $i += $BitSamples * 10
+        # 不固定跳 10 个比特：实板边沿有 ±1 点抖动、帧长 79~81 点浮动，固定跳 80 会让误差
+        # 逐帧累积（实测 12 字符错 5 个）。从停止位取样点之后继续逐点扫 = 每帧重新对齐。
+        $i = $i + $BitSamples * 9 + $half + 1
       } else {
         $i += 1
       }
@@ -295,7 +338,7 @@ function Write-Vcd([int[]]$Samples, [string]$Path, [int]$Channels = 8, [int]$Tri
   [System.IO.File]::WriteAllText($Path, $sb.ToString(), (New-Object System.Text.ASCIIEncoding))
 }
 
-function Get-DecodeJson([string]$Mode, [switch]$Segmented) {
+function Get-DecodeJson([string]$Mode, [switch]$Segmented, [int]$BitSamples = 16) {
   # 波形页上的"帧边界 + 字节值标注"说明。必须与下面验收判据同源：
   # 判据是"解出的字节里含有模式字节"（Python 用 `in`、这里用 `-match`），
   # 板级实测 uart 与 spi **都只解出 1 个字节**（spi 窗口 85 点 = 1.8 个字节），所以统一框第 1 个。
@@ -310,6 +353,11 @@ function Get-DecodeJson([string]$Mode, [switch]$Segmented) {
     return '"decode":{"protocol":"uart","channel":0,"bit_samples":' + $bit + ',"which":1},"tag_names":{"0":"UART_TX"}'
   }
   if ($Mode -eq 'spi') { return '"decode":{"protocol":"spi","clock":0,"mosi":1,"cs":2,"which":1},"tag_names":{"0":"SCLK","1":"MOSI","2":"CS"}' }
+  if ($Mode -eq 'mirror') {
+    # 镜像模式：被测通道是 ch7（J8-31/32 那对回环脚），比特率来自上位机真实波特率，
+    # 所以 bit_samples 必须用采集时算出来的值透传给页面，不能写死 16。
+    return '"decode":{"protocol":"uart","channel":' + $MIRROR_CHANNEL + ',"bit_samples":' + $BitSamples + ',"which":1},"tag_names":{"' + $MIRROR_CHANNEL + '":"PC_TX"}'
+  }
   return ''
 }
 
@@ -336,11 +384,11 @@ if (-not $Viewer -or -not (Test-Path -LiteralPath $Viewer)) {
 if (-not $Port) { $Port = Find-Cp210xPort }
 if (-not $Port) { throw '没有找到串口：请插好板载 CP2102 USB 线，或用 -Port COMx 指定' }
 $modeList = @($Modes.Split(',') | ForEach-Object { $_.Trim() } | Where-Object { $_ })
-foreach ($m in $modeList) { if (-not $MODE_VALUES.ContainsKey($m)) { throw "未知模式：$m（可用 static,counter,uart,spi）" } }
+foreach ($m in $modeList) { if (-not $MODE_VALUES.ContainsKey($m)) { throw "未知模式：$m（可用 static,counter,uart,spi,mirror）" } }
 
 # 时基自检：四种模式各自的采样率与真实时间窗，先打印出来，避免"标错了没人发现"。
 foreach ($m in $modeList) {
-  $tb = Get-Timebase $ClkHz (Get-ModeConfig $m $MODE_VALUES[$m]).sample_div
+  $tb = Get-Timebase $ClkHz (Get-ModeConfig $m $MODE_VALUES[$m] $ClkHz $Baud).sample_div
   Write-Host ("时基      {0,-7} 采样率 {1,10:F1} Hz  每点 {2,10:F3} ns" -f $m, $tb.sample_hz, $tb.sample_ns) `
     -ForegroundColor DarkGray
 }
@@ -362,6 +410,9 @@ if ($FromCaptures) {
     $modeDir = Join-Path $root $mode
     $logPath = Join-Path $modeDir "${mode}_00.log"
     if (-not (Test-Path -LiteralPath $logPath)) { Write-Host "跳过 $mode（没有 $logPath）" -ForegroundColor Yellow; continue }
+    # 离线重建也要按同一套模式参数解码：镜像模式的通道/每比特点数和四模式不一样，
+    # 这里算错就会出现"页面标注的字节和判据用的字节不是同一个"。
+    $ocfg = Get-ModeConfig $mode $MODE_VALUES[$mode] $ClkHz $Baud
     # [2026-10-03 分段] -Segments N：把同目录下的 <mode>_00.._0(N-1).log 拼成一条长波形。
     # 段与段之间**没有被采样**（固件回传上一窗 + 收下一包配置），必须标出接缝与空档；
     # 这里用 -GapNs 给出实测值，或退回估计值并标注为"估计"。
@@ -399,9 +450,9 @@ if ($FromCaptures) {
       $segLog = Join-Path $modeDir ('{0}_{1:d2}.log' -f $mode, $k)
       if (-not (Test-Path -LiteralPath $segLog)) { break }
       $segParsed = Parse-Raw ([System.IO.File]::ReadAllText($segLog, [System.Text.Encoding]::ASCII))
-      if ($mode -eq 'uart') {
-        $d = Decode-Uart $segParsed.samples 0 16
-        if ($d.data.Count -lt 1) { throw "离线重建：uart 第 $($k + 1) 段没解出任何字节，无法在波形页上框出第 1 个" }
+      if ($mode -eq 'uart' -or $mode -eq 'mirror') {
+        $d = Decode-Uart $segParsed.samples $ocfg.channel $ocfg.bit_samples
+        if ($d.data.Count -lt 1) { throw "离线重建：$mode 第 $($k + 1) 段没解出任何字节，无法在波形页上框出第 1 个" }
         if ($null -eq $picked) { $picked = $d.data[0] }
       } elseif ($mode -eq 'spi') {
         $sb2 = Decode-Spi $segParsed.samples 0 1 2
@@ -409,13 +460,15 @@ if ($FromCaptures) {
         if ($null -eq $picked) { $picked = $sb2[0] }
       }
     }
-    if ($null -ne $picked -and $picked -ne $MODE_VALUES[$mode]) {
-      throw ("离线重建：页面将框出的字节是 0x{0:x2}，与模式字节 0x{1:x2} 不一致（判据与标注必须同源）" -f $picked, $MODE_VALUES[$mode])
+    # 镜像模式没有"模式字节"，页面框出的第 1 个字节必须等于发送字符串的首字符。
+    $pickedExpect = if ($mode -eq 'mirror') { [int][char]$MirrorText[0] } else { $MODE_VALUES[$mode] }
+    if ($null -ne $picked -and $picked -ne $pickedExpect) {
+      throw ("离线重建：页面将框出的字节是 0x{0:x2}，与期望的 0x{1:x2} 不一致（判据与标注必须同源）" -f $picked, $pickedExpect)
     }
     $pickNote = if ($null -ne $picked) { " 框出=0x$('{0:x2}' -f $picked)" } else { '' }
     # 离线重建拿不到原始位流的时钟，只能用 -ClkHz 给的频率反推；页面上的时间轴以此为准。
-    $tb = Get-Timebase $ClkHz (Get-ModeConfig $mode $MODE_VALUES[$mode]).sample_div
-    $dec = Get-DecodeJson $mode
+    $tb = Get-Timebase $ClkHz $ocfg.sample_div
+    $dec = Get-DecodeJson $mode -BitSamples $ocfg.bit_samples
     $decPart = if ($dec) { ',' + $dec } else { '' }
     $segPart = ''
     $segNote = ''
@@ -427,6 +480,9 @@ if ($FromCaptures) {
       $segNote = " 分段 $($segArr.Count) 段 × $($segArr[0][1] - $segArr[0][0] + 1) 点 · 段间未采样 $gapSource $([Math]::Round($gap / 1000000.0, 1)) ms"
     }
     $note = "mode=$mode samples=$($samples.Length) trigger=$firstTrigger$pickNote$segNote 板级实测（$([IO.Path]::GetFileName($logPath))）"
+    if ($mode -eq 'mirror') {
+      $note = "上位机发送 $MirrorText · ch$MIRROR_CHANNEL = J8-31/32 回环 · 触发 = 起始位下降沿 · samples=$($samples.Length) · 每比特 $($ocfg.bit_samples) 个采样点$pickNote$segNote 板级实测（$([IO.Path]::GetFileName($logPath))）"
+    }
     $one = '{"name":"' + $mode + ' 模式（板级实测）","channels":8,"samples":[' +
            (($samples) -join ',') + '],"trigger":' + $firstTrigger + ',"note":"' + $note + '",' +
            (Format-TbJson $tb) + $decPart + $segPart + '}'
@@ -449,11 +505,23 @@ if ($FromCaptures) {
   exit 0
 }
 
-# ---------------------------------------------------------------- 固件分段（0xA6）
+# ---------------------------------------------------------------- 固件分段（0xA6）：当前交付固件不支持
 # -Segments N -Oneshot：一次配置连续采 N 窗，由**固件自己**衔接（采完一窗立刻 arm 下一窗），
 # 段间空档从旧路径的约 19 ms 降到"读出 + 重新 arm"（约 15 µs 量级）。
 # 段边界仍然保留、仍然如实标注：段与段之间照样没有被采样。
+#
+# 【2026-10-10 显式拒绝】这条路在当前交付固件上**走不通**：
+# software/logic_analyzer/logic_analyzer.c 第 214 行只认 0xA5（单窗口）与 0xA7（镜像），
+# 收到 0xA6 会一直停在前导字节扫描里，现场表现是"卡到超时（默认 70 s）才失败"。
+# 所以在**打开串口之前**就拒绝：现场点到立刻看到原因，而不是干等一分多钟。
+# 下面的实现刻意保留，等固件真的实现 0xA6（并重出位流、重跑板级验收）之后再拆掉这段兼容处理。
 if ($Oneshot) {
+  if (-not $AllowUnsupportedFirmwareSegments) {
+    throw ('-Oneshot（固件分段命令 0xA6）在当前交付固件上不可用：固件只认 0xA5（单窗口）与 ' +
+           '0xA7（镜像），继续发只会等到超时。请改用单窗口采集；主机端拼接仍可用 ' +
+           '-Segments N（不加 -Oneshot）。确实在用支持 0xA6 的自编译固件时，' +
+           '才加 -AllowUnsupportedFirmwareSegments。')
+  }
   if ($Segments -lt 2) { throw '-Oneshot 需要 -Segments N（N≥2）：一次配置采 N 窗才有意义' }
   $sp = New-Object System.IO.Ports.SerialPort($Port, $Baud, [System.IO.Ports.Parity]::None, 8, [System.IO.Ports.StopBits]::One)
   $sp.ReadTimeout = 200
@@ -465,7 +533,7 @@ if ($Oneshot) {
     [void](Sync-Ready $sp ([Math]::Min($TimeoutSec, 3.0)))
     foreach ($mode in $modeList) {
       $value = $MODE_VALUES[$mode]
-      $cfg = Get-ModeConfig $mode $value
+      $cfg = Get-ModeConfig $mode $value $ClkHz $Baud
       $modeDir = Join-Path (Join-Path $Output 'logic_analyzer') $mode
       New-Item -ItemType Directory -Force -Path $modeDir | Out-Null
       try {
@@ -560,14 +628,21 @@ try {
 
   foreach ($mode in $modeList) {
     $value = $MODE_VALUES[$mode]
-    $cfg = Get-ModeConfig $mode $value
+    $cfg = Get-ModeConfig $mode $value $ClkHz $Baud
     $packet = Build-Packet $cfg
     $modeDir = Join-Path (Join-Path $Output 'logic_analyzer') $mode
     New-Item -ItemType Directory -Force -Path $modeDir | Out-Null
     $summaries = @()
+    $mirrorBytes = if ($mode -eq 'mirror') { [System.Text.Encoding]::ASCII.GetBytes($MirrorText) } else { $null }
     for ($run = 0; $run -lt $Runs; $run++) {
       try {
         $sp.Write($packet, 0, $packet.Length)
+        if ($mode -eq 'mirror') {
+          # 固件 Arm 生效后才打印 LA_ARMED。**必须等到它再发字符串**：
+          # 字符串比 Arm 早到的话，第一个起始位下降沿落在 Arm 之前，窗口就从报文中间开始了。
+          [void](Receive-Until $sp 'LA_ARMED' $TimeoutSec)
+          $sp.Write($mirrorBytes, 0, $mirrorBytes.Length)
+        }
         $raw = Receive-Until $sp 'LA_READY' $TimeoutSec
         if (-not $raw.Contains('LA_DONE')) { throw '这一轮没有收到 LA_DONE' }
         $parsed = Parse-Raw $raw
@@ -581,7 +656,7 @@ try {
         [System.IO.File]::WriteAllText((Join-Path $modeDir "$stem.log"), $raw, (New-Object System.Text.ASCIIEncoding))
         Write-Vcd $samples (Join-Path $modeDir "$stem.vcd") 8 $trigger
 
-        $uartData = Decode-Uart $samples 0 16
+        $uartData = Decode-Uart $samples $cfg.channel $cfg.bit_samples
         $spiData = Decode-Spi $samples 0 1 2
         $uartHex = (($uartData.data | ForEach-Object { '{0:x2}' -f $_ }) -join '')
         $spiHex = (($spiData | ForEach-Object { '{0:x2}' -f $_ }) -join '')
@@ -598,17 +673,27 @@ try {
         if ($mode -eq 'spi' -and ($spiHex -notmatch ('{0:x2}' -f $value))) {
           throw "SPI 解码不符：$spiHex"
         }
+        if ($mode -eq 'mirror') {
+          # 判据：从波形里解出来的字节必须**逐字节等于上位机发出去的那句话**。
+          # 只判"解出了东西"是不够的 —— 半比特错位正是那样混过去的。
+          $gotText = -join ($uartData.data | ForEach-Object { [char]$_ })
+          if ($uartData.errors -gt 0 -or $gotText -ne $MirrorText) {
+            throw "镜像解码不符：解出 '$gotText'，期望 '$MirrorText'（errors=$($uartData.errors)）"
+          }
+        }
         # 判据与页面标注必须同源：页面上框出来的那个字节，就是这里判定用的那个。
         $decodeWhich = 1
-        if ($mode -eq 'uart' -and $uartData.data.Count -lt $decodeWhich) {
+        if (($mode -eq 'uart' -or $mode -eq 'mirror') -and $uartData.data.Count -lt $decodeWhich) {
           throw "UART 只解出 $($uartData.data.Count) 个字节，页面无法框出第 $decodeWhich 个"
         }
         if ($mode -eq 'spi' -and $spiData.Count -lt $decodeWhich) {
           throw "SPI 只解出 $($spiData.Count) 个字节，页面无法框出第 $decodeWhich 个"
         }
-        $pickedValue = if ($mode -eq 'uart') { $uartData.data[$decodeWhich - 1] } elseif ($mode -eq 'spi') { $spiData[$decodeWhich - 1] } else { $null }
-        if ($null -ne $pickedValue -and $pickedValue -ne $value) {
-          throw ("页面框出的第 {0} 个字节是 0x{1:x2}，但判据用的是模式字节 0x{2:x2}；两者必须一致" -f $decodeWhich, $pickedValue, $value)
+        # 镜像模式没有"模式字节"可比，页面上框出的第 1 个字节必须等于发送字符串的首字符。
+        $pickedExpect = if ($mode -eq 'mirror') { [int][char]$MirrorText[0] } else { $value }
+        $pickedValue = if ($mode -eq 'uart' -or $mode -eq 'mirror') { $uartData.data[$decodeWhich - 1] } elseif ($mode -eq 'spi') { $spiData[$decodeWhich - 1] } else { $null }
+        if ($null -ne $pickedValue -and $pickedValue -ne $pickedExpect) {
+          throw ("页面框出的第 {0} 个字节是 0x{1:x2}，但判据用的是 0x{2:x2}；两者必须一致" -f $decodeWhich, $pickedValue, $pickedExpect)
         }
 
         # 自包含波形页：双击用浏览器打开即可看，不需要 GTKWave
@@ -616,7 +701,10 @@ try {
         $note = "mode=$mode samples=$($samples.Length) trigger=$trigger 采样率=$('{0:F4}' -f ($tb.sample_hz / 1000000.0))MHz 窗口=$('{0:F3}' -f ($tb.sample_ns * $samples.Length / 1000.0))us"
         if ($mode -eq 'uart') { $note += " UART解码=$uartHex" }
         if ($mode -eq 'spi') { $note += " SPI解码=$spiHex" }
-        $dec = Get-DecodeJson $mode
+        if ($mode -eq 'mirror') {
+          $note = "上位机发送 $MirrorText（$($mirrorBytes.Length) 字符 / $($mirrorBytes.Length * 10) bit / $Baud 8N1）· ch$MIRROR_CHANNEL = J8-31/32 回环 · 触发 = 起始位下降沿 · 每比特 $($cfg.bit_samples) 个采样点 · 窗口 $('{0:F3}' -f ($tb.sample_ns * $samples.Length / 1000000.0)) ms"
+        }
+        $dec = Get-DecodeJson $mode -BitSamples $cfg.bit_samples
         $decPart = if ($dec) { ',' + $dec } else { '' }
         $one = '{"name":"' + $mode + ' 模式 第' + ($run + 1) + '次","channels":8,"samples":[' +
                (($samples) -join ',') + '],"trigger":' + $trigger + ',"note":"' + $note + '",' +

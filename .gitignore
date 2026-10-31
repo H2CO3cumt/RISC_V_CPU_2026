@@ -79,6 +79,13 @@ release/final_submission/synthesize/
 release/final_submission/results/
 *.pds.lock
 
+# PDS + ModelSim 联合仿真的中间产物：在 PDS 里点一次「Behavior Simulation」，
+# PDS 会把仿真脚本、ModelSim 编译库和 vsim.wlf 写到 <工程>/sim/behav 下。
+# 这些都属于可重建的构建垃圾，与上面的 PDS 阶段目录同等处理；
+# scripts/audit_release_package.ps1 也按 .lock/.log 同类排除该目录。
+fpga/**/sim/
+release/final_submission/sim/
+
 # Development-stage board validation bundle; the distributed form is
 # release/MES50HP_board_validation_package.zip
 release/board_validation/

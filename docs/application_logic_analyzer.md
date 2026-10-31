@@ -1018,6 +1018,39 @@ ALIGN offset=1 anchor=1 delta=0 tied=[0, 2] cycles=512 retire=316 dv=97 rec=97 m
 
 
 
+### 6.11.14 离线回放：样本与镜像配对、来源徽标、两条入口（2026-10-28）
+
+> 起因：用户看演示素材时报告"第 2 页热力图是写死的"。画图并不写死（四条泳道按记录现算），
+> 但默认入口固定回放一份**过期**录包、页面上又没有任何来源标识，观感确实等同写死。
+> 详见 `docs/debug_log.md` 2026-10-28。
+
+**两条入口必须分开用**：
+
+| 入口 | 落点 | 数据来源 | 用途 |
+|---|---|---|---|
+| `python/start_logic_analyzer.cmd`（交付包里 `启动逻辑分析仪.cmd`） | 第 ① 页八通道波形 | 板子实时采集 | 现场演示、录屏的"真采集"画面 |
+| `python/start_logic_analyzer_offline.cmd`（交付包里 `离线演示.cmd`） | 第 ② 页 CPU 数据流 | `samples/trace_hello_rv.log` 回放 | 没有开发板时给人看第 ② 页长什么样 |
+
+两个 `.cmd` 都自动探测 `pyUI.py` / `tools\pyUI.py`，仓库与交付包根目录通用。
+
+**三条纪律**：
+
+1. **样本与固件镜像是"一对"**：`python/samples/trace_hello_rv.log` 必须与
+   `fpga/trace85/rtl/logic_analyzer_program.mem` 同源（当前 **15/15 PASS**）。
+   重新生成镜像后必须重录样本或重新对齐，否则判据 `pc 与位流镜像同源` 会 100 条全错。
+   配对哈希与自检命令写在 `python/samples/README.md`，并由
+   `test_trace_ui.py::OfflineReplaySampleTests` 自动钉住。
+2. **`sent_text` 取打点值，不取回包 `TRACE TEXT`**：后者是固件大写化**之后**的结果，
+   拿它判据会稳定产生 2 条假 FAIL（"打点值等于发送的字符""大写字符计数"）。
+3. **回放必须在屏幕上自证**：回放时第 ② 页顶栏显示「离线回放：<文件名> · 判据仅供参考」，
+   判据日志标题写「===== 离线回放：… =====」，状态栏写「CPU 数据流 · 离线回放」；
+   真采集一枪立刻撤标。**录像/截图里带这个徽标的画面不得当成"板子在跑"的证据。**
+
+| 层 | 命令 | 判据 |
+|---|---|---|
+| 上位机（回放与徽标） | `python test_trace_ui.py` | 34 项 OK，其中 `OfflineReplaySampleTests` 3 项（sent 取打点、回包文本会误判、样本与镜像同源）+ `ReplayBannerTests` 3 项（徽标置、实采撤、payload 带来源） |
+| 样本自检（无板） | 见 `python/samples/README.md` §2 | `True []`（15/15 PASS） |
+
 ## 7. 必须报告的量化指标
 
 - Pipeline Core：CoreMark/MHz、Fmax、CoreMark/LUT、CPI、Stall/Flush Rate。

@@ -59,7 +59,7 @@ $srcPds       = 'la85m_generated.pds'
 $srcBrdEvid   = 'release/evidence/logic_analyzer_board_85m'
 $fallbackSbit = 'fpga/logic_analyzer/generate_bitstream/mes50hp_logic_analyzer_top.sbit'
 
-$rtlFiles=@('pipeline_cpu.v','branch_predictor.v','csr_unit.v','forward_unit.v','hazard_unit.v','perf_monitor.v','perf_mmio.v','capture_engine.v','logic_analyzer_pattern_gen.v','logic_analyzer_mmio.v','application_mmio_mux.v','regfile.v','alu.v','imm_gen.v','decoder.v','branch_unit.v','load_store_unit.v','soc_data_interconnect.v','uart_tx.v','uart_rx.v','uart_mmio.v','gpio_mmio.v','timer_mmio.v')
+$rtlFiles=@('pipeline_cpu.v','mdu.v','branch_predictor.v','csr_unit.v','forward_unit.v','hazard_unit.v','perf_monitor.v','perf_mmio.v','capture_engine.v','logic_analyzer_pattern_gen.v','logic_analyzer_mmio.v','application_mmio_mux.v','regfile.v','alu.v','imm_gen.v','decoder.v','branch_unit.v','load_store_unit.v','soc_data_interconnect.v','uart_tx.v','uart_rx.v','uart_mmio.v','gpio_mmio.v','timer_mmio.v')
 foreach($name in $rtlFiles){Copy-Item -LiteralPath (Join-Path $repo "rtl/$name") -Destination (Join-Path $target "rtl/$name")}
 
 # 交付顶层：85 MHz 版是 pll_85m + mes50hp_logic_analyzer_pll_top + 原 mes50hp_logic_analyzer_top 三层
@@ -140,8 +140,27 @@ clean:
 '@
 Write-TextNoBom -Path (Join-Path $target 'firmware/Makefile') -Value $makefile
 foreach($name in @('logic_analyzer.py','logic_analyzer_serial.py','mes50hp_validation_ui.py','waveform_panel.py','pyUI.py','pyUI_requirements.txt','waveform_viewer.html')){Copy-Item -LiteralPath (Join-Path $repo "python/$name") -Destination (Join-Path $target "tools/$name")}
+# 【2026-10-22 新增】提交级数据流（trace）上位机：pyUI 里那一栏"发送给 CPU 的字符串"
+# 走的就是这三个文件。**必须一起进包**，否则包内的 pyUI 一点按钮就会 ImportError
+# （界面还在、功能全废，是最难解释的一种"交付件"）。
+foreach($name in @('trace_view.py','trace_board.py','trace_viewer.html','capture_trace.cmd')){Copy-Item -LiteralPath (Join-Path $repo "python/$name") -Destination (Join-Path $target "tools/$name")}
+# 【2026-10-28 新增】离线回放样本与它的入口。
+# 第 ② 页「CPU 数据流」在没有开发板的机器上靠 `tools/samples/trace_hello_rv.log` 出图；
+# 样本不在包里 → 包内 pyUI 打开第 ② 页只有一句"还没有数据"（界面在、功能废）。
+# 样本与 `fpga/trace85` 的固件镜像是一对，跟着 `samples/README.md` 一起进包，
+# 谁改镜像谁负责重录，README 里写了自检命令。
+Copy-Item -LiteralPath (Join-Path $repo 'python/samples') -Destination (Join-Path $target 'tools') -Recurse -Force
+Copy-Item -LiteralPath (Join-Path $repo 'python/start_logic_analyzer_offline.cmd') -Destination (Join-Path $target '离线演示.cmd')
+Copy-Item -LiteralPath (Join-Path $repo 'python/trace_ui_board_check.py') -Destination (Join-Path $target 'tools/trace_ui_board_check.py')
 Copy-Item -LiteralPath (Join-Path $repo 'docs/logic_analyzer_quick_start.md') -Destination (Join-Path $target '逻辑分析仪使用说明.md')
 Copy-Item -LiteralPath (Join-Path $repo 'python/start_logic_analyzer.cmd') -Destination (Join-Path $target '启动逻辑分析仪.cmd')
+# 【2026-10-10 新增】单文件上位机 `逻辑分析仪演示.py`（仓库根目录）。
+# 它是当前功能最全的上位机：五种采集模式（static/counter/uart/spi/**mirror 镜像抓取**）、
+# 每通道/协议**仪器读数**、波形页、VCD/HTML/Markdown 报告导出，全部在一个文件里。
+# 用户 2026-10-10 明确要求"一个 py 文件展示所有功能"，因此必须随包提供；
+# 但**不改** `启动逻辑分析仪.cmd`（仍指向 tools\pyUI.py，用户选择保持原启动路径），
+# 这里只把文件放进包根目录，并在 README 里写明怎么用。
+Copy-Item -LiteralPath (Join-Path $repo '逻辑分析仪演示.py') -Destination (Join-Path $target '逻辑分析仪演示.py')
 
 # ============================================================================
 # 【2026-10-03 零依赖化】评委机器上"点开就能用"：不装 Python、不装 GTKWave。
@@ -182,13 +201,26 @@ Copy-Item -LiteralPath $wavePreview -Destination (Join-Path $target '波形预�
 # 不需要改任何路径。
 # ============================================================================
 $cmDst = Join-Path $target 'coremark'
-foreach($d in @('software/coremark','third_party/coremark','scripts','images','rebuild','expected')){
+foreach($d in @('software/coremark','third_party/coremark','scripts','images','images/rv32im','rebuild','rebuild_rv32im','expected')){
   New-Item -ItemType Directory -Force (Join-Path $cmDst $d) | Out-Null
 }
 # 一页复现说明（源文件在 docs/，与"逻辑分析仪使用说明.md"同一套做法：改源文件、导出时拷贝）
 Copy-Item -LiteralPath (Join-Path $repo 'docs/coremark_reproduction.md') -Destination (Join-Path $cmDst '跑分复现说明.md')
 # 跑分专用位流（85 MHz，与交付时钟一致）。注意它与本包逻辑分析仪位流不是同一个文件。
 Copy-Item -LiteralPath (Join-Path $repo 'fpga/coremark_85m/generate_bitstream/mes50hp_coremark_pll_top.sbit') -Destination (Join-Path $target 'bitstream/mes50hp_coremark_85m.sbit')
+# 跑分专用位流（85 MHz + RV32IM，M 扩展）：与上面那颗**同工程同频率**，只把程序镜像换成 -march=rv32im。
+# 板级 Score 193.192 / CoreMark-MHz 2.272（4000 迭代 20.704 s，官方 CRC 全过，WNS +0.250 ns）。
+# 放进包里的理由：M 扩展是本届的核心增强项，"它能不能在交付频率上跑"必须能被评委自己验证。
+Copy-Item -LiteralPath (Join-Path $repo 'fpga/coremark_im_85m/generate_bitstream/mes50hp_coremark_pll_top.sbit') -Destination (Join-Path $target 'bitstream/mes50hp_coremark_im_85m.sbit')
+# RV32IM 的镜像与重建件（与 85m 的差别只有镜像与工程目录名）
+foreach($name in @('coremark_imem.mem','coremark_drom.mem','coremark_ram.mem','coremark_program_memory.v')){
+  Copy-Item -LiteralPath (Join-Path $repo "fpga/coremark_im_85m/rtl/$name") -Destination (Join-Path $cmDst "images/rv32im/$name")
+}
+foreach($rel in @('pds_recipe.tcl','constraints/mes50hp_coremark_85m.fdc','rtl/mes50hp_coremark_pll_top.v','rtl/pll_85m.v')){
+  Copy-Item -LiteralPath (Join-Path $repo "fpga/coremark_im_85m/$rel") -Destination (Join-Path $cmDst ("rebuild_rv32im/" + (Split-Path $rel -Leaf)))
+}
+# RV32IM 的金标准串口输出（同样用 .txt）
+Copy-Item -LiteralPath (Join-Path $repo 'release/evidence/coremark_uart_cmim85_20261014.log') -Destination (Join-Path $cmDst 'expected/coremark_expected_output_rv32im.txt')
 # 跑分上位机（自包含，只依赖 pyserial；带 --clock-hz，能把 ticks 正确换算成秒）
 Copy-Item -LiteralPath (Join-Path $repo 'python/coremark_serial.py') -Destination (Join-Path $target 'tools/coremark_serial.py')
 # 跑分固件工程（port 层）
@@ -228,22 +260,44 @@ PDS 工程文件（**两个，都可以在 PDS 2024.2-SP2 里直接打开、查�
   约束是 ``constraints/mes50hp_coremark_85m.fdc``。
 
 **看波形（不需要装任何软件）**：双击包根目录 ``波形预览.html``，浏览器里就是**本交付位流在实体板上实测抓到**的
-四种模式波形（static / counter / uart / spi，标签切换、滚轮缩放、红色虚线是触发点）。
+**五种模式**波形（static / counter / uart / spi / **mirror**，标签切换、滚轮缩放、红色虚线是触发点；
+其中 mirror 页就是"上位机发一句 ``HELLO,RISC-V``、逻辑分析仪把它抓下来"的那张图）。
 它同时也是通用查看器：把任意 `.vcd` 拖进去即可显示。
 
 **接板子自己跑一遍（同样零依赖）**：下载**主位流** ``bitstream/mes50hp_riscv_logic_analyzer.sbit``（**85 MHz**），
 按 J8 相邻脚对接好 8 根杜邦线（3↔4、7↔8、11↔12、15↔16、19↔20、23↔24、27↔28、31↔32），
 然后**双击包根目录 ``采集四模式.cmd``**：它用 Windows 自带的 PowerShell 与 .NET 串口完成四模式采集，
 不需要安装 Python；跑完自动打开输出目录，双击里面的 ``波形预览.html`` 或 ``<模式>\<模式>_00.html`` 看波形。
+想连**镜像 / 字符串**那一路一起抓（就是上面 mirror 页），在包根目录用自带 PowerShell 跑：
+``tools\logic_analyzer_capture.ps1 -Output results -Runs 1 -Modes static,counter,uart,spi,mirror``
+（字符串默认 ``HELLO,RISC-V``，可用 ``-MirrorText`` 改；J8-31↔32 那对线必须接好）。
 （包内仍保留 Python 图形界面上位机 ``启动逻辑分析仪.cmd``：**窗口里自带实时波形面板**，
 勾「实时连续采集」就能边采边看，实测约 1.3 次/秒；装了 Python 就可以用这条更直观的路径。
 完整说明与手动串口协议见 ``逻辑分析仪使用说明.md``。）
+
+**单文件功能展示上位机（包根目录 ``逻辑分析仪演示.py``，2026-10-10 新增）**：装了 Python + pyserial 后
+``py 逻辑分析仪演示.py`` 直接运行，**五种功能都在这一个文件里**：
+static / counter / uart / spi 四种回环模式，加 **mirror 镜像抓取**（板级 ch7 镜像 ``uart0_rx``，
+发一句 ``HELLO,RISC-V`` 就能抓到**它自己发出去的真实串口波形**，2048 点、8 采样点/比特、UART 解码 0 错误）；
+界面右栏是**仪器读数**（每通道频率/周期/占空比/脉宽/边沿数、帧数与帧错误、推算波特率），
+可导出 VCD / 网页波形页 / Markdown 测量报告，另有 ``--selftest`` 自检。
+它是目前功能最全的上位机；``启动逻辑分析仪.cmd`` 会自动找到 ``tools\pyUI.py``（仓库与交付包通用），
+并停在第 ① 页「八通道波形」真采集页，两条路径并存。
+**第 ② 页「CPU 数据流（寄存器热力图）」不需要开发板也能看**：双击包根目录 ``离线演示.cmd``，
+它回放 ``tools/samples/trace_hello_rv.log``（2026-10-24 实体板真实回包：100 条记录 / 8 个打点），
+页面顶部会显示 **「离线回放」徽标**——那是录像、不是板子此刻采到的数据，判据仅供参考；
+接上板子并用 ``启动逻辑分析仪.cmd`` 采一枪，徽标才会消失。
 （``bitstream/mes50hp_riscv_logic_analyzer_50m_fallback.sbit`` 是**已验证备用位流**，只在主位流异常时切换使用。）
 
-**CoreMark 跑分复现**：本包自带跑分专用位流 ``bitstream/mes50hp_coremark_85m.sbit``、
+**CoreMark 跑分复现**：本包自带跑分专用位流 ``bitstream/mes50hp_coremark_85m.sbit``（RV32I，Score 79.587）、
+**RV32IM（M 扩展）同频位流** ``bitstream/mes50hp_coremark_im_85m.sbit``（Score **193.192**、CoreMark/MHz **2.272**）、
 **可直接打开的跑分 PDS 工程** ``MES50HP_CoreMark_85M.pds``、EEMBC 官方 CoreMark 源码、跑分固件工程、
-实际烧进 FPGA 的存储器镜像、上位机脚本与金标准输出，
+实际烧进 FPGA 的存储器镜像（RV32I 在 ``images/``、RV32IM 在 ``images/rv32im/``）、
+重建配方（``rebuild/`` 与 ``rebuild_rv32im/``）、上位机脚本与两份金标准输出
+（``expected/coremark_expected_output.txt``、``expected/coremark_expected_output_rv32im.txt``），
 **不依赖任何开发工作区**即可自己跑出分数并核对官方 CRC。
+> 两颗位流**同一个工程、同一个 85 MHz 时钟，差别只有程序镜像的 ``-march``**；
+> 这就是"M 扩展把 CoreMark/MHz 从 0.936 提到 2.272"的完整、可自证的复现路径。
 **跑分只需双击包根目录 ``跑分.cmd``**（Windows 自带功能，不需要装 Python；跑完自动打开
 ``results\coremark\``，双击里面的 ``跑分结果.html`` 就能看分数与逐项金标准核对）。
 **一页说明见 ``coremark/跑分复现说明.md``**（期望结果：85 MHz 下 **Score 79.587**、
@@ -253,7 +307,8 @@ CoreMark/MHz **0.936**、官方 CRC **PASS**、运行 31.412 s）。
   （``pll_85m``：50 MHz / IDIV 1 = PFD 50 MHz，× FDIV 17 = VCO 850 MHz，/ ODIV0 10 = **85.000 MHz** 精确整数频率）。
   PDS 推导的生成时钟见 ``reports/timing.rtr``：请求 85.0000 MHz、估算 **90.0766 MHz**、slack **+0.663 ns**、**All Constraints Met**。
 - CPU：RV32I 五级流水线，16 项直接映射 BTB，2-bit 饱和计数器；机器模式 CSR/Trap/MRET（`mstatus/mie/mtvec/mepc/mcause/mtval/mip` 等）与三根设备无关中断输入。
-- 外设：片上 RAM、CP2102 UART、GPIO、性能计数器、8 通道 Raw 逻辑分析仪、机器定时器（`mtime`/`mtimecmp`，窗口 0x1000_3000，聚合出定时器中断）。
+- 外设：片上 RAM、CP2102 UART、GPIO、性能计数器、8 通道 Raw 逻辑分析仪（采集深度 **2048** 点；
+  ch7 可切换为**镜像 ``uart0_rx``**，用来抓上位机自己发出去的串口波形）、机器定时器（``mtime``/``mtimecmp``，窗口 0x1000_3000，聚合出定时器中断）。
 - J8 回环：3↔4、7↔8、11↔12、15↔16、19↔20、23↔24、27↔28、31↔32。
 - 时序：All Constraints Met；慢角 setup WNS +$($metrics.final.setup_wns_ns) ns，hold WHS +$($metrics.final.hold_whs_ns) ns，估算 Fmax $($metrics.final.estimated_fmax_mhz) MHz。
 - 综合资源：$($metrics.final.lut) LUT、$($metrics.final.ff) FF、$($metrics.final.drm) 个 DRM18K 等效块。
@@ -261,12 +316,20 @@ CoreMark/MHz **0.936**、官方 CRC **PASS**、运行 31.412 s）。
 
 自动 RTL/软件/PDS 回归均已通过（`scripts\run_final_regression.ps1` → ALL AUTOMATED FINAL REGRESSION PASS）。
 
-**实体板证据（2026-09-29 实测，当时对应 50 MHz 位流 ``BCAE040A…``）：**
+**实体板证据（当前交付位流，2026-10-10 实测，85 MHz 版 ``8908FD8C…``）：**
+
+- **五模式实板验收（含 mirror）**：``scripts\run_logic_analyzer_board.ps1 -Port COM11 -RunsPerMode 20`` →
+  **``LOGIC ANALYZER PHYSICAL BOARD ACCEPTANCE PASS captures=100``**（static / counter / uart / spi / **mirror** 各 20/20）。
+  mirror 每次返回 **2048** 个采样点，解码出 ``HELLO,RISC-V``（``48454C4C4F2C524953432D56``）、帧错误 0。
+  证据目录 ``evidence/logic_analyzer_board_final/``（含每次采集的 .vcd / .html / summary.json）。
+  这次复测是在**移除仪器面板之后**做的，用来证明"拆掉面板没有破坏原通路"。
+
+**实体板证据（2026-09-29 历史记录，当时对应 50 MHz 位流 ``BCAE040A…``、四模式、深度 256）：**
 
 - 位流下载：`scripts\program_board.ps1 -Config la50` 与 `-Config cm50` 均为 `PROGRAM PASS`，`done bit is 1`；
   （**当前交付主位流是 85 MHz 版**，下载请用 `-Config la85`；`la50` 现在是已验证备用配置）
-- J8 四模式实板验收：`scripts\run_logic_analyzer_board.ps1 -Port COM11 -RunsPerMode 20` →
-  `LOGIC ANALYZER PHYSICAL BOARD ACCEPTANCE PASS captures=80`（static/counter/uart/spi 各 20/20；各模式单次返回样本数 static 5、counter 5、uart 236、spi 85，触发位置依次 0/0/15/4；作品自带逻辑分析仪的 Raw 缓存深度为 256 样本，与 PDS DebugCore 探针的 512 样本不是一回事）；
+- J8 四模式实板验收（**当时**，未含 mirror）：`scripts\run_logic_analyzer_board.ps1 -Port COM11 -RunsPerMode 20` →
+  `LOGIC ANALYZER PHYSICAL BOARD ACCEPTANCE PASS captures=80`（static/counter/uart/spi 各 20/20；各模式单次返回样本数 static 5、counter 5、uart 236、spi 85，触发位置依次 0/0/15/4；作品自带逻辑分析仪的 Raw 缓存深度**当时为 256 样本**，现已提升到 **2048**，与 PDS DebugCore 探针的 512 样本不是一回事）；
 - CoreMark 实板复现：`scripts\run_coremark_board.ps1 -Port COM11` →
   `COREMARK BOARD PASS clock_hz=50000000 ticks=1068006999 seconds=21.360 score_x1000=46816`
   （运行 21.36 秒，满足赛题"不少于 10 秒"）；
@@ -287,7 +350,10 @@ CoreMark/MHz **0.936**、官方 CRC **PASS**、运行 31.412 s）。
 - **S1 DDR3 板级证据已独立落盘并复现（2026-09-30）**：``S1 DDR3 SMOKE BOARD PASS``（BIST err_cnt 全程 0），
   证据 ``release/evidence/ddr3_smoke_board/``（位流 ``FAEDF476…``）。
 - **交付位流为 85 MHz 版，并已做稳定性 soak（2026-09-30）**：
-  本包主位流工作在 85 MHz，J8 四模式 **80/80 PASS**，证据 ``evidence/logic_analyzer_board_final/``。
+  本包主位流工作在 85 MHz，四模式累计 **320 次采集零失败**（首次验收 80 次 + 3 轮 soak × 80 次），
+  原始证据在开发仓库 ``release/evidence/logic_analyzer_board_85m/`` 与 ``logic_analyzer_board_85m_soak/``。
+  **本包内** ``evidence/logic_analyzer_board_final/`` 放的是 **2026-10-10 的最新一次复测**
+  （五模式含 mirror、**100/100 PASS**，见上方"当前交付位流"）。
   50 MHz 版位流作为**已验证备用**一并提供（对应 ``docs/roadmap.md`` 任务 35「主版本失败时能切换已验证备用版本」）。
 
 **读数纪律（引用板级数字前必读）**：
@@ -317,8 +383,12 @@ Write-TextNoBom -Path (Join-Path $target 'README.md') -Value $readme
 # 2026-10-09 实测：PDS 打开交付工程后 release/final_submission/pds.log 被别的进程独占，
 # Get-FileHash 直接抛 ReadError，导出在最后一步中断——包内容已经写好，却缺
 # SHA256SUMS.txt 与 zip，成了"看着像导出了、其实不完整"的半成品。
+# 2026-10-10 又实测一次同类中断，但这次是**竞态**：用 PDS GUI 打开交付包后，
+# PDS 会在包内建 temp_projects\Main_Flow\ 并自行清理，文件在我们"枚举完 → 开始哈希"
+# 之间消失，Get-FileHash 内部 Resolve-Path 直接抛 PathNotFound，导出中断在最后一步。
+# 因此 temp_projects/ 与 sim/ 一样按构建垃圾排除（两处规则必须保持一致）。
 $files=Get-ChildItem -LiteralPath $target -File -Recurse |
-  Where-Object { $_.Extension -notin @('.lock','.log') -and $_.Name -ne 'multiseed_summary.csv' -and $_.FullName -notmatch '[\\/]sim[\\/]' } |
+  Where-Object { $_.Extension -notin @('.lock','.log') -and $_.Name -ne 'multiseed_summary.csv' -and $_.FullName -notmatch '[\\/](sim|temp_projects)[\\/]' } |
   Sort-Object FullName
 $lines=foreach($file in $files){$relative=Get-RelativePathCompat -Base $target -Path $file.FullName.Replace('\','/');"$((Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash)  $relative"}
 # 清单同样必须无 BOM：audit_release_package.ps1 用 '^([0-9A-F]{64})  (.+)$' 解析每一行，

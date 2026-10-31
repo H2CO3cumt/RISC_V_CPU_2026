@@ -1,0 +1,37 @@
+<!doctype html><meta charset="utf-8"><title>counter 模式：counter 回环，激励 0x00 · 采集 5 点 · 每比特 16 个采样点</title>
+<style>body{background:#101722;color:#dbe6f6;font:14px/1.5 "Microsoft YaHei",sans-serif;margin:0}
+header{padding:10px 16px;background:#182233;border-bottom:1px solid #2b3a55}
+details{padding:6px 16px;background:#141d2c;border-bottom:1px solid #2b3a55;font-size:13px}
+table{border-collapse:collapse;margin:6px 0}td,th{border:1px solid #2b3a55;padding:2px 8px;font-size:12px}
+canvas{display:block;width:100%;height:calc(100vh - 150px)}</style>
+<header><b>逻辑分析仪波形</b> — counter 模式：counter 回环，激励 0x00 · 采集 5 点 · 每比特 16 个采样点</header>
+<details open><summary>仪器读数</summary><table><tr><th>通道</th><th>边沿</th><th>频率</th><th>周期(中位)</th><th>占空比</th><th>最小脉宽</th><th>最大脉宽</th></tr><tr><td>ch0</td><td>1</td><td>—</td><td>—</td><td>20.0%</td><td>11.8 ns</td><td>47.1 ns</td></tr><tr><td>ch1</td><td>0</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr><tr><td>ch2</td><td>0</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr><tr><td>ch3</td><td>0</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr><tr><td>ch4</td><td>0</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr><tr><td>ch5</td><td>0</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr><tr><td>ch6</td><td>0</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr><tr><td>ch7</td><td>0</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr></table><table><tr><th>协议项</th><th>值</th></tr><tr><td>协议</td><td>无（只看电平）</td></tr><tr><td>采样点数</td><td>5</td></tr></table></details>
+<canvas id="c"></canvas><script>
+var D={"samples":[130,130,130,130,131],"trigger":0,"frames":[],"channels":[0,1,2,3,4,5,6,7],"tags":{}},S=D.samples,W=0,H=0,cv=document.getElementById('c'),ctx=cv.getContext('2d');
+var COL=['#39c0ff','#7ef0a1','#ffd479','#ff9c6e','#c792ea','#8ab4ff','#4ee0d0','#ff7ba8'];
+function draw(){var dpr=devicePixelRatio||1;W=cv.clientWidth;H=cv.clientHeight;
+cv.width=W*dpr;cv.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,W,H);
+var padL=86,padT=28,padB=26,x0=padL,x1=W-12,y0=padT,y1=H-padB;
+var chs=D.channels&&D.channels.length?D.channels:[0,1,2,3,4,5,6,7];
+var rh=(y1-y0)/chs.length,span=Math.max(1,S.length-1);
+function X(i){return x0+i/span*(x1-x0);}
+ctx.font='13px "Microsoft YaHei",sans-serif';
+chs.forEach(function(ch,k){var top=y0+k*rh,hi=top+rh*0.26,lo=top+rh*0.76;
+ctx.fillStyle=k%2?'rgba(255,255,255,.02)':'rgba(255,255,255,.045)';ctx.fillRect(0,top,W,rh);
+ctx.fillStyle='#93a4c4';ctx.fillText('ch'+ch+(D.tags&&D.tags[ch]?' · '+D.tags[ch]:''),10,top+rh/2);
+ctx.strokeStyle=COL[ch%8];ctx.lineWidth=1.6;ctx.beginPath();
+for(var i=0;i<S.length;i++){var y=((S[i]>>ch)&1)?hi:lo;if(i===0)ctx.moveTo(X(i),y);else ctx.lineTo(X(i),y);}
+ctx.stroke();});
+if(D.trigger!=null&&D.trigger>=0){var tx=X(D.trigger);ctx.strokeStyle='#ff4d6d';ctx.setLineDash([6,4]);
+ctx.beginPath();ctx.moveTo(tx,y0);ctx.lineTo(tx,y1);ctx.stroke();ctx.setLineDash([]);
+ctx.fillStyle='#ff8fa3';ctx.fillText('触发 @'+D.trigger,Math.min(tx+4,W-80),16);}
+(D.frames||[]).forEach(function(f){var xa=X(f[0]),xb=X(f[1]);if(xb-xa<2)return;
+ctx.strokeStyle='rgba(126,240,161,.8)';ctx.beginPath();ctx.moveTo(xa,y0);ctx.lineTo(xa,y1);
+ctx.moveTo(xb,y0);ctx.lineTo(xb,y1);ctx.stroke();var v=f[2];
+var s=(v>=32&&v<127)?("'"+String.fromCharCode(v)+"' "):"";
+ctx.fillStyle='#ffd479';ctx.font='12px Consolas,monospace';
+ctx.fillText(s+'0x'+('0'+v.toString(16).toUpperCase()).slice(-2),xa+3,16);});
+ctx.fillStyle='#7e91b3';ctx.fillText('0',x0-4,y1+16);ctx.fillText(String(S.length),x1-30,y1+16);
+ctx.fillText('采样点',(x0+x1)/2-18,y1+16);}
+addEventListener('resize',draw);draw();
+</script>

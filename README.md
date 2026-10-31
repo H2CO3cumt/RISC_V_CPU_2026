@@ -1,5 +1,13 @@
 # RISC-V 多协议逻辑分析仪
 
+[![MIT](https://img.shields.io/badge/license-MIT-24466e)](./LICENSE)
+[![CERN-OHL-P-2.0](https://img.shields.io/badge/hardware-CERN--OHL--P--2.0-24466e)](./LICENSE-hardware-CERN-OHL-P-2.0.txt)
+[![site](https://img.shields.io/badge/site-h2co3cumt.github.io-24466e)](https://h2co3cumt.github.io/works/riscv-logic-analyzer/)
+
+项目主页：<https://h2co3cumt.github.io/works/riscv-logic-analyzer/>
+
+![MES50HP 开发板](./docs/images/board.jpg)
+
 在**一片**紫光同创 PGL50H-6IFBG484 上，同时实现一个自研的 RV32I 五级流水处理器和一个八通道逻辑分析仪——被测对象和观测工具是同一颗芯片。
 
 2026 全国大学生 FPGA 创新设计大赛 参赛作品。

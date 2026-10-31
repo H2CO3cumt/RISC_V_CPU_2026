@@ -5,7 +5,7 @@ rem
 rem ASCII-ONLY ON PURPOSE: cmd.exe mis-parses non-ASCII bytes in a .bat/.cmd even
 rem after "chcp 65001" (verified 2026-10-03: Chinese echo lines were split into
 rem bogus commands like "'0HP' is not recognized"). All Chinese messages are
-rem printed by tools\logic_analyzer_capture.ps1 instead, which handles UTF-8
+rem printed by ..\scripts\logic_analyzer_capture.ps1 instead, which handles UTF-8
 rem correctly (BOM + [Console]::OutputEncoding).
 rem ---------------------------------------------------------------------------
 chcp 65001 >nul
@@ -20,7 +20,7 @@ echo   No Python, no GTKWave, no extra software needed.
 echo ============================================================
 echo.
 
-"%PS%" -NoProfile -ExecutionPolicy Bypass -File "tools\logic_analyzer_capture.ps1" -Output "results" -Runs 1
+"%PS%" -NoProfile -ExecutionPolicy Bypass -File "..\scripts\logic_analyzer_capture.ps1" -Output "results" -Runs 1
 if errorlevel 1 goto failed
 
 echo.
@@ -34,7 +34,7 @@ exit /b 0
 :failed
 echo.
 echo [FAIL] capture failed. Read the red lines above, then check:
-echo   1. bitstream = bitstream\mes50hp_riscv_logic_analyzer.sbit
+echo   1. bitstream = fpga\logic_analyzer_85m\generate_bitstream\mes50hp_logic_analyzer_pll_top.sbit
 echo   2. J8 loopback pairs 3-4, 7-8, 11-12, 15-16, 19-20, 23-24, 27-28, 31-32
 echo   3. serial port not used by another program
 pause

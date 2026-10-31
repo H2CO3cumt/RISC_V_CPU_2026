@@ -1,0 +1,222 @@
+[
+  {
+    "run": 0,
+    "mode": "uart",
+    "value": 165,
+    "samples": 207,
+    "trigger": 15,
+    "uart": "a5",
+    "uart_errors": 0,
+    "spi": "",
+    "text": ""
+  },
+  {
+    "run": 1,
+    "mode": "uart",
+    "value": 165,
+    "samples": 207,
+    "trigger": 15,
+    "uart": "a5",
+    "uart_errors": 0,
+    "spi": "",
+    "text": ""
+  },
+  {
+    "run": 2,
+    "mode": "uart",
+    "value": 165,
+    "samples": 207,
+    "trigger": 15,
+    "uart": "a5",
+    "uart_errors": 0,
+    "spi": "",
+    "text": ""
+  },
+  {
+    "run": 3,
+    "mode": "uart",
+    "value": 165,
+    "samples": 207,
+    "trigger": 15,
+    "uart": "a5",
+    "uart_errors": 0,
+    "spi": "",
+    "text": ""
+  },
+  {
+    "run": 4,
+    "mode": "uart",
+    "value": 165,
+    "samples": 207,
+    "trigger": 15,
+    "uart": "a5",
+    "uart_errors": 0,
+    "spi": "",
+    "text": ""
+  },
+  {
+    "run": 5,
+    "mode": "uart",
+    "value": 165,
+    "samples": 207,
+    "trigger": 15,
+    "uart": "a5",
+    "uart_errors": 0,
+    "spi": "",
+    "text": ""
+  },
+  {
+    "run": 6,
+    "mode": "uart",
+    "value": 165,
+    "samples": 207,
+    "trigger": 15,
+    "uart": "a5",
+    "uart_errors": 0,
+    "spi": "",
+    "text": ""
+  },
+  {
+    "run": 7,
+    "mode": "uart",
+    "value": 165,
+    "samples": 207,
+    "trigger": 15,
+    "uart": "a5",
+    "uart_errors": 0,
+    "spi": "",
+    "text": ""
+  },
+  {
+    "run": 8,
+    "mode": "uart",
+    "value": 165,
+    "samples": 207,
+    "trigger": 15,
+    "uart": "a5",
+    "uart_errors": 0,
+    "spi": "",
+    "text": ""
+  },
+  {
+    "run": 9,
+    "mode": "uart",
+    "value": 165,
+    "samples": 207,
+    "trigger": 15,
+    "uart": "a5",
+    "uart_errors": 0,
+    "spi": "",
+    "text": ""
+  },
+  {
+    "run": 10,
+    "mode": "uart",
+    "value": 165,
+    "samples": 207,
+    "trigger": 15,
+    "uart": "a5",
+    "uart_errors": 0,
+    "spi": "",
+    "text": ""
+  },
+  {
+    "run": 11,
+    "mode": "uart",
+    "value": 165,
+    "samples": 207,
+    "trigger": 15,
+    "uart": "a5",
+    "uart_errors": 0,
+    "spi": "",
+    "text": ""
+  },
+  {
+    "run": 12,
+    "mode": "uart",
+    "value": 165,
+    "samples": 207,
+    "trigger": 15,
+    "uart": "a5",
+    "uart_errors": 0,
+    "spi": "",
+    "text": ""
+  },
+  {
+    "run": 13,
+    "mode": "uart",
+    "value": 165,
+    "samples": 207,
+    "trigger": 15,
+    "uart": "a5",
+    "uart_errors": 0,
+    "spi": "",
+    "text": ""
+  },
+  {
+    "run": 14,
+    "mode": "uart",
+    "value": 165,
+    "samples": 207,
+    "trigger": 15,
+    "uart": "a5",
+    "uart_errors": 0,
+    "spi": "",
+    "text": ""
+  },
+  {
+    "run": 15,
+    "mode": "uart",
+    "value": 165,
+    "samples": 207,
+    "trigger": 15,
+    "uart": "a5",
+    "uart_errors": 0,
+    "spi": "",
+    "text": ""
+  },
+  {
+    "run": 16,
+    "mode": "uart",
+    "value": 165,
+    "samples": 207,
+    "trigger": 15,
+    "uart": "a5",
+    "uart_errors": 0,
+    "spi": "",
+    "text": ""
+  },
+  {
+    "run": 17,
+    "mode": "uart",
+    "value": 165,
+    "samples": 207,
+    "trigger": 15,
+    "uart": "a5",
+    "uart_errors": 0,
+    "spi": "",
+    "text": ""
+  },
+  {
+    "run": 18,
+    "mode": "uart",
+    "value": 165,
+    "samples": 207,
+    "trigger": 15,
+    "uart": "a5",
+    "uart_errors": 0,
+    "spi": "",
+    "text": ""
+  },
+  {
+    "run": 19,
+    "mode": "uart",
+    "value": 165,
+    "samples": 207,
+    "trigger": 15,
+    "uart": "a5",
+    "uart_errors": 0,
+    "spi": "",
+    "text": ""
+  }
+]

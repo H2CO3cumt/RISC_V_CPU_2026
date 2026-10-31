@@ -1,0 +1,12 @@
+{
+    "run":  0,
+    "mode":  "mirror",
+    "value":  0,
+    "samples":  2048,
+    "trigger":  0,
+    "sample_ns":  1082.3529411764705,
+    "sample_hz":  923913.043478261,
+    "uart":  "524953432d562032303236",
+    "uart_errors":  0,
+    "spi":  ""
+}

@@ -9,6 +9,7 @@ add_design rtl/hazard_unit.v
 add_design rtl/perf_monitor.v
 add_design rtl/perf_mmio.v
 add_design rtl/regfile.v
+add_design rtl/mdu.v
 add_design rtl/alu.v
 add_design rtl/imm_gen.v
 add_design rtl/decoder.v

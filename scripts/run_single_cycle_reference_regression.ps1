@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$IcarusRoot = $(if ($env:IVERILOG_ROOT) { $env:IVERILOG_ROOT } else { 'D:\Tools\iverilog-v12' }),
     [switch]$FailFast
 )
@@ -8,8 +8,8 @@ param(
 # build prerequisite fails is reported as FAIL by that suite; dependent suites
 # are intentionally not invoked by this script until they become standalone.
 $ErrorActionPreference = 'Stop'
-$powerShell = (Get-Command pwsh -ErrorAction SilentlyContinue).Source
-if (-not $powerShell) { $powerShell = (Get-Command powershell -ErrorAction Stop).Source }
+. (Join-Path $PSScriptRoot 'resolve_host.ps1')
+$powerShell = Resolve-PowerShellHost
 
 $suites = @(
     @{ Name = 'rv32i_and_candidate_trace'; Script = 'run_single_cycle_regression.ps1' },
@@ -33,14 +33,19 @@ $failed = [System.Collections.Generic.List[string]]::new()
 
 foreach ($suite in $suites) {
     Write-Output "[RUN ] $($suite.Name)"
+    # 子进程 stderr 在 Windows PowerShell 5.1 里会被包成 ErrorRecord，
+    # 配合 $ErrorActionPreference='Stop' 会把"测试其实 PASS"误判成中断；成败只看退出码。
+    $ErrorActionPreference = 'Continue'
     & $powerShell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot $suite.Script) -IcarusRoot $IcarusRoot
-    if ($LASTEXITCODE -eq 0) {
+    $suiteExit = $LASTEXITCODE
+    $ErrorActionPreference = 'Stop'
+    if ($suiteExit -eq 0) {
         $passed.Add($suite.Name)
         Write-Output "[PASS] $($suite.Name)"
     }
     else {
         $failed.Add($suite.Name)
-        Write-Output "[FAIL] $($suite.Name) (exit=$LASTEXITCODE)"
+        Write-Output "[FAIL] $($suite.Name) (exit=$suiteExit)"
         if ($FailFast) { break }
     }
 }

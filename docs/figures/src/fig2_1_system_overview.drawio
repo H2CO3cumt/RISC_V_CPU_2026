@@ -1,0 +1,71 @@
+<mxfile host="app.diagrams.net" type="device">
+  <diagram name="图2-1 系统整体框图" id="fig2_1">
+    <mxGraphModel dx="1760" dy="1200" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1760" pageHeight="1200" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="F1" value="处理器核" style="rounded=0;whiteSpace=wrap;html=1;fontSize=16;fontFamily=Microsoft YaHei;fontStyle=1;fontColor=#B5641A;fillColor=#FFF9F3;strokeColor=#E0A458;strokeWidth=1.5;dashed=1;verticalAlign=top;align=left;spacingLeft=14;spacingTop=8;" vertex="1" parent="1"><mxGeometry x="30" y="30" width="470" height="570" as="geometry" /></mxCell>
+        <mxCell id="F2" value="片上互连" style="rounded=0;whiteSpace=wrap;html=1;fontSize=16;fontFamily=Microsoft YaHei;fontStyle=1;fontColor=#1F5E9E;fillColor=#F5F9FD;strokeColor=#7FA8CF;strokeWidth=1.5;dashed=1;verticalAlign=top;align=left;spacingLeft=14;spacingTop=8;" vertex="1" parent="1"><mxGeometry x="530" y="30" width="430" height="570" as="geometry" /></mxCell>
+        <mxCell id="F3" value="存储与外设" style="rounded=0;whiteSpace=wrap;html=1;fontSize=16;fontFamily=Microsoft YaHei;fontStyle=1;fontColor=#23692A;fillColor=#F6FBF6;strokeColor=#86B98A;strokeWidth=1.5;dashed=1;verticalAlign=top;align=left;spacingLeft=14;spacingTop=8;" vertex="1" parent="1"><mxGeometry x="990" y="30" width="740" height="570" as="geometry" /></mxCell>
+        <mxCell id="F4" value="采集应用" style="rounded=0;whiteSpace=wrap;html=1;fontSize=16;fontFamily=Microsoft YaHei;fontStyle=1;fontColor=#5B31A8;fillColor=#FAF6FF;strokeColor=#B39DDB;strokeWidth=1.5;dashed=1;verticalAlign=top;align=left;spacingLeft=14;spacingTop=8;" vertex="1" parent="1"><mxGeometry x="30" y="650" width="1700" height="240" as="geometry" /></mxCell>
+        <mxCell id="F5" value="板外接口与上位机" style="rounded=0;whiteSpace=wrap;html=1;fontSize=16;fontFamily=Microsoft YaHei;fontStyle=1;fontColor=#3F3F3F;fillColor=#F8F8F8;strokeColor=#ABABAB;strokeWidth=1.5;dashed=1;verticalAlign=top;align=left;spacingLeft=14;spacingTop=8;" vertex="1" parent="1"><mxGeometry x="30" y="920" width="1700" height="230" as="geometry" /></mxCell>
+
+        <mxCell id="mem" value="程序存储器" style="rounded=0;whiteSpace=wrap;html=1;fontSize=15;fontFamily=Microsoft YaHei;fillColor=#FFE9D2;strokeColor=#D9822B;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="110" y="110" width="250" height="80" as="geometry" /></mxCell>
+        <mxCell id="cpu" value="五级流水处理器核&#10;IF · ID · EX · MEM · WB" style="rounded=0;whiteSpace=wrap;html=1;fontSize=15;fontFamily=Microsoft YaHei;fontStyle=1;fillColor=#FFD9B0;strokeColor=#C86F17;strokeWidth=2.5;" vertex="1" parent="1"><mxGeometry x="60" y="270" width="380" height="230" as="geometry" /></mxCell>
+
+        <mxCell id="xbar" value="SoC 数据互连&#10;地址译码 · 背压" style="rounded=0;whiteSpace=wrap;html=1;fontSize=15;fontFamily=Microsoft YaHei;fontStyle=1;fillColor=#CCE2F7;strokeColor=#2E6FB7;strokeWidth=2.5;" vertex="1" parent="1"><mxGeometry x="575" y="300" width="340" height="120" as="geometry" /></mxCell>
+
+        <mxCell id="ram" value="数据 RAM" style="rounded=0;whiteSpace=wrap;html=1;fontSize=15;fontFamily=Microsoft YaHei;fillColor=#D8EEDA;strokeColor=#2E7D32;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="1050" y="110" width="260" height="85" as="geometry" /></mxCell>
+        <mxCell id="uart" value="UART&#10;115200 8N1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=15;fontFamily=Microsoft YaHei;fillColor=#D8EEDA;strokeColor=#2E7D32;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="1390" y="110" width="260" height="85" as="geometry" /></mxCell>
+        <mxCell id="gpio" value="GPIO&#10;用户 LED" style="rounded=0;whiteSpace=wrap;html=1;fontSize=15;fontFamily=Microsoft YaHei;fillColor=#D8EEDA;strokeColor=#2E7D32;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="1050" y="240" width="260" height="85" as="geometry" /></mxCell>
+        <mxCell id="timer" value="定时器&#10;mtime · mtimecmp" style="rounded=0;whiteSpace=wrap;html=1;fontSize=15;fontFamily=Microsoft YaHei;fillColor=#D8EEDA;strokeColor=#2E7D32;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="1390" y="240" width="260" height="85" as="geometry" /></mxCell>
+
+        <mxCell id="appmux" value="应用 MMIO 复用" style="rounded=0;whiteSpace=wrap;html=1;fontSize=15;fontFamily=Microsoft YaHei;fillColor=#E7DBFA;strokeColor=#7A4FD0;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="110" y="720" width="290" height="100" as="geometry" /></mxCell>
+        <mxCell id="perf" value="性能监视器&#10;周期 · 退休 · 停顿 · 冲刷" style="rounded=0;whiteSpace=wrap;html=1;fontSize=15;fontFamily=Microsoft YaHei;fillColor=#E7DBFA;strokeColor=#7A4FD0;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="480" y="710" width="320" height="120" as="geometry" /></mxCell>
+        <mxCell id="la" value="八通道逻辑分析仪&#10;采集引擎 · 触发 · 2048 样本" style="rounded=0;whiteSpace=wrap;html=1;fontSize=15;fontFamily=Microsoft YaHei;fontStyle=1;fillColor=#D6C2F5;strokeColor=#6335C6;strokeWidth=2.5;" vertex="1" parent="1"><mxGeometry x="900" y="700" width="440" height="130" as="geometry" /></mxCell>
+
+        <mxCell id="clk" value="50 MHz 晶振&#10;片上 PLL 倍频" style="rounded=0;whiteSpace=wrap;html=1;fontSize=15;fontFamily=Microsoft YaHei;fillColor=#EDEDED;strokeColor=#5F5F5F;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="90" y="1010" width="230" height="90" as="geometry" /></mxCell>
+        <mxCell id="jtag" value="JTAG 下载口" style="rounded=0;whiteSpace=wrap;html=1;fontSize=15;fontFamily=Microsoft YaHei;fillColor=#EDEDED;strokeColor=#5F5F5F;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="370" y="1010" width="200" height="90" as="geometry" /></mxCell>
+        <mxCell id="j8" value="J8 扩展引脚&#10;被测信号" style="rounded=0;whiteSpace=wrap;html=1;fontSize=15;fontFamily=Microsoft YaHei;fillColor=#EDEDED;strokeColor=#5F5F5F;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="620" y="1010" width="250" height="90" as="geometry" /></mxCell>
+        <mxCell id="cp2102" value="CP2102&#10;USB-UART" style="rounded=0;whiteSpace=wrap;html=1;fontSize=15;fontFamily=Microsoft YaHei;fillColor=#EDEDED;strokeColor=#5F5F5F;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="940" y="1010" width="220" height="90" as="geometry" /></mxCell>
+        <mxCell id="pc" value="PC 上位机&#10;波形显示 · 仪器读数" style="rounded=0;whiteSpace=wrap;html=1;fontSize=15;fontFamily=Microsoft YaHei;fillColor=#EDEDED;strokeColor=#5F5F5F;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="1240" y="1000" width="400" height="110" as="geometry" /></mxCell>
+
+        <mxCell id="e_mem_cpu" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2E6FB7;strokeWidth=1.8;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="mem" target="cpu"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="l_mem_cpu" value="取指事务" style="edgeLabel;html=1;fontSize=13;fontFamily=Microsoft YaHei;fontColor=#1F5E9E;align=left;" vertex="1" connectable="0" parent="e_mem_cpu"><mxGeometry x="0.4" relative="1" as="geometry"><mxPoint x="14" y="0" as="offset" /></mxGeometry></mxCell>
+
+        <mxCell id="e_cpu_xbar" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2E6FB7;strokeWidth=2.5;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="cpu" target="xbar"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="l_cpu_xbar" value="数据事务（读 / 写）" style="edgeLabel;html=1;fontSize=13;fontFamily=Microsoft YaHei;fontColor=#1F5E9E;align=center;" vertex="1" connectable="0" parent="e_cpu_xbar"><mxGeometry x="0.5" relative="1" as="geometry"><mxPoint x="0" y="-16" as="offset" /></mxGeometry></mxCell>
+
+        <mxCell id="e_xbar_ram" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2E6FB7;strokeWidth=1.8;exitX=1;exitY=0.33;entryX=0;entryY=0.5;" edge="1" parent="1" source="xbar" target="ram"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="990" y="340" /><mxPoint x="990" y="152" /></Array></mxGeometry></mxCell>
+        <mxCell id="e_xbar_uart" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2E6FB7;strokeWidth=1.8;exitX=1;exitY=0.42;entryX=0;entryY=0.5;" edge="1" parent="1" source="xbar" target="uart"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="1330" y="350" /><mxPoint x="1330" y="152" /></Array></mxGeometry></mxCell>
+        <mxCell id="e_xbar_gpio" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2E6FB7;strokeWidth=1.8;exitX=1;exitY=0.67;entryX=0;entryY=0.5;" edge="1" parent="1" source="xbar" target="gpio"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="1005" y="380" /><mxPoint x="1005" y="282" /></Array></mxGeometry></mxCell>
+        <mxCell id="e_xbar_timer" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2E6FB7;strokeWidth=1.8;exitX=1;exitY=0.83;entryX=0;entryY=0.5;" edge="1" parent="1" source="xbar" target="timer"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="1350" y="400" /><mxPoint x="1350" y="282" /></Array></mxGeometry></mxCell>
+
+        <mxCell id="e_xbar_app" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2E6FB7;strokeWidth=1.8;dashed=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="xbar" target="appmux"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="745" y="622" /><mxPoint x="255" y="622" /></Array></mxGeometry></mxCell>
+        <mxCell id="l_xbar_app" value="MMIO 访问" style="edgeLabel;html=1;fontSize=13;fontFamily=Microsoft YaHei;fontColor=#1F5E9E;align=center;" vertex="1" connectable="0" parent="e_xbar_app"><mxGeometry x="0.5" relative="1" as="geometry"><mxPoint x="120" y="-12" as="offset" /></mxGeometry></mxCell>
+
+        <mxCell id="e_app_perf" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#7A4FD0;strokeWidth=1.8;dashed=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="appmux" target="perf"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_perf_la" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#7A4FD0;strokeWidth=1.8;dashed=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="perf" target="la"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <mxCell id="e_cpu_perf" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#C86F17;strokeWidth=1.8;dashed=1;exitX=0.75;exitY=1;entryX=0.25;entryY=0;" edge="1" parent="1" source="cpu" target="perf"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="345" y="670" /><mxPoint x="560" y="670" /></Array></mxGeometry></mxCell>
+        <mxCell id="l_cpu_perf" value="提交与性能事件" style="edgeLabel;html=1;fontSize=13;fontFamily=Microsoft YaHei;fontColor=#B5641A;align=center;" vertex="1" connectable="0" parent="e_cpu_perf"><mxGeometry x="0.5" relative="1" as="geometry"><mxPoint x="-44" y="-12" as="offset" /></mxGeometry></mxCell>
+
+        <mxCell id="e_cpu_la" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#C86F17;strokeWidth=1.8;dashed=1;exitX=0.9;exitY=1;entryX=0.3;entryY=0;" edge="1" parent="1" source="cpu" target="la"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="402" y="640" /><mxPoint x="1032" y="640" /></Array></mxGeometry></mxCell>
+        <mxCell id="l_cpu_la" value="核内观测点" style="edgeLabel;html=1;fontSize=13;fontFamily=Microsoft YaHei;fontColor=#B5641A;align=center;" vertex="1" connectable="0" parent="e_cpu_la"><mxGeometry x="0.5" relative="1" as="geometry"><mxPoint x="210" y="-12" as="offset" /></mxGeometry></mxCell>
+
+        <mxCell id="e_timer_cpu" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#C0392B;strokeWidth=2;dashed=1;exitX=1;exitY=0.5;entryX=0.9;entryY=0;" edge="1" parent="1" source="timer" target="cpu"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="1682" y="282" /><mxPoint x="1682" y="70" /><mxPoint x="402" y="70" /></Array></mxGeometry></mxCell>
+        <mxCell id="l_timer_cpu" value="定时器中断" style="edgeLabel;html=1;fontSize=13;fontFamily=Microsoft YaHei;fontColor=#C0392B;fontStyle=1;align=center;" vertex="1" connectable="0" parent="e_timer_cpu"><mxGeometry x="0.5" relative="1" as="geometry"><mxPoint x="150" y="-8" as="offset" /></mxGeometry></mxCell>
+
+        <mxCell id="e_uart_cp" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#5F5F5F;strokeWidth=1.8;exitX=1;exitY=0.35;entryX=0.5;entryY=0;" edge="1" parent="1" source="uart" target="cp2102"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="1662" y="140" /><mxPoint x="1662" y="905" /><mxPoint x="1050" y="905" /></Array></mxGeometry></mxCell>
+        <mxCell id="l_uart_cp" value="TX / RX" style="edgeLabel;html=1;fontSize=13;fontFamily=Microsoft YaHei;fontColor=#3F3F3F;align=center;" vertex="1" connectable="0" parent="e_uart_cp"><mxGeometry x="0.5" relative="1" as="geometry"><mxPoint x="120" y="-12" as="offset" /></mxGeometry></mxCell>
+
+        <mxCell id="e_cp_pc" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#5F5F5F;strokeWidth=1.8;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="cp2102" target="pc"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="l_cp_pc" value="USB" style="edgeLabel;html=1;fontSize=13;fontFamily=Microsoft YaHei;fontColor=#3F3F3F;align=center;" vertex="1" connectable="0" parent="e_cp_pc"><mxGeometry x="0.5" relative="1" as="geometry"><mxPoint x="0" y="-14" as="offset" /></mxGeometry></mxCell>
+
+        <mxCell id="e_j8_la" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#5F5F5F;strokeWidth=1.8;exitX=0.5;exitY=0;entryX=0.5;entryY=1;" edge="1" parent="1" source="j8" target="la"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="745" y="940" /><mxPoint x="1120" y="940" /></Array></mxGeometry></mxCell>
+        <mxCell id="l_j8_la" value="8 通道采样" style="edgeLabel;html=1;fontSize=13;fontFamily=Microsoft YaHei;fontColor=#3F3F3F;align=center;" vertex="1" connectable="0" parent="e_j8_la"><mxGeometry x="0.5" relative="1" as="geometry"><mxPoint x="-72" y="0" as="offset" /></mxGeometry></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

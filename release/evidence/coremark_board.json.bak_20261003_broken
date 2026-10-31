@@ -1,0 +1,18 @@
+{
+  "branches": 157996621,
+  "clock_hz": 85000000,
+  "coremark_per_mhz_x1000": 936,
+  "cpi_x1000": 1242,
+  "cycles": 983712872,
+  "flushes": 160376052,
+  "instret": 791616937,
+  "iterations": 2500,
+  "load_stalls": 4009479382,
+  "score_x1000": 79587,
+  "seconds_at_50mhz_x1000": 53400,
+  "seconds_x1000": 31411,
+  "stalls": 3845559020,
+  "taken": 4265032624,
+  "ticks": 2670014377,
+  "validation": "PASS"
+}

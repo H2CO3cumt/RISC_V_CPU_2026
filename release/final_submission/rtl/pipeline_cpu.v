@@ -1,6 +1,15 @@
 
 module pipeline_cpu #(
-    parameter ENABLE_BRANCH_PREDICTOR = 1
+    parameter ENABLE_BRANCH_PREDICTOR = 1,
+    // ?????(rtl/ras.v)?0 = ??(??,?????????);
+    // 1 = ??:BTB ???? PC ? ret ?,???? RAS ???
+    parameter ENABLE_RAS = 0,
+    parameter RAS_DEPTH  = 8,
+    // 乘法占用 ID/EX 的拍数（见 rtl/mdu.v 的 MUL_LAT）：
+    //   3 = 旧基线（两级串联 16x32 部分积，挡 2 拍）
+    //   2 = 并行 16x16 部分积 + 加法树（挡 1 拍）—— **当前默认**，已过 85 MHz 时序
+    //   1 = 全组合（挡 0 拍）—— 实测 85 MHz 违例（WNS −4.471 ns），仅保留为对照
+    parameter MDU_MUL_LAT = 2
 )(
     input  wire        clk,
     input  wire        reset,
@@ -117,7 +126,7 @@ module pipeline_cpu #(
     reg        idex_asb;
     reg [3:0]  idex_alu;
     reg [1:0]  idex_result;
-    // ---- Zicsr / SYSTEM 与"异常记录"（契约见 docs/trap_contract.md）----
+    // ---- Zicsr / SYSTEM 与"异常记录"（见 docs/trap_contract.md）----
     // 异常原因编码与 localparam EXC_* 一致；EXC_NONE=0 表示本条指令到目前为止没出错。
     reg        idex_illegal;
     reg        idex_csr_en;
@@ -127,6 +136,12 @@ module pipeline_cpu #(
     reg        idex_trap_ebreak;
     reg        idex_trap_mret;
     reg [3:0]  idex_exc_cause;
+    // ---- M 扩展（docs/architecture.md 的存储/执行单元一节）----
+    // idex_mdu_en：本条指令由 rtl/mdu.v 执行；idex_mdu_op[2]=1 表示它属于
+    // div/divu/rem/remu（迭代 32 拍，需要把 ID/EX 冻住），=0 表示 MUL 组
+    // （组合乘法，当拍出结果，不停顿）。
+    reg        idex_mdu_en;
+    reg [2:0]  idex_mdu_op;
 
     //-------------------------------------------------------------------------
     // EX/MEM
@@ -148,6 +163,14 @@ module pipeline_cpu #(
     reg [3:0]  exmem_exc_cause;
     reg [31:0] exmem_next_pc;
     reg        exmem_trap_mret;
+    // EX/MEM 里那条指令**是否已经形成 MEM/WB 记录**。
+    // 为什么需要它：访存指令的"完成"由握手定义（dstate 从 D_RSP 回到 D_IDLE 只发生一次），
+    // 而 MEM→WB 的转移原来与"ID/EX 换入 EX/MEM"是同一拍原子发生的。
+    // 引入除法停顿后这两件事会被拆开（EX/MEM 不能换入，但 MEM 级必须能排空），
+    // 于是 mem_done 会在握手结束后落下、mem_block 永久为 1 —— 实测就是整机死锁在
+    // 一条 lbu 上（CoreMark rv32im 跑到 306637 条后再也不动）。
+    // 本标记让"这条 EX/MEM 记录已经退休过"独立于换入，MEM 级因此可以安全排空。
+    reg        exmem_retired;
 
     //-------------------------------------------------------------------------
     // 数据侧总线状态机
@@ -205,6 +228,8 @@ module pipeline_cpu #(
     wire        dec_trap_ecall;
     wire        dec_trap_ebreak;
     wire        dec_trap_mret;
+    wire        dec_mdu_en;
+    wire [2:0]  dec_mdu_op;
 
     decoder #(.ENABLE_SYSTEM(1)) dec(
         .instruction(ifid_inst),
@@ -225,7 +250,9 @@ module pipeline_cpu #(
         .csr_funct(dec_csr_funct),
         .trap_ecall(dec_trap_ecall),
         .trap_ebreak(dec_trap_ebreak),
-        .trap_mret(dec_trap_mret)
+        .trap_mret(dec_trap_mret),
+        .mdu_en(dec_mdu_en),
+        .mdu_op(dec_mdu_op)
     );
 
     imm_gen ig(
@@ -248,7 +275,7 @@ module pipeline_cpu #(
     // 进入 Trap 的那一拍，WB 上的记录属于被打断的指令：不得写回、不得形成提交记录。
     // 进入 Trap 的那一拍，WB 上的记录属于被打断的指令：不得写回、不得形成提交记录。
     // 但"中断"是异步事件：语义上它发生在 WB 这条指令**提交之后**，所以必须照常退休；
-    // 只有同步异常才取消出错指令本身（契约 §5.1 第 3 条）。
+    // 只有同步异常才取消出错指令本身（§5.1 第 3 条）。
     // 被取消的指令之后的所有指令都不得产生任何架构副作用（第 2 条）。
     wire wb_cancel = trap_take && (wb_exc_cause != EXC_NONE);
     wire wb_fire   = memwb_valid && !wb_cancel;
@@ -318,6 +345,46 @@ module pipeline_cpu #(
         .result(ex_alu)
     );
 
+    //-------------------------------------------------------------------------
+    // M 扩展：乘除法单元（rtl/mdu.v）
+    //
+    // 操作数取 srca0/srcb0（已经过前递的源操作数），与 ALU 用的是同一份，
+    // 所以 MUL 组的前递/写回时序和 add/sub 完全一致，不需要任何停顿。
+    //
+    // run 只在"ID/EX 上确实是一条除法指令"时成立，它同时是状态机的起拍条件
+    // 和取消条件：指令被 Trap/Redirect 清掉时 idex_valid 落下，run 随之落下，
+    // 迭代立刻中止且不留副作用（见 mdu.v 的 S_RUN 分支）。
+    //
+    // mdu_block：除法还没算完 -> 把 ID/EX 冻在 EX，且不许它进入 EX/MEM。
+    // 注意它是"EX 级"的暂停，与"MEM 级"的 mem_block 是两回事：
+    // 两者都不允许同时改写 ID/EX，所以下面统一用 pipe_hold 表达。
+    //-------------------------------------------------------------------------
+    wire [31:0] mdu_result;
+    wire        mdu_busy;
+    // run 覆盖两组（乘法 MDU_MUL_LAT 拍、除法 32 拍）：具体怎么走由 mdu 内部按 op[2] 决定。
+    wire        mdu_run = idex_valid && idex_mdu_en;
+
+    // ID/EX -> EX/MEM 的转移条件（与下面 always 块里的判据必须逐项一致）：
+    // 这一拍就是"这条 M 指令被消费"的那一拍，mdu 用它回到空闲，
+    // 否则背靠背的两条同类指令会共用同一次运算结果。
+    wire idex_to_exmem = !mem_block && !trap_take &&
+                         ((mem_done || !exmem_valid) && !mdu_block);
+    wire mdu_ack = idex_to_exmem && mdu_run;
+
+    mdu #(.MUL_LAT(MDU_MUL_LAT)) mdu_unit(
+        .clk(clk),
+        .reset(reset),
+        .run(mdu_run),
+        .op(idex_mdu_op),
+        .a(srca0),
+        .b(srcb0),
+        .ack(mdu_ack),
+        .busy(mdu_busy),
+        .result(mdu_result)
+    );
+
+    wire        mdu_block  = mdu_busy;
+
     wire branch_taken;
 
     branch_unit bu(
@@ -362,7 +429,7 @@ module pipeline_cpu #(
     //
     // 每条指令携带一条 4-bit 异常记录沿流水线前进，规则只有一条：**先到先得**。
     // 只在进入某一级时填一次，已经有记录就不再覆盖。由于指令按程序序逐级推进，
-    // 先填进去的必然是程序序更早的那个异常，因此天然满足契约 §5.2 的优先级要求。
+    // 先填进去的必然是程序序更早的那个异常，因此天然满足§5.2 的优先级要求。
     //
     // 记录只存原因码；mtval 不单独存，因为它的语义是"出错的地址或指令码"，
     // 这两样本来就躺在流水寄存器里（exmem_alu / memwb_inst）。
@@ -377,13 +444,13 @@ module pipeline_cpu #(
     localparam [3:0] EXC_STORE_ACC  = 4'd7;
     localparam [3:0] EXC_ECALL      = 4'd11;
     // 注意：EXC_INSTR_MIS 的 4-bit 取值 12 只是**内部记录编码**，不是 RISC-V 的 mcause。
-    // 契约 §4.1 规定 E-01（指令地址未对齐）的 mcause 是 0，而 0 已经被 EXC_NONE 占用，
+    // §4.1 规定 E-01（指令地址未对齐）的 mcause 是 0，而 0 已经被 EXC_NONE 占用，
     // 4-bit 记录里放不下，所以在写 mcause 时单独映射回 0（见 trap_cause_value）。
     // 12 在标准 RISC-V 里是 instruction page fault，本项目没有 MMU，绝不能原样写进 mcause。
     localparam [3:0] EXC_INSTR_MIS  = 4'd12;
 
     // IF/ID → ID/EX 边界：取指错误与取指地址未对齐在 IF 级就能确定
-    // 取指错误与取指地址未对齐都归到 E-08/E-09，mcause=1（契约 §4.1）。
+    // 取指错误与取指地址未对齐都归到 E-08/E-09，mcause=1（§4.1）。
     // 不要写成 EXC_INSTR_MIS：那条编码属于 E-01（跳转目标未对齐，mcause=0），
     // 两者是不同原因，混用会让取指路径报出错误的原因码。
     wire [3:0] ifid_exc_cause = (ifid_error || (ifid_pc[1:0] != 2'b00)) ? EXC_IFETCH_ERR
@@ -407,8 +474,10 @@ module pipeline_cpu #(
     wire [3:0] ex_exc_cause = (idex_exc_cause != EXC_NONE) ? idex_exc_cause
                                                            : ex_exc_new;
 
-    // MEM 级访存错误：地址未对齐在 EX 组合路径即可判定，访问错误要等下游响应
-    wire mem_access_error_now = mem_done && exmem_valid && exmem_access &&
+    // MEM 级访存错误：地址未对齐在 EX 组合路径即可判定，访问错误要等下游响应。
+    // 必须带 !exmem_retired：mem_done 现在在退休之后仍保持 1（见 exmem_retired 的说明），
+    // 少了这一项会让一条已经退休的访存错误被反复计入。
+    wire mem_access_error_now = mem_done && !exmem_retired && exmem_valid && exmem_access &&
                                 !ls_misaligned && d_rsp_error;
 
     wire [3:0] mem_exc_cause = mem_access_error_now
@@ -445,11 +514,14 @@ module pipeline_cpu #(
                             (idex_csr_funct == 2'b10) ? (csr_rdata & ~ex_csr_src) :
                                                         ex_csr_src;
 
-    // EX 级的"写回候选值"：CSR 指令写回的是 CSR 旧值（csr_rdata），其余指令写回
-    // ALU 结果。必须放在这里而不是 ALU 之前：csr_rdata 由下面的 csr_unit 组合给出。
+    // EX 级的"写回候选值"：CSR 指令写回的是 CSR 旧值（csr_rdata），M 扩展指令
+    // 写回的是乘除法单元的结果（mdu_result），其余指令写回 ALU 结果。
+    // 必须放在这里而不是 ALU 之前：csr_rdata 由下面的 csr_unit 组合给出，
+    // mdu_result 由上面的 mdu 例化给出。
     // 它同时进入 EX/MEM 的 exmem_alu，也就是 load/store 的地址来源；
-    // CSR 指令不访存，两者不会冲突。
-    wire [31:0] ex_result = idex_csr_en ? csr_rdata : ex_alu;
+    // CSR 与 M 指令都不访存，两者不会冲突。
+    wire [31:0] ex_result = idex_csr_en ? csr_rdata :
+                            idex_mdu_en ? mdu_result : ex_alu;
 
     wire        csr_illegal_q;
     wire [31:0] csr_epc_out;
@@ -495,10 +567,10 @@ module pipeline_cpu #(
                      ((wb_exc_cause != EXC_NONE) || irq_grant);
 
     // 恢复地址（写进 mepc）：
-    //  - 同步异常：出错指令自己的 PC（契约 §5.1 第 3 条，不是 PC+4）。
+    //  - 同步异常：出错指令自己的 PC（§5.1 第 3 条，不是 PC+4）。
     //    唯一例外是"已经发出去并被下游接受"的 Store 访问错误：那条 Store 架构上
     //    视为在 Trap 之前完成，回退到它的 PC 会把它再做一遍，因此推进到 PC+4
-    //    （契约 §5.1 第 4 条）。
+    //    （§5.1 第 4 条）。
     //  - 中断：要回到"还没执行的那条指令"，即本条指令程序序上的下一条。
     //    它由 ex_next_pc 随指令一起流过流水线，不能用 exmem_pc 顶替：
     //    跳转/分支重定向当拍，EX/MEM 里可能正是一个气泡。
@@ -509,13 +581,13 @@ module pipeline_cpu #(
     // 入口地址：只实现 Direct 模式
     wire [31:0] trap_target = csr_mtvec_base;
 
-    // E-01（指令地址未对齐）在契约里的 mcause 是 0，而内部记录用 12 表示，这里映射回去。
+    // E-01（指令地址未对齐）在规范里的 mcause 是 0，而内部记录用 12 表示，这里映射回去。
     wire [31:0] trap_cause_value = (wb_exc_cause == EXC_NONE)      ? irq_cause :
                                    (wb_exc_cause == EXC_INSTR_MIS) ? 32'd0 :
                                                                      {28'b0, wb_exc_cause};
 
     // mtval：非法指令/EBREAK → 指令码；ECALL 与中断 → 0；其余 → 出错地址。
-    // mtval（契约 §4.3）：非法指令/EBREAK → 指令码；ECALL 与中断 → 0；
+    // mtval（§4.3）：非法指令/EBREAK → 指令码；ECALL 与中断 → 0；
     // 取指错误/未对齐 → 出错取指地址；访存未对齐/访问错误 → 出错访存地址。
     wire [31:0] trap_value = trap_is_irq                      ? 32'b0 :
                              (wb_exc_cause == EXC_ILLEGAL)    ? memwb_inst :
@@ -534,7 +606,7 @@ module pipeline_cpu #(
     //
     // 写入优先级：Trap 进入 > MRET > 普通 CSR 写。这里用
     // csr_we = ex_csr_write && idex_valid && !trap_take 把"同拍 Trap 优先"落到信号上，
-    // 使被取消的 CSR 写不留下任何副作用（契约 §3.3 第 3 条）。
+    // 使被取消的 CSR 写不留下任何副作用（§3.3 第 3 条）。
     //-------------------------------------------------------------------------
     csr_unit csr(
         .clk(clk),
@@ -542,7 +614,7 @@ module pipeline_cpu #(
         .csr_addr(ex_csr_addr),
         .csr_rdata(csr_rdata),
         // csr_illegal_q 是"本条 CSR 指令自身非法"的组合判据：非法时绝不能改 CSR，
-        // 否则非法指令会留下副作用（契约 §3.3）。它同时经 EX 级异常记录进入 Trap。
+        // 否则非法指令会留下副作用（§3.3）。它同时经 EX 级异常记录进入 Trap。
         .csr_we(ex_csr_write && idex_valid && !csr_illegal_q && !trap_take),
         .csr_waddr(ex_csr_addr),
         .csr_wdata(csr_wdata),
@@ -605,7 +677,7 @@ module pipeline_cpu #(
         .misaligned(ls_misaligned)
     );
 
-    wire mem_done  = exmem_valid && (!exmem_access || ls_misaligned ||
+    wire mem_done  = exmem_valid && (exmem_retired || !exmem_access || ls_misaligned ||
                                      (dstate == D_RSP && d_rsp_valid && d_rsp_ready));
     wire mem_block = exmem_valid && !mem_done;
 
@@ -647,13 +719,17 @@ module pipeline_cpu #(
                               !(pred_direction_ok && pred_target_ok);
 
     // Trap 也是 PC 重定向来源，而且优先级高于任何预测修正：一旦进入 Trap，
-    // 同拍的分支/跳转修正被取消（契约 §5.2 第 7 条）。
+    // 同拍的分支/跳转修正被取消（§5.2 第 7 条）。
     // MRET 的 PC 重定向：MRET 在 EX 级解析，PC 必须回到 mepc。
     // 它和分支/跳转不同——目标来自 CSR 而不是指令位，所以是独立的一条通路。
-    // Trap 同拍优先：此时 MRET 被取消，既不改 PC 也不改 mstatus（契约 §5.2 第 6 条）。
+    // Trap 同拍优先：此时 MRET 被取消，既不改 PC 也不改 mstatus（§5.2 第 6 条）。
     wire mret_redirect = idex_valid && idex_trap_mret && !mem_block && !trap_take;
 
     wire ex_redirect = control_mispredict || mret_redirect || trap_take;
+
+    // id_advance ???????:RAS ? push/pop ??? BTB ?????"??"??,
+    // ????? IF ???,?????????????
+    wire id_advance  = !mem_block && !mdu_block && !load_use && !ex_redirect;
 
     // 本条指令"程序序的下一条 PC"。中断的恢复地址必须用它：
     // exmem_pc 在跳转/分支重定向当拍可能正落在气泡上，而这条值随指令一起
@@ -697,23 +773,78 @@ module pipeline_cpu #(
     );
 
     //-------------------------------------------------------------------------
+    // ?????(RAS):?? BTB ? `ret` ?????
+    //
+    // ???? RAS:BTB ?? PC ???? target,???? `ret` ????
+    // ?????(CoreMark ???? ret 49 ? / call 158 ?),????????
+    // RAS ???????????,??"??????"?
+    //
+    // ??(RISC-V ???? call/ret,???????):
+    //   call = dec_jmp && rd == x1              -> push ifid_pc + 4
+    //   ret  = dec_jalr && rd == x0 && rs1 == x1 -> pop
+    // ????? ID ????(id_advance ??):EX ??? 1~2 ?,???
+    // `ret` ???????;?????????????? id_advance,
+    // ????????????
+    //
+    // is_ret ??? BTB ???(16 ? = pc[5:2]):IF ?????????
+    // ????,??"????? ret"??????????????????
+    // ?? branch_predictor,?????????? TB ??????
+    //-------------------------------------------------------------------------
+    wire        ras_fire     = id_advance && ifid_valid && !dec_illegal;
+    wire        ras_push     = ras_fire && dec_jmp && (dec_rd == 5'd1);
+    wire        ras_pop      = ras_fire && dec_jalr && (dec_rd == 5'd0) && (dec_rs1 == 5'd1);
+    wire [31:0] ras_ret_addr = ifid_pc + 32'd4;
+    wire        ras_valid;
+    wire [31:0] ras_top;
+    wire [3:0]  ras_level;   // ????(Core ?????,????)
+
+    ras #(.DEPTH(RAS_DEPTH)) ras_unit (
+        .clk      (clk),
+        .reset    (reset),
+        .enable   (ENABLE_RAS != 0),
+        .push     (ras_push),
+        .ret_addr (ras_ret_addr),
+        .pop      (ras_pop),
+        .top      (ras_top),
+        .valid    (ras_valid),
+        .level    (ras_level)
+    );
+
+    // ? PC ??? ret(? BTB ?????????)
+    reg [15:0] btb_is_ret;
+    always @(posedge clk) begin
+        if (reset) begin
+            btb_is_ret <= 16'b0;
+        end
+        else if (control_resolve) begin
+            // ?????? predictor_hit ?? tag ??,??????????
+            btb_is_ret[idex_pc[5:2]] <= idex_jalr && (idex_rd == 5'd0) && (idex_rs1 == 5'd1);
+        end
+    end
+
+    wire pred_is_ret = predictor_hit && btb_is_ret[fetch_pc[5:2]];
+    // ??????:ret ?????? -> ? RAS ??;??? BTB ??? target
+    wire [31:0] predictor_target_eff =
+        (pred_is_ret && ras_valid) ? ras_top : predictor_target;
+
+    //-------------------------------------------------------------------------
     // 取指请求的展示形式有两种，二者在对外语义上完全等价（都是一个单 outstanding 的取指事务）：
-    //  - if_req：请求已冻结在 if_req_addr_reg 中，等待下游 ready；
+    //  - if_req：请求已锁存在 if_req_addr_reg 中，等待下游 ready；
     //  - if_arm：刚刚接受完上一笔请求，本拍直接用已经寄存的 fetch_pc 展示下一笔请求。
     // if_arm 的存在是为了消除“接受后一拍没有请求在场”的空洞：旧请求的响应在 T 拍被接收时，
     // 新请求已经在本拍展示，因此可以在同一拍完成“旧响应接收 + 新请求接受”的交接，
     // 达到 docs/interfaces.md §3 要求的每拍一条连续取指。展示地址直接来自 fetch_pc 寄存器，
-    // 不引入额外的地址寄存级，因此不改变“valid 且 !ready 时地址保持稳定”的契约。
+    // 不引入额外的地址寄存级，因此不改变“valid 且 !ready 时地址保持稳定”这一要求。
     //-------------------------------------------------------------------------
     wire        if_present        = if_req || if_arm;
     // if_arm 展示的地址必须寄存后再展示，不能直接用 fetch_pc：
     // Redirect/Trap 当拍 fetch_pc 会被改成新目标，若此时 if_arm 正在等待 ready，
-    // 直接用 fetch_pc 会让"valid && !ready 时字段稳定"的契约当场失效。
-    // if_arm_addr_reg 在武装那一拍锁存，之后保持到该请求被接受或被冻结。
+    // 直接用 fetch_pc 会让"valid && !ready 时字段稳定"这一要求当场失效。
+    // if_arm_addr_reg 在武装那一拍锁存，之后保持到该请求被接受或转入 if_req。
     wire [31:0] if_present_addr   = if_req ? if_req_addr_reg : fetch_pc;
     wire        if_present_pred_hit    = if_req ? if_req_pred_hit    : predictor_hit;
     wire        if_present_pred_taken  = if_req ? if_req_pred_taken  : predictor_taken;
-    wire [31:0] if_present_pred_target = if_req ? if_req_pred_target : predictor_target;
+    wire [31:0] if_present_pred_target = if_req ? if_req_pred_target : predictor_target_eff;
 
     // A held EX/MEM entry owns the external request.  Once accepted, valid drops
     // while the entry remains until the one matching response is consumed.
@@ -727,7 +858,6 @@ module pipeline_cpu #(
     // IF 允许“旧响应完成 + 新请求接受”在同一拍交接，因此零等待存储器可持续
     // 每拍取一条，同时任意时刻仍只有一笔未完成事务。IF/ID 当拍被 ID 消费时
     // 也可由新响应替换，避免人为插入空泡。
-    wire id_advance  = !mem_block && !load_use && !ex_redirect;
     wire ifid_available = !ifid_valid || id_advance || ex_redirect;
 
     assign i_rsp_ready = if_rsp && !mem_block &&
@@ -743,7 +873,7 @@ module pipeline_cpu #(
 
     wire if_request_accept = i_req_valid && i_req_ready;
 
-    wire front_hold        = mem_block || load_use;
+    wire front_hold        = mem_block || mdu_block || load_use;
 
     //-------------------------------------------------------------------------
     // 事件输出
@@ -769,9 +899,9 @@ module pipeline_cpu #(
     // Trap 同拍说明这条非法指令属于被冲刷的错误路径，不计入。
     assign event_illegal      = id_advance && ifid_valid && !ifid_error &&
                                 dec_illegal && !trap_take;
-    assign event_misaligned   = mem_done && exmem_access && ls_misaligned;
+    assign event_misaligned   = mem_done && !exmem_retired && exmem_access && ls_misaligned;
     assign event_bus_error    = (if_accept && i_rsp_error) ||
-                                (mem_done && exmem_access && !ls_misaligned && d_rsp_error);
+                                (mem_done && !exmem_retired && exmem_access && !ls_misaligned && d_rsp_error);
 
     always @(posedge clk) begin
         if (reset) begin
@@ -807,7 +937,10 @@ module pipeline_cpu #(
             idex_trap_ebreak        <= 0;
             idex_trap_mret          <= 0;
             idex_exc_cause          <= EXC_NONE;
+            idex_mdu_en             <= 0;
+            idex_mdu_op             <= 3'b000;
             exmem_valid             <= 0;
+            exmem_retired           <= 0;
             exmem_error             <= 0;
             exmem_exc_cause         <= EXC_NONE;
             exmem_next_pc           <= 0;
@@ -828,8 +961,13 @@ module pipeline_cpu #(
             memwb_exc_valid <= 0;
 
             // Trap 接受当拍不得再把 EX/MEM 的指令送进 WB：那条属于出错指令的后继，
-            // 必须整体取消（契约 §5.1 第 2 条）。
-            if (mem_done && !trap_take) begin
+            // 必须整体取消（§5.1 第 2 条）。
+            // mdu_block 同理必须挡住这次转移：除法停顿期间 EX/MEM 被冻住不前进，
+            // 若这里照常每拍把同一条记录送进 WB，它就会**每拍退休一次**
+            //（实测：一条 mulhu 被重复退休 33 次，寄存器写、提交 trace 与
+            // minstret 全部被放大）。停顿期间 WB 应当空着，等停顿结束后
+            // EX/MEM 那条指令再退休一次。
+            if (mem_done && !trap_take && !exmem_retired) begin
                 // 异常记录**不能**被 trap_take 门控：Trap 的接受点就在 WB，
                 // 判据正是本次要写入的 wb_exc_next。这里若一起清掉就会死锁
                 // （"永远判不出异常"）。被 trap_take 门控的只允许是产生架构
@@ -858,6 +996,8 @@ module pipeline_cpu #(
                 memwb_exc_cause <= wb_exc_next;
                 memwb_next_pc   <= exmem_next_pc;
                 memwb_trap_mret <= exmem_trap_mret;
+                // 这条 EX/MEM 记录已经退休过，不许再退休第二次。
+                exmem_retired   <= 1'b1;
             end
 
             // EX/MEM 因访存响应而停住时，ID/EX 也必须保持。若这期间生产者在
@@ -887,10 +1027,14 @@ module pipeline_cpu #(
                     // Trap 接受当拍，EX/MEM 里那条更年轻的指令必须被清掉。
                     // 只门控"进入 EX/MEM 的那一条"是不够的：EX/MEM 中**已经在场**的
                     // 那条指令下一拍照样会进入 WB 退休（实测表现为"出错指令的后继
-                    // 指令仍然写寄存器"，契约 §5.1 第 2 条不满足）。
+                    // 指令仍然写寄存器"，§5.1 第 2 条不满足）。
                     exmem_valid <= 0;
-                end else if (mem_done || !exmem_valid) begin
+                    exmem_retired <= 1'b0;
+                end else if ((mem_done || !exmem_valid) && !mdu_block) begin
                     exmem_valid    <= idex_valid;
+                    // 新指令换进来，退休标记随之清零（本行必须在上面的 MEM→WB 之后，
+                    // 非阻塞赋值后写者优先，同拍换入时以"新指令还没退休"为准）。
+                    exmem_retired  <= 1'b0;
                     exmem_error    <= idex_error;
                     exmem_pc       <= idex_pc;
                     exmem_inst     <= idex_inst;
@@ -909,7 +1053,7 @@ module pipeline_cpu #(
                     exmem_exc_cause <= idex_valid ? ex_exc_cause : EXC_NONE;
                     // 出错指令的恢复地址默认就是它自己的 PC（它不会退休）；
                     // 唯一的例外是访存访问错误——那条指令可能已经完成总线写，
-                    // 此时把恢复地址推进到 PC+4（契约 §4.1）。
+                    // 此时把恢复地址推进到 PC+4（§4.1）。
                     // 恢复地址一律取本条指令自己的 PC；唯一的例外（Store 访问错误
                     // 已经完成总线写）在 WB 级按 wb_exc_cause 单独处理，
                     // 因为那要等下游响应才知道，EX 级判不出来。
@@ -945,32 +1089,34 @@ module pipeline_cpu #(
                     idex_trap_ebreak <= 0;
                     idex_trap_mret   <= 0;
                     idex_exc_cause   <= EXC_NONE;
+                    idex_mdu_en      <= 0;
+                    idex_mdu_op      <= 3'b000;
                     ifid_valid <= 0;
                     fetch_pc   <= redirect_pc;
                     if (if_rsp && !if_accept) begin
                         if_discard <= 1;
                     end
                     // 注意：这里**绝对不能**改写 if_req_addr_reg。
-                    // 如果本拍 if_req 已经把一笔请求冻结在 if_req_addr_reg 中等待 ready，
+                    // 如果本拍 if_req 已经把一笔请求锁存在 if_req_addr_reg 中等待 ready，
                     // 而 if_present_addr 又选择它作为对外展示地址，那么改写它就会让
-                    // "valid && !ready 时请求字段保持稳定"这条契约当场破掉
+                    // "valid && !ready 时请求字段保持稳定"这条要求当场破掉
                     // （实测报 I REQUEST STABILITY FAIL addr=00000000 held=0000004c）。
-                    // 被冻结的那笔请求属于错误路径，只把它标记成丢弃即可；
+                    // 已锁存的那笔请求属于错误路径，只把它标记成丢弃即可；
                     // 重定向目标地址已经写进 fetch_pc，等这笔请求收干后由
                     // 下面的"重新登记"用它建立新请求。
                     if (if_arm && !if_request_accept) begin
-                        // 把"正在展示的 if_arm 请求"转成"已冻结的 if_req 请求"。
-                        // 冻结它当前展示的地址（if_arm_addr_reg），而不是改写后的
+                        // 把"正在展示的 if_arm 请求"转成"已锁存的 if_req 请求"。
+                        // 锁存它当前展示的地址（if_arm_addr_reg），而不是改写后的
                         // fetch_pc：Redirect 当拍 fetch_pc 已经变成重定向目标，
-                        // 若在这里冻结新目标，对外展示的地址会在 valid 仍为 1、
+                        // 若在这里锁存新目标，对外展示的地址会在 valid 仍为 1、
                         // ready 仍为 0 的情况下从旧值跳到新值，当场破掉
-                        // interfaces.md §3 的请求稳定性契约
+                        // interfaces.md §3 的请求稳定性要求
                         // （实测 I REQUEST STABILITY FAIL addr=00000000 held=0000004c）。
                         if_req             <= 1;
                         if_req_addr_reg    <= fetch_pc;
                         if_req_pred_hit    <= predictor_hit;
                         if_req_pred_taken  <= predictor_taken;
-                        if_req_pred_target <= predictor_target;
+                        if_req_pred_target <= predictor_target_eff;
                     end
                     if (if_arm) begin
                         if_arm <= 0;
@@ -980,6 +1126,12 @@ module pipeline_cpu #(
                     end
                 end else if (load_use) begin
                     idex_valid <= 0;
+                end else if (mdu_block) begin
+                    // 除法迭代期间把 ID/EX 原地冻住：既不写新指令进来，也不把
+                    // 它送进 EX/MEM（上面那条转移已被 !mdu_block 挡住）。
+                    // IF/ID 同样保持（ifid_valid 不在这里改），因此下游返回的
+                    // 取指响应不会被接收——与前递无关，纯粹是为了让这条指令
+                    // 原样留在 EX 等 32 拍结果。
                 end else begin
                     idex_valid        <= ifid_valid;
                     idex_error        <= ifid_error || dec_illegal;
@@ -1014,6 +1166,10 @@ module pipeline_cpu #(
                     idex_trap_ecall   <= dec_trap_ecall && !dec_illegal;
                     idex_trap_ebreak  <= dec_trap_ebreak && !dec_illegal;
                     idex_trap_mret    <= dec_trap_mret && !dec_illegal;
+                    // M 扩展控制位与 Zicsr 同理：非法指令一律不带，保证"未实现
+                    // 编码只产生非法指令异常"，不会顺手做一次乘除法。
+                    idex_mdu_en       <= dec_mdu_en && !dec_illegal;
+                    idex_mdu_op       <= dec_mdu_op;
                     // 异常记录"先到先得"：IF/ID 已带异常就保持，EX 级不得覆盖
                     idex_exc_cause    <= ifid_exc_cause;
                     ifid_valid        <= 0;
@@ -1052,7 +1208,7 @@ module pipeline_cpu #(
                     // 关键：请求被接收的当拍立刻武装下一笔请求，使下一拍直接以 fetch_pc 展示它。
                     // 这样“旧响应被接收”的那一拍同时就是“新请求被接受”的那一拍，取指达到每拍一条。
                     // 展示地址同时锁进 if_arm_addr_reg，之后 Redirect 改 fetch_pc 也不会
-                    // 影响这笔已在场请求对外展示的地址（请求稳定性契约）。
+                    // 影响这笔已在场请求对外展示的地址（请求稳定性要求）。
                     if_arm   <= 1;
                 end
             end
@@ -1065,7 +1221,7 @@ module pipeline_cpu #(
                 if_req_addr_reg    <= fetch_pc;
                 if_req_pred_hit    <= predictor_hit;
                 if_req_pred_taken  <= predictor_taken;
-                if_req_pred_target <= predictor_target;
+                if_req_pred_target <= predictor_target_eff;
                 if_req_discard     <= 0;
             end
         end

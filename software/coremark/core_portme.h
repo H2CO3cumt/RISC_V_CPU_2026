@@ -10,7 +10,21 @@
 #define HAS_PRINTF 0
 
 #define COMPILER_VERSION "GCC " __VERSION__
-#define COMPILER_FLAGS "-O2 -march=rv32i -mabi=ilp32"
+/* 实际使用的 -march 由 Makefile 经 -DCOREMARK_MARCH 传入（默认 rv32i，
+   即赛题与项目固定的基线口径）。CoreMark 会把这一行打印到串口，因此
+   RV32I 基线与 RV32IM 增强镜像的输出能自证各自用的是哪套 ISA，
+   引用分数时不会把两个批次混在一起。 */
+#ifndef COREMARK_MARCH
+#define COREMARK_MARCH "rv32i"
+#endif
+/* 优化等级必须**如实自证**：CoreMark 报告规则要求写明编译选项。
+   这一行以前写死 "-O2"，一旦用别的优化等级构建，串口自证行就会说谎。
+   现在由 Makefile 用 -DCOREMARK_OPT_STR=... 传入实际使用的优化选项，
+   未传入时退回 "-O2"，保证与历史镜像逐字节可比。 */
+#ifndef COREMARK_OPT_STR
+#define COREMARK_OPT_STR "-O2"
+#endif
+#define COMPILER_FLAGS COREMARK_OPT_STR " -march=" COREMARK_MARCH " -mabi=ilp32"
 #define MEM_LOCATION "STATIC BRAM"
 
 typedef signed short ee_s16;

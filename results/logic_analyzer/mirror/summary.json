@@ -1,0 +1,17 @@
+[
+  {
+    "run": 0,
+    "mode": "mirror",
+    "view": "mirror",
+    "value": 0,
+    "samples": 2048,
+    "trigger": 0,
+    "uart": "48454c4c4f2c524953432d56",
+    "uart_errors": 0,
+    "spi": "",
+    "core_commits": 0,
+    "core_stalls": 0,
+    "core_flushes": 0,
+    "text": "HELLO,RISC-V"
+  }
+]

@@ -45,6 +45,22 @@ D:\Python313\python.exe python\ila_coremark_analysis.py --capture tmp\ila\corema
 
 窗口 CPI 与整段板级 CPI 相差 2.3%，说明这 512 拍是可代表整体行为的稳态窗口。
 
+> ⚠️ **批次说明（2026-09-30 补注，务必先读）**
+>
+> 本目录的**全部数字属于 2026-09-17 那一批位流**：波形来自 `fpga/coremark_ila/generate_bitstream/`
+> （构建于 2026-09-17 20:44），右侧"板级计数器"一列来自**同批**的 `release/evidence/coremark_board_cpi50m.json`
+> （Score 45.051 / CPI 1.5388）。**"相差 2.3%"这个对比只在同批次内成立。**
+>
+> 当前交付批次的 CoreMark 位流是 `release/evidence/coremark_board.json`
+> （2026-09-29，`ticks=1068006999`、Score **46.816**、CoreMark/MHz **0.936**、CPI **1.508**）。
+> **拿 1.508 去比这里 09-17 的波形，差值是 4.5%，不是 2.3% —— 两个数不得混用。**
+>
+> 若要引用"窗口 vs 整段"的对比，必须同时说明两边分别是哪一批；
+> 跨批次引用是本项目材料收口时发现的主要风险，来源见 `release/evidence/claims_map.md` §12。
+>
+> 另外注意：这里的 **512 样本**是 **PDS DebugCore 探针**的窗口；
+> 作品自带的八通道逻辑分析仪 Raw 深度是 **256 样本**，两者不是一回事。
+
 ## 3. 关键发现：CoreMark 的时间花在软件乘法循环里
 
 窗口内 **84.3% 的提交指令（274/325）落在 `__mulsi3`**：

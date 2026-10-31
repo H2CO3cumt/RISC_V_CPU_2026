@@ -15,7 +15,7 @@
 // 中断语义（与 RISC-V MTIP 一致）：
 //   irq_timer = (mtime >= mtimecmp)，**电平**有效、由硬件比较产生。
 //   软件在 ISR 里重写 mtimecmp 即可清除，不需要额外的“清中断”寄存器——
-//   这正是契约 §4.2 要求的“ISR 中重设 mtimecmp 后可再次触发”。
+//   这正是 §4.2 要求的“ISR 中重设 mtimecmp 后可再次触发”。
 //   复位后 mtimecmp = 全 1，因此在软件第一次编程之前**不会**产生中断请求。
 //
 // 握手与 gpio_mmio / uart_mmio 完全一致：IDLE 收请求 → RESP 等响应被接收，
@@ -84,7 +84,7 @@ module timer_mmio (
             cstate          <= IDLE;
             mtime_lo_q      <= 32'b0;
             mtime_hi_q      <= 32'b0;
-            // 复位后不产生中断请求：契约 §4.2 要求中断在软件显式打开之前必须为 0。
+            // 复位后不产生中断请求：§4.2 要求中断在软件显式打开之前必须为 0。
             mtimecmp_lo_q   <= 32'hFFFF_FFFF;
             mtimecmp_hi_q   <= 32'hFFFF_FFFF;
             rsp_rdata_reg   <= 32'b0;

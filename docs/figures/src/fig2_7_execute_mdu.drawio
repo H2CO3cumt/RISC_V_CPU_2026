@@ -1,0 +1,39 @@
+﻿<mxfile host="app.diagrams.net" type="device">
+  <diagram name="图2-7 执行与乘除流程图" id="fig2_7">
+    <mxGraphModel dx="1200" dy="1280" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1200" pageHeight="1280" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="n1" value="执行级输入&#10;idex_valid · idex_alu · idex_pc&#10;idex_mdu_en · idex_mdu_op · 前递后操作数" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fontSize=14;fontFamily=Microsoft YaHei;fillColor=#FFE9D2;strokeColor=#D9822B;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="200" y="50" width="360" height="110" as="geometry" /></mxCell>
+        <mxCell id="n2" value="ALU 源选择与运算&#10;按 alu_ctrl 执行算术 / 逻辑 / 移位&#10;→ ex_alu" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fontSize=14;fontFamily=Microsoft YaHei;fontStyle=1;fillColor=#FFE9D2;strokeColor=#D9822B;strokeWidth=2.5;" vertex="1" parent="1"><mxGeometry x="200" y="200" width="360" height="120" as="geometry" /></mxCell>
+
+        <mxCell id="d3" value="M 扩展指令 ?" style="rhombus;whiteSpace=wrap;html=1;fontSize=14;fontFamily=Microsoft YaHei;fillColor=#FFFFFF;strokeColor=#C86F17;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="270" y="370" width="220" height="120" as="geometry" /></mxCell>
+
+        <mxCell id="n4" value="乘除法单元&#10;run = valid 且 mdu_en&#10;op[2] = 0：000～011 乘（固定拍数 2）&#10;op[2] = 1：100～111 除（32 拍迭代）&#10;→ mdu_result" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fontSize=14;fontFamily=Microsoft YaHei;fontStyle=1;fillColor=#FFD9B0;strokeColor=#C86F17;strokeWidth=2.5;" vertex="1" parent="1"><mxGeometry x="650" y="340" width="420" height="170" as="geometry" /></mxCell>
+        <mxCell id="d5" value="除法未完成 ?" style="rhombus;whiteSpace=wrap;html=1;fontSize=14;fontFamily=Microsoft YaHei;fillColor=#FFFFFF;strokeColor=#C86F17;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="770" y="560" width="200" height="120" as="geometry" /></mxCell>
+        <mxCell id="n5" value="冻结 ID/EX 并挡住 EX/MEM&#10;mdu_busy → mdu_block" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fontSize=14;fontFamily=Microsoft YaHei;fillColor=#FFD9B0;strokeColor=#C86F17;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="680" y="730" width="380" height="110" as="geometry" /></mxCell>
+
+        <mxCell id="n6" value="结果选择&#10;result = mdu_en ? mdu_result : ex_alu" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fontSize=14;fontFamily=Microsoft YaHei;fillColor=#FFE9D2;strokeColor=#D9822B;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="200" y="640" width="360" height="120" as="geometry" /></mxCell>
+        <mxCell id="n7" value="分支比较与目标&#10;→ branch_taken&#10;ex_target = jalr ? (ex_alu 清 bit0) : ex_alu" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fontSize=14;fontFamily=Microsoft YaHei;fillColor=#FFE9D2;strokeColor=#D9822B;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="200" y="810" width="360" height="130" as="geometry" /></mxCell>
+        <mxCell id="n8" value="下一 PC&#10;ex_next_pc =（jump 或 branch 且 taken）&#10;? ex_target : pc + 4" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fontSize=14;fontFamily=Microsoft YaHei;fillColor=#FFE9D2;strokeColor=#D9822B;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="200" y="990" width="360" height="130" as="geometry" /></mxCell>
+        <mxCell id="n9" value="写入 EX/MEM&#10;mem_done 且未 mdu_block 时前进&#10;mdu_ack 同拍释放乘除单元" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fontSize=14;fontFamily=Microsoft YaHei;fillColor=#FFE9D2;strokeColor=#D9822B;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="200" y="1170" width="360" height="110" as="geometry" /></mxCell>
+
+        <mxCell id="e12" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#5F5F5F;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="n1" target="n2"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e23" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#5F5F5F;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="n2" target="d3"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e3y" value="是" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=13;fontFamily=Microsoft YaHei;fontColor=#B5641A;strokeColor=#C86F17;strokeWidth=2;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="d3" target="n4"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e3n" value="否：直接用 ALU 结果" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=13;fontFamily=Microsoft YaHei;fontColor=#1F5E9E;strokeColor=#2E6FB7;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="d3" target="n6"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e45" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#C86F17;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="n4" target="d5"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e5y" value="是" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=13;fontFamily=Microsoft YaHei;fontColor=#B5641A;strokeColor=#C86F17;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="d5" target="n5"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e5loop" value="逐拍重查至完成" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;horizontal=1;fontSize=13;fontFamily=Microsoft YaHei;fontColor=#B5641A;strokeColor=#C86F17;strokeWidth=2;dashed=1;exitX=1;exitY=0.5;entryX=1;entryY=0.5;" edge="1" parent="1" source="n5" target="d5"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="1100" y="785" /><mxPoint x="1100" y="620" /></Array></mxGeometry></mxCell>
+        <mxCell id="e5n" value="否" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=13;fontFamily=Microsoft YaHei;fontColor=#1F5E9E;strokeColor=#2E6FB7;strokeWidth=2;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" edge="1" parent="1" source="d5" target="n6"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="620" y="620" /><mxPoint x="620" y="700" /></Array></mxGeometry></mxCell>
+
+        <mxCell id="e67" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#5F5F5F;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="n6" target="n7"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e78" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#5F5F5F;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="n7" target="n8"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e89" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#5F5F5F;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="n8" target="n9"><mxGeometry relative="1" as="geometry" /></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
+
+

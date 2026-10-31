@@ -1,0 +1,30 @@
+{
+  "port": "COM11",
+  "baud": 115200,
+  "capture_seconds": 6.0,
+  "raw_bytes": 120,
+  "boot_equals_seen": true,
+  "record_runs_anchored_on_boot_marker": true,
+  "run_count": 2,
+  "run_lengths": [
+    2,
+    10
+  ],
+  "record_count": 12,
+  "delta_ticks": 12500000,
+  "expected_period_ticks": 12500000,
+  "expected_period_ms": 250.0,
+  "tolerance_ticks": 256,
+  "count_sequence": "890123456789",
+  "led_sequence": "010101010101",
+  "count_increments_ok": true,
+  "led_alternates_ok": true,
+  "mtime_period_ticks_min": 12451840,
+  "mtime_period_ticks_max": 12517376,
+  "mtime_period_ticks_median": 12517376,
+  "mtime_period_ms_median": 250.348,
+  "self_timed_period_ok": true,
+  "self_timed_tolerance_ticks": 65536,
+  "wallclock_period_ms": 386.742,
+  "wallclock_magnitude_ok": true
+}

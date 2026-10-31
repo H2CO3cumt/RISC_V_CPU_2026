@@ -1,4 +1,4 @@
-param(
+﻿param(
   [Parameter(Mandatory=$true)][string]$Report,
   [int]$Top = 10,
   [string]$Out = ''

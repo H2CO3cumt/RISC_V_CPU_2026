@@ -13,6 +13,8 @@ module tb_decoder;
     wire        jump;
     wire        jalr;
     wire        illegal;
+    wire        mdu_en;
+    wire [2:0]  mdu_op;
     integer     failures;
 
     decoder dut (
@@ -27,7 +29,9 @@ module tb_decoder;
         .branch(branch),
         .jump(jump),
         .jalr(jalr),
-        .illegal(illegal)
+        .illegal(illegal),
+        .mdu_en(mdu_en),
+        .mdu_op(mdu_op)
     );
 
     task check_control;
@@ -105,6 +109,31 @@ module tb_decoder;
         end
     endtask
 
+    // M 扩展专项：funct7=0000001 的八条编码必须"合法 + mdu_en=1 + mdu_op=funct3"，
+    // 并且不得顺带产生访存、分支、跳转或 CSR 副作用。
+    task check_mdu;
+        input [2:0]  funct3_value;
+        input integer test_number;
+        begin
+            instruction = {7'b0000001, 5'd2, 5'd1, funct3_value, 5'd3, 7'b0110011};
+            #1;
+            if ((illegal === 1'b0) && (mdu_en === 1'b1) && (mdu_op === funct3_value) &&
+                (reg_write === 1'b1) && (result_src === 2'b00) &&
+                (mem_read === 1'b0) && (mem_write === 1'b0) &&
+                (branch === 1'b0) && (jump === 1'b0) && (jalr === 1'b0)) begin
+                $display("TEST %0d PASS", test_number);
+            end
+            else begin
+                $display(
+                    "TEST %0d FAIL: M instr=%h f3=%b illegal=%b mdu_en=%b mdu_op=%b rw=%b res=%b mr=%b mw=%b",
+                    test_number, instruction, funct3_value, illegal, mdu_en, mdu_op,
+                    reg_write, result_src, mem_read, mem_write
+                );
+                failures = failures + 1;
+            end
+        end
+    endtask
+
     initial begin
         instruction = 32'b0;
         failures = 0;
@@ -121,7 +150,7 @@ module tb_decoder;
         check_control(7'b0110011, 3'b010, 7'b0000000, 1, 0, 0, 4'b1000, 0, 0, 2'b00, 0, 0, 0, 0, 9);  // SLT
         check_control(7'b0110011, 3'b011, 7'b0000000, 1, 0, 0, 4'b1001, 0, 0, 2'b00, 0, 0, 0, 0, 10); // SLTU
         check_control(7'b0110011, 3'b111, 7'b0100000, 0, 0, 0, 4'b0000, 0, 0, 2'b00, 0, 0, 0, 1, 11); // illegal AND encoding
-        check_control(7'b0110011, 3'b000, 7'b0000001, 0, 0, 0, 4'b0000, 0, 0, 2'b00, 0, 0, 0, 1, 12); // unsupported M encoding
+        check_control(7'b0110011, 3'b000, 7'b0000001, 1, 0, 0, 4'b0000, 0, 0, 2'b00, 0, 0, 0, 0, 12); // MUL：RV32IM 之后合法
 
         // OP-IMM: normal immediates accept arbitrary imm[11:5]; shifts check funct7.
         check_control(7'b0010011, 3'b000, 7'b1111111, 1, 0, 1, 4'b0000, 0, 0, 2'b00, 0, 0, 0, 0, 13); // ADDI -1-like high bits
@@ -188,6 +217,19 @@ module tb_decoder;
         check_control(7'b0000000, 3'b000, 7'b0000000, 0, 0, 0, 4'b0000, 0, 0, 2'b00, 0, 0, 0, 1, 62);
         check_control(7'b1111111, 3'b111, 7'b1111111, 0, 0, 0, 4'b0000, 0, 0, 2'b00, 0, 0, 0, 1, 63);
         check_control(7'b0000111, 3'b010, 7'b0000000, 0, 0, 0, 4'b0000, 0, 0, 2'b00, 0, 0, 0, 1, 64); // unsupported LOAD-FP
+
+        // M 扩展：八条编码逐条验收（mul/mulh/mulhsu/mulhu/div/divu/rem/remu）。
+        check_mdu(3'b000, 65); // MUL
+        check_mdu(3'b001, 66); // MULH
+        check_mdu(3'b010, 67); // MULHSU
+        check_mdu(3'b011, 68); // MULHU
+        check_mdu(3'b100, 69); // DIV
+        check_mdu(3'b101, 70); // DIVU
+        check_mdu(3'b110, 71); // REM
+        check_mdu(3'b111, 72); // REMU
+        // funct7 差一位就仍然是非法指令：M 扩展只放开 0000001 这一组。
+        check_control(7'b0110011, 3'b000, 7'b0000010, 0, 0, 0, 4'b0000, 0, 0, 2'b00, 0, 0, 0, 1, 73);
+        check_control(7'b0110011, 3'b100, 7'b0000011, 0, 0, 0, 4'b0000, 0, 0, 2'b00, 0, 0, 0, 1, 74);
 
         if (failures == 0)
             $display("ALL TEST PASS");

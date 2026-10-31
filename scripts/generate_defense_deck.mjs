@@ -106,16 +106,16 @@ function applyTableStyle(table, rows, cols, widths = []) {
   box(s, 94, 324, 1000, 2, blue, "none");
   text(s, "MES50HP  PGL50H-6IFBG484  50 MHz", 94, 354, 1000, 42, 21, { color: black });
   text(s, "技术答辩候选稿", 94, 448, 400, 42, 20, { bold: true, color: orange });
-  text(s, "自动化回归与 PDS 已完成\n实体板最终证据待补", 94, 500, 600, 84, 21, { color: gray });
+  text(s, "自动化回归、PDS 与实体板证据已完成\n三轮断电压力与最终成片视频待补", 94, 500, 600, 84, 21, { color: gray });
   text(s, "2026", 1025, 558, 150, 72, 46, { bold: true, color: pale, align: "right" });
   note(s, "来源：docs/progress.md；release/evidence/automated_metrics.json。当前版本为 competition_final_candidate。");
 }
 
 // 2 Scope
 {
-  const s = deck.slides.add(); s.background.fill = white; title(s, "交付范围", "主线聚焦正确性、性能和可复现应用");
+  const s = deck.slides.add(); s.background.fill = white; title(s, "交付范围", "主线聚焦正确性、性能与应用；Cache、突发与 DDR3 已纳入本届");
   const rows = [
-    ["处理器", "完整 RV32I 与五级流水线", cyan],
+    ["处理器", "完整 RV32I、五级流水线与机器模式 Trap", cyan],
     ["性能", "官方 CoreMark、计数器与 PDS Timing", blue],
     ["应用", "8 通道 Raw、UART/SPI、Python/VCD", orange],
     ["发布", "唯一最终 bitstream、报告、固件和 SHA-256", navy],
@@ -126,10 +126,10 @@ function applyTableStyle(table, rows, cols, widths = []) {
     text(s, r[0], 92, y, 170, 70, 23, { bold: true, color: white, align: "center" });
     text(s, r[1], 292, y, 850, 70, 23, { color: black });
   });
-  text(s, "冻结项", 92, 594, 140, 34, 18, { bold: true, color: gray });
-  text(s, "RLE、Cache、完整异常中断、AI、DDR、HDMI、PCIe、千兆网、自定义指令", 222, 588, 930, 48, 17, { color: gray });
+  text(s, "本届不做", 92, 594, 140, 34, 18, { bold: true, color: gray });
+  text(s, "AI、HDMI、PCIe、千兆网、自定义指令、RLE", 222, 588, 930, 48, 17, { color: gray });
   footer(s, 2, "范围依据 docs/roadmap.md");
-  note(s, "来源：AGENTS.md；docs/roadmap.md；docs/competition_scoring.md。");
+  note(s, "来源：AGENTS.md §1.14；docs/roadmap.md；docs/competition_scoring.md；release/evidence/claims_map.md §9。2026-09-29 确定的范围变更：I/D-Cache、burst 与外部 DDR3 由“本届不做”改为“本届要做”，Cache 与突发位于 Core 外部、不改变 Core 事务语义；机器模式 CSR/Trap/MRET 与定时器中断已实现并进入交付配置；Trap 边界见 docs/trap_contract.md。");
 }
 
 // 3 Architecture
@@ -146,7 +146,7 @@ function applyTableStyle(table, rows, cols, widths = []) {
   per.forEach(([label, x, y], i) => { box(s, x, y, 190, 130, i < 2 ? light : pale, i < 2 ? gray : blue, 10); text(s, label, x + 10, y + 20, 170, 90, 22, { bold: true, color: i < 2 ? black : navy, align: "center" }); });
   box(s, 402, 357, 78, 4, blue, "none"); box(s, 700, 357, 60, 4, cyan, "none"); box(s, 940, 252, 50, 4, gray, "none"); box(s, 940, 432, 50, 4, blue, "none");
   text(s, "Core 中不存在设备地址、片选和 UART/GPIO/分析仪专用端口", 84, 582, 1095, 44, 21, { bold: true, color: orange, align: "center" });
-  footer(s, 3, "接口契约 docs/interfaces.md");
+  footer(s, 3, "接口定义 docs/interfaces.md");
   note(s, "来源：docs/interfaces.md。图中所有外设与地址译码均位于 Core 外部。");
 }
 
@@ -176,8 +176,10 @@ function applyTableStyle(table, rows, cols, widths = []) {
     ["ISA", "RV32UI Core 29 项 + Memory 10 项", "PASS"],
     ["Reference", "14 个入口与首差检测", "14 / 0"],
     ["Pipeline", "10 个 Hazard 背压 Reset Trace 入口", "PASS"],
+    ["Trap", "机器模式 CSR/Trap/MRET 与定时器中断", "M-01…M-24 PASS"],
     ["GCC", "两项程序 × 固定/随机延迟", "Trace 一致"],
     ["Application", "Capture MMIO SoC UART/SPI Python/VCD", "PASS"],
+    ["Cache/burst", "S1 DDR3 板级连通；S2 突发 48→30；S3/S4 Cache 按回退条件关闭", "S1/S2 PASS"],
     ["Release", "范围审计 + 唯一最终 bitstream SHA-256", "PASS"],
   ];
   const t = s.tables.add({ rows: values.length, columns: 3, left: 92, top: 174, width: 1090, height: 390, values });
@@ -192,7 +194,7 @@ function applyTableStyle(table, rows, cols, widths = []) {
   const s = deck.slides.add(); s.background.fill = white; title(s, "Hazard 控制", "前递、暂停和冲刷分别处理三类依赖");
   const items = [
     ["Forwarding", "EX/MEM 优先于 MEM/WB\n排除 Load、x0、错误写回", cyan],
-    ["Load-Use Stall", "冻结 PC 与 IF/ID\n向 ID/EX 注入 Bubble", orange],
+    ["Load-Use Stall", "保持 PC 与 IF/ID\n向 ID/EX 注入 Bubble", orange],
     ["Branch Jump Flush", "EX 级重定向\n冲刷错误路径副作用", blue],
   ];
   items.forEach((it, i) => {
@@ -213,18 +215,23 @@ function applyTableStyle(table, rows, cols, widths = []) {
   const s = deck.slides.add(); s.background.fill = white; title(s, "CoreMark 与分支预测", "同一 RV32I 镜像的 Predictor Off 和 On 均通过官方 CRC");
   const values = [
     ["指标", "当前值", "证据口径"],
-    ["Predictor Off", "2,106,042 cycles", "CPI 2.7143"],
-    ["Predictor On", "1,852,156 cycles", "CPI 2.3747"],
-    ["周期减少", "253,886", "12.06%"],
-    ["BTB", "203,492 hit", "51,908 misprediction"],
+    ["Predictor Off", "1,604,264 cycles", "CPI 2.0670"],
+    ["Predictor On", "1,251,724 cycles", "CPI 1.5907"],
+    ["周期减少", "352,540", "21.98%"],
+    ["BTB", "221,615 hit", "69,120 misprediction"],
     ["性能事件", "10 项 64-bit", "含 predict、hit、mispredict"],
+    ["实体板 50 MHz（RV32I）", "46.816 分，0.936 CoreMark/MHz", "CoreMark 专用位流 DC95F9D0...F5675"],
+    ["实体板 50 MHz（RV32IM）", "113.642 分，2.272 CoreMark/MHz", "M 扩展位流 BE7A4FF3...D57D6F36"],
+    ["实体板 85 MHz（RV32I，与交付同频）", "79.587 分，0.936 CoreMark/MHz", "CoreMark 专用位流 751C692B...CA970E9"],
+    ["实体板 85 MHz（RV32IM，与交付同频）", "193.192 分，2.272 CoreMark/MHz", "M 扩展位流 EE8B6536...3C68D6F1"],
+    ["CoreMark/LUT（85 MHz 同源同频）", "0.0460 vs 0.0190（2.43×）", "4198 LUT vs 4198 LUT（PnR 后整机，同源）"],
   ];
-  const t = s.tables.add({ rows: values.length, columns: 3, left: 90, top: 172, width: 1100, height: 360, values });
+  const t = s.tables.add({ rows: values.length, columns: 3, left: 90, top: 140, width: 1100, height: 420, values });
   applyTableStyle(t, values.length, 3, [330, 330, 440]);
-  box(s, 90, 563, 1100, 60, "#FFF3E8", orange, 8);
-  text(s, "以上为 RTL 仿真 Before/After；实体板成绩只接受真实串口日志", 108, 568, 1065, 50, 19, { bold: true, color: "#8A3B12", align: "center" });
+  box(s, 90, 570, 1100, 52, "#FFF3E8", orange, 8);
+  text(s, "实体板成绩来自 CoreMark 专用位流（RV32I DC95F9D0...F5675 / 751C692B...CA970E9，RV32IM BE7A4FF3...D57D6F36 / EE8B6536...3C68D6F1），官方 CRC 全部 PASS", 108, 575, 1065, 44, 17, { bold: true, color: "#8A3B12", align: "center" });
   footer(s, 7, "CoreMark commit 1f483d5b");
-  note(s, "来源：release/evidence/automated_metrics.json；third_party/coremark 固定提交。CoreMark/MHz 属于 RTL 仿真估算。");
+  note(s, "来源：release/evidence/automated_metrics.json 与 release/evidence/coremark_board*.json；third_party/coremark 固定提交 1f483d5b8316753a742cbf5590caf5bd0a4e4777。表中前 5 行为 RTL 仿真；实体板 50 MHz 行来自 coremark_board.json（ticks 1,068,006,999、CPI 1.494、21.360 s、1000 次迭代、官方 CRC PASS）。**RV32IM 行（2026-10-14）**：核心实现完整 M 扩展（`rtl/mdu.v`），同一份 RTL、同一份程序、只换 `-march=rv32im`——50 MHz Score 113.642（2000 迭代 17.599 s）、**85 MHz（与交付同频）Score 193.192（4000 迭代 20.704 s，位流 EE8B6536…，WNS +0.250 ns）**，两点 CoreMark/MHz 都是 2.272、ticks/迭代都是 439,975 拍，官方 CRC 全过。两套 ISA 并列，rv32i 仍是默认与可比口径，引用必须写明是哪一套与哪个频点。");
 }
 
 // 8 PDS chart
@@ -233,7 +240,7 @@ function applyTableStyle(table, rows, cols, widths = []) {
   const chart = s.charts.add("bar", {
     position: { left: 72, top: 165, width: 730, height: 410 },
     categories: ["FF", "LUT"],
-    series: [{ name: "最终配置资源", values: [3129, 3459], fill: blue }],
+    series: [{ name: "最终配置资源", values: [3852, 4536], fill: blue }],
     barOptions: { direction: "bar", grouping: "clustered", gapWidth: 55 },
     hasLegend: false,
     xAxis: { min: 0, max: 5000, majorUnit: 1000, textStyle: { typeface: font, fontSize: 15 }, majorGridlines: { fill: "#D9D9D9", width: 1 } },
@@ -243,11 +250,11 @@ function applyTableStyle(table, rows, cols, widths = []) {
     plotAreaFill: white,
   });
   applyPresentationChartFont(chart, { fontFamily: font });
-  box(s, 850, 178, 330, 98, pale, blue, 8); text(s, "最终时序", 872, 186, 286, 26, 18, { bold: true, color: navy, align: "center" }); text(s, "Fmax 57.6735 MHz\nWNS +2.661 / +0.312 ns", 872, 214, 286, 52, 16, { align: "center" });
-  box(s, 850, 306, 330, 98, "#EAF7F5", cyan, 8); text(s, "片上存储", 872, 314, 286, 26, 18, { bold: true, color: cyan, align: "center" }); text(s, "5.5 个 DRM18K 等效块", 872, 350, 286, 40, 16, { align: "center" });
-  text(s, "bitstream SHA-256\n2C09E690...964746E", 836, 460, 360, 70, 18, { color: gray, align: "center" });
+  box(s, 850, 178, 330, 98, pale, blue, 8); text(s, "最终时序", 872, 186, 286, 26, 18, { bold: true, color: navy, align: "center" }); text(s, "Fmax 89.3841 MHz\nWNS +0.577 ns", 872, 214, 286, 52, 16, { align: "center" });
+  box(s, 850, 306, 330, 98, "#EAF7F5", cyan, 8); text(s, "片上存储", 872, 314, 286, 26, 18, { bold: true, color: cyan, align: "center" }); text(s, "4995 LUT / 3908 FF\n6.0 个 DRM18K", 872, 340, 286, 56, 16, { align: "center" });
+  text(s, "交付 bitstream SHA-256\nC017ED10...003FAA4F", 836, 460, 360, 70, 18, { color: gray, align: "center" });
   footer(s, 8, "PDS 2024.2-SP2");
-  note(s, "来源：release/evidence/automated_metrics.json；fpga/task30_logic_analyzer PDS 报告。资源为综合结果。");
+  note(s, "来源：release/evidence/automated_metrics.json；fpga/task30_logic_analyzer PDS 报告。资源与时序为唯一最终 PDS 构建（All Constraints Met）结果；SHA-256 为交付位流 C017ED10…003FAA4F（2026-10-14 重建批次，三处副本一致；50 MHz 备用为 8102634A…3986B012）。候选时序扫描（2026-09-30，同一份未改动 Core RTL，候选位流未上板验证）在 11.765 ns 约束下 All Met、Setup WNS +0.561 ns、估算 Fmax 89.2538 MHz；本轮未测试任何 ≥90 MHz 的约束，板载时钟固定 50 MHz，Fmax 提升只代表时序余量变宽。");
 }
 
 // 9 Branch predictor
@@ -266,7 +273,7 @@ function applyTableStyle(table, rows, cols, widths = []) {
 
 // 10 Logic analyzer
 {
-  const s = deck.slides.add(); s.background.fill = white; title(s, "八通道逻辑分析仪", "配置、采集、软件解析与 VCD 构成端到端闭环");
+  const s = deck.slides.add(); s.background.fill = white; title(s, "八通道逻辑分析仪", "配置、采集、软件解析与 VCD 构成完整数据链路");
   const nodes = [
     ["J8 激励", "static  counter\nUART  SPI", 70, orange],
     ["J8 输入", "8 通道\n3.3 V", 290, blue],
@@ -295,23 +302,23 @@ function applyTableStyle(table, rows, cols, widths = []) {
   const t = s.tables.add({ rows: values.length, columns: 3, left: 80, top: 172, width: 1120, height: 350, values });
   applyTableStyle(t, values.length, 3, [240, 350, 530]);
   box(s, 80, 555, 1120, 70, "#EAF7F5", cyan, 8);
-  text(s, "MES50HP 下载 DONE=1，J8 四模式各 20 次，共 80/80 实体回环 PASS", 104, 562, 1070, 54, 21, { bold: true, color: cyan, align: "center" });
+  text(s, "MES50HP 下载 DONE=1，J8 五模式各 20 次，共 100/100 实体采集 PASS；采集源在两个上位机界面上直接切 Core 内部观测点（MMIO 寄存器 18，不重新综合）", 104, 562, 1070, 54, 19, { bold: true, color: cyan, align: "center" });
   footer(s, 11, "复现说明 docs/reproduction.md");
   note(s, "来源：docs/reproduction.md；release/materials/field_recovery_card.md。");
 }
 
 // 12 Status
 {
-  const s = deck.slides.add(); s.background.fill = white; title(s, "当前结论", "自动化、PDS 与 J8 实体闭环已通过");
+  const s = deck.slides.add(); s.background.fill = white; title(s, "当前结论", "自动化、PDS 与 J8 上板验证已通过");
   box(s, 82, 180, 520, 330, "#EAF7F5", cyan, 14);
   text(s, "已完成", 110, 204, 464, 52, 30, { bold: true, color: cyan, align: "center" });
-  text(s, "RV32I 与 Reference\n五级流水线与 Hazard\nCoreMark 与 BTB 对比\n唯一最终 PDS bitstream\nJ8 实体回环 80/80", 130, 278, 420, 190, 23, { align: "center" });
+  text(s, "RV32I 五级流水线与 Hazard\n机器模式 Trap 与中断\nCoreMark 与 BTB 对比\n唯一最终 PDS bitstream\nJ8 实体回环 80/80", 130, 278, 420, 190, 23, { align: "center" });
   box(s, 678, 180, 520, 330, "#FFF3E8", orange, 14);
   text(s, "待补证", 706, 204, 464, 52, 30, { bold: true, color: orange, align: "center" });
-  text(s, "实体 CoreMark 计分\nFabric Debugger 波形\n三轮断电压力\n最终视频素材", 726, 288, 420, 170, 23, { align: "center" });
+  text(s, "三轮断电压力\n80 MHz PLL 位流上板复测\nDDR3 接入存储路径\n最终视频素材", 726, 288, 420, 170, 23, { align: "center" });
   text(s, "当前版本：competition_final_candidate", 100, 564, 1080, 52, 27, { bold: true, color: navy, align: "center" });
-  footer(s, 12, "BTB 已完成，RLE 保持冻结");
-  note(s, "来源：docs/progress.md；release/HANDOFF.md；release/evidence/logic_analyzer_board_final。其余实体证据继续按真实结果更新。");
+  footer(s, 12, "BTB 与 Trap 已完成，RLE 不在本届范围");
+  note(s, "来源：docs/progress.md；release/HANDOFF.md；release/evidence/logic_analyzer_board_final；release/evidence/coremark_board.json。实体 CoreMark 46.816 分、0.936 CoreMark/MHz、CPI 1.508、21.360 s 来自 CoreMark 专用位流 DC95F9D0…F5675（官方 CRC PASS），不是交付逻辑分析仪位流；N1 板级定时器中断演示 12 次中断（自计时期中位数 12,517,376 拍 = 250.348 ms），N2 ILA 抓 Trap 进入/返回已验证（M-24 收口）。S1 DDR3 只完成板级冒烟连通（BIST 错误计数全程 0），尚未接入 CPU 存储路径，因此不宣称任何 DDR3 性能数字；S3/S4 2 路组相联 I/D-Cache 均按回退条件默认关闭（cycles 1,251,724 → 2,891,324 与 1,348,302），交付位流与 CoreMark 分数均不含 Cache。80 MHz PLL 位流（2026-09-28 重建）尚未上板复测，不给出任何 80 MHz 实体跑分。");
 }
 
 const staging = path.join(ROOT, ".codex-finalizer");

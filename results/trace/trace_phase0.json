@@ -1,0 +1,174 @@
+{
+  "judgements": [
+    {
+      "name": "记录条数自洽",
+      "ok": true,
+      "detail": "头部 count=97，实际导出 97 条"
+    },
+    {
+      "name": "打点数等于字符数",
+      "ok": true,
+      "detail": "marks=10，发送字符数=10"
+    },
+    {
+      "name": "打点值等于发送的字符",
+      "ok": true,
+      "detail": "打点=b'HHELRISC-V' 发送=b'HHELRISC-V'"
+    },
+    {
+      "name": "打点索引单调且不越界",
+      "ok": true,
+      "detail": "索引=[7, 16, 25, 34, 43, 52, 61, 70, 79, 88]，count=97"
+    },
+    {
+      "name": "大写化结果",
+      "ok": true,
+      "detail": "得到 b'HHELRISC-V'，期望 b'HHELRISC-V'"
+    },
+    {
+      "name": "大写字符计数",
+      "ok": true,
+      "detail": "up=0，期望 0"
+    },
+    {
+      "name": "XOR 校验",
+      "ok": true,
+      "detail": "xor=0x00000079，期望 0x00000079"
+    },
+    {
+      "name": "字符数字段",
+      "ok": true,
+      "detail": "chars=10，期望 10"
+    },
+    {
+      "name": "收尾状态位",
+      "ok": true,
+      "detail": "status=0x4（armed=0 recording=0 done=1 overflow=0）"
+    },
+    {
+      "name": "未溢出",
+      "ok": true,
+      "detail": "overflow=0，count=97，窗口容量=4096"
+    },
+    {
+      "name": "rd_we 不得指向 x0",
+      "ok": true,
+      "detail": "越界样本 0 条"
+    },
+    {
+      "name": "store 必须有字节使能",
+      "ok": true,
+      "detail": "越界样本 0 条"
+    },
+    {
+      "name": "记录 pc 必须 4 字节对齐",
+      "ok": true,
+      "detail": "越界样本 0 条"
+    },
+    {
+      "name": "pc 与位流镜像同源",
+      "ok": true,
+      "detail": "不一致记录 0 条"
+    },
+    {
+      "name": "store 有效地址与记录低 12 位一致",
+      "ok": true,
+      "detail": "不一致 0 条"
+    }
+  ],
+  "count": 97,
+  "marks": 10,
+  "status": 4,
+  "text": [
+    72,
+    72,
+    69,
+    76,
+    82,
+    73,
+    83,
+    67,
+    45,
+    86
+  ],
+  "summary": {
+    "records": 97,
+    "distinct_pc": 16,
+    "hotspots": [
+      {
+        "pc": 2492,
+        "asm": "addi x14,x8,0",
+        "count": 10,
+        "share": 0.10309278350515463
+      },
+      {
+        "pc": 2496,
+        "asm": "lbu x15,0(x8)",
+        "count": 10,
+        "share": 0.10309278350515463
+      },
+      {
+        "pc": 2500,
+        "asm": "sw x15,0(x12)",
+        "count": 10,
+        "share": 0.10309278350515463
+      },
+      {
+        "pc": 2504,
+        "asm": "addi x13,x15,-97",
+        "count": 10,
+        "share": 0.10309278350515463
+      },
+      {
+        "pc": 2508,
+        "asm": "bltu x11,x13,-32",
+        "count": 10,
+        "share": 0.10309278350515463
+      },
+      {
+        "pc": 2476,
+        "asm": "sb x15,0(x14)",
+        "count": 10,
+        "share": 0.10309278350515463
+      },
+      {
+        "pc": 2480,
+        "asm": "xor x27,x27,x15",
+        "count": 10,
+        "share": 0.10309278350515463
+      },
+      {
+        "pc": 2484,
+        "asm": "addi x8,x8,1",
+        "count": 10,
+        "share": 0.10309278350515463
+      }
+    ],
+    "top4_share": 0.41237113402061853,
+    "chars": 10,
+    "marks": [
+      7,
+      16,
+      25,
+      34,
+      43,
+      52,
+      61,
+      70,
+      79,
+      88
+    ],
+    "instructions_per_char": [
+      9,
+      9,
+      9,
+      9,
+      9,
+      9,
+      9,
+      9,
+      9
+    ],
+    "sent": "HHELRISC-V"
+  }
+}

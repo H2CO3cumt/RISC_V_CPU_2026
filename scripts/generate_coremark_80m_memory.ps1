@@ -1,4 +1,4 @@
-param(
+﻿param(
   [int]$Iterations = 2500,
   [int]$ClockHz = 80000000,
   [int]$AutoStart = 0,

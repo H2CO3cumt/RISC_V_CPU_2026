@@ -1,0 +1,28 @@
+<mxfile host="app.diagrams.net" type="device">
+  <diagram name="图3-8 五模式板级采集结果" id="d1">
+    <mxGraphModel dx="1440" dy="700" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1440" pageHeight="700" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="c1" value="(a) 各模式有效样本数与验收次数" style="text;html=1;whiteSpace=wrap;fontSize=16;fontFamily=Microsoft YaHei;fontColor=#1F1F1F;align=left;verticalAlign=middle;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="60" y="40" width="1320" height="40" as="geometry" /></mxCell>
+        <mxCell id="c2" value="static" style="text;html=1;whiteSpace=wrap;fontSize=15;fontFamily=Microsoft YaHei;fontColor=#1F1F1F;align=left;verticalAlign=middle;" vertex="1" parent="1"><mxGeometry x="70" y="110" width="220" height="60" as="geometry" /></mxCell>
+        <mxCell id="c3" value="" style="rounded=0;whiteSpace=wrap;html=1;fontSize=13;fontFamily=Microsoft YaHei;fillColor=#D6C2F5;strokeColor=#6335C6;strokeWidth=1.5;align=center;verticalAlign=middle;spacingLeft=8;" vertex="1" parent="1"><mxGeometry x="300" y="110" width="4" height="60" as="geometry" /></mxCell>
+        <mxCell id="c4" value="5 样本　/　20 次验收全 PASS" style="text;html=1;whiteSpace=wrap;fontSize=14;fontFamily=Microsoft YaHei;fontColor=#1F1F1F;align=left;verticalAlign=middle;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="318" y="110" width="300" height="60" as="geometry" /></mxCell>
+        <mxCell id="c5" value="counter" style="text;html=1;whiteSpace=wrap;fontSize=15;fontFamily=Microsoft YaHei;fontColor=#1F1F1F;align=left;verticalAlign=middle;" vertex="1" parent="1"><mxGeometry x="70" y="196" width="220" height="60" as="geometry" /></mxCell>
+        <mxCell id="c6" value="" style="rounded=0;whiteSpace=wrap;html=1;fontSize=13;fontFamily=Microsoft YaHei;fillColor=#D6C2F5;strokeColor=#6335C6;strokeWidth=1.5;align=center;verticalAlign=middle;spacingLeft=8;" vertex="1" parent="1"><mxGeometry x="300" y="196" width="4" height="60" as="geometry" /></mxCell>
+        <mxCell id="c7" value="5 样本　/　20 次验收全 PASS" style="text;html=1;whiteSpace=wrap;fontSize=14;fontFamily=Microsoft YaHei;fontColor=#1F1F1F;align=left;verticalAlign=middle;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="318" y="196" width="300" height="60" as="geometry" /></mxCell>
+        <mxCell id="c8" value="uart" style="text;html=1;whiteSpace=wrap;fontSize=15;fontFamily=Microsoft YaHei;fontColor=#1F1F1F;align=left;verticalAlign=middle;" vertex="1" parent="1"><mxGeometry x="70" y="282" width="220" height="60" as="geometry" /></mxCell>
+        <mxCell id="c9" value="" style="rounded=0;whiteSpace=wrap;html=1;fontSize=13;fontFamily=Microsoft YaHei;fillColor=#D6C2F5;strokeColor=#6335C6;strokeWidth=1.5;align=center;verticalAlign=middle;spacingLeft=8;" vertex="1" parent="1"><mxGeometry x="300" y="282" width="72.7734375" height="60" as="geometry" /></mxCell>
+        <mxCell id="c10" value="207 样本　/　20 次验收全 PASS" style="text;html=1;whiteSpace=wrap;fontSize=14;fontFamily=Microsoft YaHei;fontColor=#1F1F1F;align=left;verticalAlign=middle;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="386.7734375" y="282" width="300" height="60" as="geometry" /></mxCell>
+        <mxCell id="c11" value="spi" style="text;html=1;whiteSpace=wrap;fontSize=15;fontFamily=Microsoft YaHei;fontColor=#1F1F1F;align=left;verticalAlign=middle;" vertex="1" parent="1"><mxGeometry x="70" y="368" width="220" height="60" as="geometry" /></mxCell>
+        <mxCell id="c12" value="" style="rounded=0;whiteSpace=wrap;html=1;fontSize=13;fontFamily=Microsoft YaHei;fillColor=#D6C2F5;strokeColor=#6335C6;strokeWidth=1.5;align=center;verticalAlign=middle;spacingLeft=8;" vertex="1" parent="1"><mxGeometry x="300" y="368" width="29.8828125" height="60" as="geometry" /></mxCell>
+        <mxCell id="c13" value="85 样本　/　20 次验收全 PASS" style="text;html=1;whiteSpace=wrap;fontSize=14;fontFamily=Microsoft YaHei;fontColor=#1F1F1F;align=left;verticalAlign=middle;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="343.8828125" y="368" width="300" height="60" as="geometry" /></mxCell>
+        <mxCell id="c14" value="mirror" style="text;html=1;whiteSpace=wrap;fontSize=15;fontFamily=Microsoft YaHei;fontColor=#1F1F1F;align=left;verticalAlign=middle;" vertex="1" parent="1"><mxGeometry x="70" y="454" width="220" height="60" as="geometry" /></mxCell>
+        <mxCell id="c15" value="" style="rounded=0;whiteSpace=wrap;html=1;fontSize=13;fontFamily=Microsoft YaHei;fillColor=#D6C2F5;strokeColor=#6335C6;strokeWidth=1.5;align=center;verticalAlign=middle;spacingLeft=8;" vertex="1" parent="1"><mxGeometry x="300" y="454" width="720.0" height="60" as="geometry" /></mxCell>
+        <mxCell id="c16" value="2048 样本　/　20 次验收全 PASS" style="text;html=1;whiteSpace=wrap;fontSize=14;fontFamily=Microsoft YaHei;fontColor=#1F1F1F;align=left;verticalAlign=middle;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="1034.0" y="454" width="300" height="60" as="geometry" /></mxCell>
+        <mxCell id="c17" value="五模式各 20 次，合计 100 次板级采集全部通过（85 MHz 交付位流）" style="text;html=1;whiteSpace=wrap;fontSize=14;fontFamily=Microsoft YaHei;fontColor=#1F1F1F;align=left;verticalAlign=middle;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="60" y="570" width="1320" height="34" as="geometry" /></mxCell>
+        <mxCell id="c18" value="数据源：release/evidence/logic_analyzer_board_85m/<模式>/summary.json（样本数取该模式全部运行的区间）" style="text;html=1;whiteSpace=wrap;fontSize=12;fontFamily=Microsoft YaHei;fontColor=#5F5F5F;align=left;verticalAlign=middle;" vertex="1" parent="1"><mxGeometry x="60" y="620" width="1320" height="40" as="geometry" /></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

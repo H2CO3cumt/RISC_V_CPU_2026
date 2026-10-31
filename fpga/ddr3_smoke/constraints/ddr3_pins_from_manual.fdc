@@ -1,0 +1,360 @@
+# 由 scripts/ddr3_map_manual_pins.py 生成；管脚来源 = MES50HP 硬件手册表 2-4。
+# 与厂商模板 50h_ddr3_fbg484_b3_x32.fdc 不同：那份模板的管脚与本板对不上
+# （69 个 DDR3 信号里 65 个不同），不得直接使用。
+# 本文件只含 I/O 位置与电平，不含时钟/时序约束（那部分照厂商模板的写法另行处理）。
+
+# ddr3_addr[0]
+define_attribute {p:mem_a[0]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_a[0]} {PAP_IO_LOC} {N6}
+define_attribute {p:mem_a[0]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_a[0]} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_addr[10]
+define_attribute {p:mem_a[10]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_a[10]} {PAP_IO_LOC} {P8}
+define_attribute {p:mem_a[10]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_a[10]} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_addr[11]
+define_attribute {p:mem_a[11]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_a[11]} {PAP_IO_LOC} {T4}
+define_attribute {p:mem_a[11]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_a[11]} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_addr[12]
+define_attribute {p:mem_a[12]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_a[12]} {PAP_IO_LOC} {P7}
+define_attribute {p:mem_a[12]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_a[12]} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_addr[13]
+define_attribute {p:mem_a[13]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_a[13]} {PAP_IO_LOC} {P4}
+define_attribute {p:mem_a[13]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_a[13]} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_addr[14]
+define_attribute {p:mem_a[14]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_a[14]} {PAP_IO_LOC} {T3}
+define_attribute {p:mem_a[14]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_a[14]} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_addr[1]
+define_attribute {p:mem_a[1]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_a[1]} {PAP_IO_LOC} {R4}
+define_attribute {p:mem_a[1]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_a[1]} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_addr[2]
+define_attribute {p:mem_a[2]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_a[2]} {PAP_IO_LOC} {P6}
+define_attribute {p:mem_a[2]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_a[2]} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_addr[3]
+define_attribute {p:mem_a[3]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_a[3]} {PAP_IO_LOC} {F3}
+define_attribute {p:mem_a[3]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_a[3]} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_addr[4]
+define_attribute {p:mem_a[4]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_a[4]} {PAP_IO_LOC} {V5}
+define_attribute {p:mem_a[4]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_a[4]} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_addr[5]
+define_attribute {p:mem_a[5]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_a[5]} {PAP_IO_LOC} {E4}
+define_attribute {p:mem_a[5]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_a[5]} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_addr[6]
+define_attribute {p:mem_a[6]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_a[6]} {PAP_IO_LOC} {V3}
+define_attribute {p:mem_a[6]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_a[6]} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_addr[7]
+define_attribute {p:mem_a[7]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_a[7]} {PAP_IO_LOC} {D2}
+define_attribute {p:mem_a[7]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_a[7]} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_addr[8]
+define_attribute {p:mem_a[8]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_a[8]} {PAP_IO_LOC} {U4}
+define_attribute {p:mem_a[8]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_a[8]} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_addr[9]
+define_attribute {p:mem_a[9]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_a[9]} {PAP_IO_LOC} {P5}
+define_attribute {p:mem_a[9]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_a[9]} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_ba[0]
+define_attribute {p:mem_ba[0]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_ba[0]} {PAP_IO_LOC} {F5}
+define_attribute {p:mem_ba[0]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_ba[0]} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_ba[1]
+define_attribute {p:mem_ba[1]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_ba[1]} {PAP_IO_LOC} {W4}
+define_attribute {p:mem_ba[1]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_ba[1]} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_ba[2]
+define_attribute {p:mem_ba[2]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_ba[2]} {PAP_IO_LOC} {N7}
+define_attribute {p:mem_ba[2]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_ba[2]} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_cas_n
+define_attribute {p:mem_cas_n} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_cas_n} {PAP_IO_LOC} {H8}
+define_attribute {p:mem_cas_n} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_cas_n} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_ck_p
+define_attribute {p:mem_ck} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_ck} {PAP_IO_LOC} {T6}
+define_attribute {p:mem_ck} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_ck} {PAP_IO_STANDARD} {SSTL15D_I}
+# ddr3_ck_n
+define_attribute {p:mem_ck_n} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_ck_n} {PAP_IO_LOC} {T5}
+define_attribute {p:mem_ck_n} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_ck_n} {PAP_IO_STANDARD} {SSTL15D_I}
+# ddr3_cke
+define_attribute {p:mem_cke} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_cke} {PAP_IO_LOC} {Y3}
+define_attribute {p:mem_cke} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_cke} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_cs_n
+define_attribute {p:mem_cs_n} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_cs_n} {PAP_IO_LOC} {G6}
+define_attribute {p:mem_cs_n} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_cs_n} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_dm[0]
+define_attribute {p:mem_dm[0]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_dm[0]} {PAP_IO_LOC} {W3}
+define_attribute {p:mem_dm[0]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_dm[0]} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_dm[1]
+define_attribute {p:mem_dm[1]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_dm[1]} {PAP_IO_LOC} {L1}
+define_attribute {p:mem_dm[1]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_dm[1]} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_dm[2]
+define_attribute {p:mem_dm[2]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_dm[2]} {PAP_IO_LOC} {K2}
+define_attribute {p:mem_dm[2]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_dm[2]} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_dm[3]
+define_attribute {p:mem_dm[3]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_dm[3]} {PAP_IO_LOC} {G1}
+define_attribute {p:mem_dm[3]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_dm[3]} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_dq[0]
+define_attribute {p:mem_dq[0]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_dq[0]} {PAP_IO_LOC} {U1}
+define_attribute {p:mem_dq[0]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_dq[0]} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_dq[10]
+define_attribute {p:mem_dq[10]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_dq[10]} {PAP_IO_LOC} {R1}
+define_attribute {p:mem_dq[10]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_dq[10]} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_dq[11]
+define_attribute {p:mem_dq[11]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_dq[11]} {PAP_IO_LOC} {M1}
+define_attribute {p:mem_dq[11]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_dq[11]} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_dq[12]
+define_attribute {p:mem_dq[12]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_dq[12]} {PAP_IO_LOC} {P2}
+define_attribute {p:mem_dq[12]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_dq[12]} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_dq[13]
+define_attribute {p:mem_dq[13]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_dq[13]} {PAP_IO_LOC} {L3}
+define_attribute {p:mem_dq[13]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_dq[13]} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_dq[14]
+define_attribute {p:mem_dq[14]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_dq[14]} {PAP_IO_LOC} {P3}
+define_attribute {p:mem_dq[14]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_dq[14]} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_dq[15]
+define_attribute {p:mem_dq[15]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_dq[15]} {PAP_IO_LOC} {N4}
+define_attribute {p:mem_dq[15]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_dq[15]} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_dq[16]
+define_attribute {p:mem_dq[16]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_dq[16]} {PAP_IO_LOC} {K4}
+define_attribute {p:mem_dq[16]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_dq[16]} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_dq[17]
+define_attribute {p:mem_dq[17]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_dq[17]} {PAP_IO_LOC} {K1}
+define_attribute {p:mem_dq[17]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_dq[17]} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_dq[18]
+define_attribute {p:mem_dq[18]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_dq[18]} {PAP_IO_LOC} {J3}
+define_attribute {p:mem_dq[18]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_dq[18]} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_dq[19]
+define_attribute {p:mem_dq[19]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_dq[19]} {PAP_IO_LOC} {L4}
+define_attribute {p:mem_dq[19]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_dq[19]} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_dq[1]
+define_attribute {p:mem_dq[1]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_dq[1]} {PAP_IO_LOC} {U3}
+define_attribute {p:mem_dq[1]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_dq[1]} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_dq[20]
+define_attribute {p:mem_dq[20]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_dq[20]} {PAP_IO_LOC} {K3}
+define_attribute {p:mem_dq[20]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_dq[20]} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_dq[21]
+define_attribute {p:mem_dq[21]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_dq[21]} {PAP_IO_LOC} {M3}
+define_attribute {p:mem_dq[21]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_dq[21]} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_dq[22]
+define_attribute {p:mem_dq[22]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_dq[22]} {PAP_IO_LOC} {J1}
+define_attribute {p:mem_dq[22]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_dq[22]} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_dq[23]
+define_attribute {p:mem_dq[23]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_dq[23]} {PAP_IO_LOC} {M4}
+define_attribute {p:mem_dq[23]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_dq[23]} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_dq[24]
+define_attribute {p:mem_dq[24]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_dq[24]} {PAP_IO_LOC} {J6}
+define_attribute {p:mem_dq[24]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_dq[24]} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_dq[25]
+define_attribute {p:mem_dq[25]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_dq[25]} {PAP_IO_LOC} {F1}
+define_attribute {p:mem_dq[25]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_dq[25]} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_dq[26]
+define_attribute {p:mem_dq[26]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_dq[26]} {PAP_IO_LOC} {K7}
+define_attribute {p:mem_dq[26]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_dq[26]} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_dq[27]
+define_attribute {p:mem_dq[27]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_dq[27]} {PAP_IO_LOC} {F2}
+define_attribute {p:mem_dq[27]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_dq[27]} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_dq[28]
+define_attribute {p:mem_dq[28]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_dq[28]} {PAP_IO_LOC} {H5}
+define_attribute {p:mem_dq[28]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_dq[28]} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_dq[29]
+define_attribute {p:mem_dq[29]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_dq[29]} {PAP_IO_LOC} {H3}
+define_attribute {p:mem_dq[29]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_dq[29]} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_dq[2]
+define_attribute {p:mem_dq[2]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_dq[2]} {PAP_IO_LOC} {T2}
+define_attribute {p:mem_dq[2]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_dq[2]} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_dq[30]
+define_attribute {p:mem_dq[30]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_dq[30]} {PAP_IO_LOC} {J4}
+define_attribute {p:mem_dq[30]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_dq[30]} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_dq[31]
+define_attribute {p:mem_dq[31]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_dq[31]} {PAP_IO_LOC} {G3}
+define_attribute {p:mem_dq[31]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_dq[31]} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_dq[3]
+define_attribute {p:mem_dq[3]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_dq[3]} {PAP_IO_LOC} {Y2}
+define_attribute {p:mem_dq[3]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_dq[3]} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_dq[4]
+define_attribute {p:mem_dq[4]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_dq[4]} {PAP_IO_LOC} {T1}
+define_attribute {p:mem_dq[4]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_dq[4]} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_dq[5]
+define_attribute {p:mem_dq[5]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_dq[5]} {PAP_IO_LOC} {Y1}
+define_attribute {p:mem_dq[5]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_dq[5]} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_dq[6]
+define_attribute {p:mem_dq[6]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_dq[6]} {PAP_IO_LOC} {M7}
+define_attribute {p:mem_dq[6]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_dq[6]} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_dq[7]
+define_attribute {p:mem_dq[7]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_dq[7]} {PAP_IO_LOC} {W1}
+define_attribute {p:mem_dq[7]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_dq[7]} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_dq[8]
+define_attribute {p:mem_dq[8]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_dq[8]} {PAP_IO_LOC} {P1}
+define_attribute {p:mem_dq[8]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_dq[8]} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_dq[9]
+define_attribute {p:mem_dq[9]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_dq[9]} {PAP_IO_LOC} {M2}
+define_attribute {p:mem_dq[9]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_dq[9]} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_dqs_p[0]
+define_attribute {p:mem_dqs[0]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_dqs[0]} {PAP_IO_LOC} {V2}
+define_attribute {p:mem_dqs[0]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_dqs[0]} {PAP_IO_STANDARD} {SSTL15D_I}
+# ddr3_dqs_p[1]
+define_attribute {p:mem_dqs[1]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_dqs[1]} {PAP_IO_LOC} {N3}
+define_attribute {p:mem_dqs[1]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_dqs[1]} {PAP_IO_STANDARD} {SSTL15D_I}
+# ddr3_dqs_p[2]
+define_attribute {p:mem_dqs[2]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_dqs[2]} {PAP_IO_LOC} {M6}
+define_attribute {p:mem_dqs[2]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_dqs[2]} {PAP_IO_STANDARD} {SSTL15D_I}
+# ddr3_dqs_p[3]
+define_attribute {p:mem_dqs[3]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_dqs[3]} {PAP_IO_LOC} {E3}
+define_attribute {p:mem_dqs[3]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_dqs[3]} {PAP_IO_STANDARD} {SSTL15D_I}
+# ddr3_dqs_n[0]
+define_attribute {p:mem_dqs_n[0]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_dqs_n[0]} {PAP_IO_LOC} {V1}
+define_attribute {p:mem_dqs_n[0]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_dqs_n[0]} {PAP_IO_STANDARD} {SSTL15D_I}
+# ddr3_dqs_n[1]
+define_attribute {p:mem_dqs_n[1]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_dqs_n[1]} {PAP_IO_LOC} {N1}
+define_attribute {p:mem_dqs_n[1]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_dqs_n[1]} {PAP_IO_STANDARD} {SSTL15D_I}
+# ddr3_dqs_n[2]
+define_attribute {p:mem_dqs_n[2]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_dqs_n[2]} {PAP_IO_LOC} {L6}
+define_attribute {p:mem_dqs_n[2]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_dqs_n[2]} {PAP_IO_STANDARD} {SSTL15D_I}
+# ddr3_dqs_n[3]
+define_attribute {p:mem_dqs_n[3]} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_dqs_n[3]} {PAP_IO_LOC} {E1}
+define_attribute {p:mem_dqs_n[3]} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_dqs_n[3]} {PAP_IO_STANDARD} {SSTL15D_I}
+# ddr3_odt
+define_attribute {p:mem_odt} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_odt} {PAP_IO_LOC} {G7}
+define_attribute {p:mem_odt} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_odt} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_ras_n
+define_attribute {p:mem_ras_n} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_ras_n} {PAP_IO_LOC} {J7}
+define_attribute {p:mem_ras_n} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_ras_n} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_reset_n
+define_attribute {p:mem_rst_n} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_rst_n} {PAP_IO_LOC} {C1}
+define_attribute {p:mem_rst_n} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_rst_n} {PAP_IO_STANDARD} {SSTL15_I}
+# ddr3_we_n
+define_attribute {p:mem_we_n} {PAP_IO_DIRECTION} Inout
+define_attribute {p:mem_we_n} {PAP_IO_LOC} {H6}
+define_attribute {p:mem_we_n} {PAP_IO_VCCIO} {1.5}
+define_attribute {p:mem_we_n} {PAP_IO_STANDARD} {SSTL15_I}

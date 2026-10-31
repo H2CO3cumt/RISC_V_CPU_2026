@@ -1,0 +1,13 @@
+[
+  {
+    "run": 0,
+    "mode": "uart",
+    "value": 165,
+    "samples": 208,
+    "trigger": 16,
+    "uart": "a5",
+    "uart_errors": 0,
+    "spi": "",
+    "text": ""
+  }
+]

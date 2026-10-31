@@ -1,4 +1,4 @@
-param(
+﻿param(
   [Parameter(Mandatory=$true)][string]$Tag,
   [string]$SweepRoot = 'D:\RISC_V_CPU_2026\tmp\fmax_sweep',
   [string]$PdsRoot   = $(if($env:PDS_ROOT){$env:PDS_ROOT}else{'D:\Pango\PDS_2024.2-SP2'}),
@@ -7,7 +7,11 @@ param(
   [string]$RtlSource = 'D:\RISC_V_CPU_2026\rtl',
   [string]$MemorySource = 'D:\RISC_V_CPU_2026\fpga\coremark\rtl',
   [string]$RecipeSource = 'D:\RISC_V_CPU_2026\fpga\coremark\pds_recipe.tcl',
-  [string]$FdcSource = 'D:\RISC_V_CPU_2026\fpga\coremark\constraints\mes50hp_coremark.fdc'
+  [string]$FdcSource = 'D:\RISC_V_CPU_2026\fpga\coremark\constraints\mes50hp_coremark.fdc',
+  # 扫描工程里写出的 .fdc 文件名：必须与 $RecipeSource 里 add_constraint 指向的名字一致，
+  # 否则约束根本没被加载（历史缺陷：这里曾把名字写死成 coremark 的，
+  # 于是拿 logic_analyzer 的配方扫描时 fdc 名字对不上，扫描结果全部是"无约束"的）。
+  [string]$FdcName = 'mes50hp_coremark.fdc'
 )
 # 频率扫描复现脚本（T0 / T4）。
 # 每个频率点使用完全隔离的工程目录：project/<tag>-<freq>/，并通过 ../../rtl 引用
@@ -46,7 +50,7 @@ foreach($p in $sweepPeriods){
   Copy-Item (Join-Path $MemorySource '*') (Join-Path $d 'rtl') -Force
   $fdc = Get-Content -LiteralPath $FdcSource
   $fdc[0] = 'create_clock -name {clk_50m} [get_ports {clk_50m}] -period {' + ('{0:0.000}' -f $p) + '} -waveform {0.000 ' + ('{0:0.000}' -f ($p/2)) + '}'
-  Set-Content -LiteralPath (Join-Path $d 'constraints\mes50hp_coremark.fdc') -Value $fdc
+  Set-Content -LiteralPath (Join-Path $d ('constraints\' + $FdcName)) -Value $fdc
   # 把 ../../rtl 指向本 tag 的 RTL 快照
   $depth = ($d.Substring($SweepRoot.Length).Trim('\').Split('\')).Count
   $rel = ('../' * $depth) + ("{0}_rtl" -f $Tag)

@@ -8,6 +8,7 @@ module tb_branch_predictor;
     reg update_valid = 1'b0;
     reg [31:0] update_pc = 32'b0;
     reg update_taken = 1'b0;
+    reg update_is_jump = 1'b0;
     reg [31:0] update_target = 32'b0;
     wire query_hit;
     wire predicted_taken;
@@ -25,6 +26,7 @@ module tb_branch_predictor;
         .update_valid(update_valid),
         .update_pc(update_pc),
         .update_taken(update_taken),
+        .update_is_jump(update_is_jump),
         .update_target(update_target)
     );
 
@@ -60,7 +62,24 @@ module tb_branch_predictor;
             update_valid = 1'b1;
             update_pc = pc;
             update_taken = taken;
+            update_is_jump = 1'b0;
             update_target = branch_target;
+            @(posedge clk);
+            #1;
+            update_valid = 1'b0;
+        end
+    endtask
+
+    task update_jump;
+        input [31:0] pc;
+        input [31:0] jump_target;
+        begin
+            @(negedge clk);
+            update_valid = 1'b1;
+            update_pc = pc;
+            update_taken = 1'b1;
+            update_is_jump = 1'b1;
+            update_target = jump_target;
             @(posedge clk);
             #1;
             update_valid = 1'b0;
@@ -88,6 +107,28 @@ module tb_branch_predictor;
         update_branch(32'h0000_0080, 1'b0, 32'h0000_0090);
         expect_prediction(32'h0000_0080, 1'b1, 1'b0, 32'h0000_0090);
         expect_prediction(32'h0000_0040, 1'b0, 1'b0, 32'b0);
+
+        // 跳转项（JAL/JALR）方向恒为 taken，不看饱和计数器。
+        update_jump(32'h0000_0100, 32'h0000_0200);
+        expect_prediction(32'h0000_0100, 1'b1, 1'b1, 32'h0000_0200);
+
+        // 同一项改回条件分支后，方向重新交给 2-bit 饱和计数器：
+        // 跳转项按 taken 建立计数器为 10，第一次 not-taken 落到 01，
+        // 此时 counter[1] 已经是 0，方向立刻变成 not-taken。
+        update_branch(32'h0000_0100, 1'b0, 32'h0000_0200);
+        expect_prediction(32'h0000_0100, 1'b1, 1'b0, 32'h0000_0200);
+        update_branch(32'h0000_0100, 1'b0, 32'h0000_0200);
+        expect_prediction(32'h0000_0100, 1'b1, 1'b0, 32'h0000_0200);
+
+        // 再训练两次 taken，计数器回到 11，分支方向恢复 taken —— 说明双向
+        // 饱和计数器在分支项上仍按原语义工作，没有被 is_jump 破坏。
+        update_branch(32'h0000_0100, 1'b1, 32'h0000_0200);
+        update_branch(32'h0000_0100, 1'b1, 32'h0000_0200);
+        expect_prediction(32'h0000_0100, 1'b1, 1'b1, 32'h0000_0200);
+
+        // 冲突项被跳转覆盖后，方向和目标都立即跟随跳转项。
+        update_jump(32'h0000_0080, 32'h0000_0210);
+        expect_prediction(32'h0000_0080, 1'b1, 1'b1, 32'h0000_0210);
 
         enable = 1'b0;
         expect_prediction(32'h0000_0080, 1'b0, 1'b0, 32'b0);

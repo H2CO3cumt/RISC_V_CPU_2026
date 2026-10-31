@@ -1,0 +1,168 @@
+{
+  "judgements": [
+    {
+      "name": "记录条数自洽",
+      "ok": true,
+      "detail": "头部 count=100，实际导出 100 条"
+    },
+    {
+      "name": "打点数等于字符数",
+      "ok": true,
+      "detail": "marks=8，发送字符数=8"
+    },
+    {
+      "name": "打点值等于发送的字符",
+      "ok": true,
+      "detail": "打点=b'hello,rv' 发送=b'hello,rv'"
+    },
+    {
+      "name": "打点索引单调且不越界",
+      "ok": true,
+      "detail": "索引=[7, 19, 31, 43, 55, 67, 76, 88]，count=100"
+    },
+    {
+      "name": "大写化结果",
+      "ok": true,
+      "detail": "得到 b'HELLO,RV'，期望 b'HELLO,RV'"
+    },
+    {
+      "name": "大写字符计数",
+      "ok": true,
+      "detail": "up=7，期望 7"
+    },
+    {
+      "name": "XOR 校验",
+      "ok": true,
+      "detail": "xor=0x0000006A，期望 0x0000006A"
+    },
+    {
+      "name": "字符数字段",
+      "ok": true,
+      "detail": "chars=8，期望 8"
+    },
+    {
+      "name": "收尾状态位",
+      "ok": true,
+      "detail": "status=0x4（armed=0 recording=0 done=1 overflow=0）"
+    },
+    {
+      "name": "未溢出",
+      "ok": true,
+      "detail": "overflow=0，count=100，窗口容量=4096"
+    },
+    {
+      "name": "rd_we 不得指向 x0",
+      "ok": true,
+      "detail": "越界样本 0 条"
+    },
+    {
+      "name": "store 必须有字节使能",
+      "ok": true,
+      "detail": "越界样本 0 条"
+    },
+    {
+      "name": "记录 pc 必须 4 字节对齐",
+      "ok": true,
+      "detail": "越界样本 0 条"
+    },
+    {
+      "name": "pc 与位流镜像同源",
+      "ok": true,
+      "detail": "不一致记录 0 条"
+    },
+    {
+      "name": "store 有效地址与记录低 12 位一致",
+      "ok": true,
+      "detail": "不一致 0 条"
+    }
+  ],
+  "count": 100,
+  "marks": 8,
+  "status": 4,
+  "text": [
+    72,
+    69,
+    76,
+    76,
+    79,
+    44,
+    82,
+    86
+  ],
+  "summary": {
+    "records": 100,
+    "distinct_pc": 19,
+    "hotspots": [
+      {
+        "pc": 3568,
+        "asm": "addi x14,x8,0",
+        "count": 8,
+        "share": 0.08
+      },
+      {
+        "pc": 3572,
+        "asm": "lbu x15,0(x8)",
+        "count": 8,
+        "share": 0.08
+      },
+      {
+        "pc": 3576,
+        "asm": "sw x15,0(x12)",
+        "count": 8,
+        "share": 0.08
+      },
+      {
+        "pc": 3580,
+        "asm": "addi x13,x15,-97",
+        "count": 8,
+        "share": 0.08
+      },
+      {
+        "pc": 3584,
+        "asm": "bltu x11,x13,-32",
+        "count": 8,
+        "share": 0.08
+      },
+      {
+        "pc": 3552,
+        "asm": "sb x15,0(x14)",
+        "count": 8,
+        "share": 0.08
+      },
+      {
+        "pc": 3556,
+        "asm": "xor x27,x27,x15",
+        "count": 8,
+        "share": 0.08
+      },
+      {
+        "pc": 3560,
+        "asm": "addi x8,x8,1",
+        "count": 8,
+        "share": 0.08
+      }
+    ],
+    "top4_share": 0.32,
+    "chars": 8,
+    "marks": [
+      7,
+      19,
+      31,
+      43,
+      55,
+      67,
+      76,
+      88
+    ],
+    "instructions_per_char": [
+      12,
+      12,
+      12,
+      12,
+      12,
+      9,
+      12
+    ],
+    "sent": "hello,rv"
+  }
+}

@@ -318,6 +318,101 @@ T1 用只读观测 Testbench（`tb/tb_cpi_attribution.v` + `tb/cpi_board_memory_
 
 ---
 
+## 改动 3：M 扩展（RV32IM）—— 新增 `rtl/mdu.v`，CoreMark/MHz 0.936 → 2.272（2026-10-14）
+
+### 3.1 改动文件与位置
+
+| 项 | 内容 |
+|---|---|
+| 新文件 | `rtl/mdu.v`（乘除法单元，三段流水乘法 + 32 拍迭代除法） |
+| `rtl/decoder.v` | 新增 `mdu_en` / `mdu_op[2:0]` 两个输出；`funct7=0000001` 的整组 R-Type 由"非法"改为合法（`mdu_op` 直接取 `funct3`）。**不受 `ENABLE_SYSTEM` 影响**：两个 CPU 都按 RV32IM 译码 |
+| `rtl/pipeline_cpu.v` | 新增 ID/EX 的 `idex_mdu_en/idex_mdu_op`；`ex_result` 增加 mdu 分支；新增 `mdu_block` 停顿与 `idex_to_exmem`/`mdu_ack` 握手；新增 `exmem_retired` 退休标记；`mem_done` 与 `event_misaligned`/`event_bus_error`/`mem_access_error_now` 相应调整 |
+| `rtl/single_cycle_cpu.v` | 同一套 M 扩展（Reference Model 必须与流水线同 ISA，否则等价性比较在任何用到乘除法的程序上直接失效）；新增 `mdu_busy` 等待状态 |
+| 端口 | **Core 对外端口一根未改**（`docs/interfaces.md` §293～299 的契约不变） |
+
+### 3.2 为什么做
+
+`third_party/coremark/core_matrix.c` 每次迭代固定 10,575 次乘法（N=15），全部走 libgcc
+`__mulsi3` 的移位加循环；反汇编实测循环体 6 条指令、平均 7.94 次循环迭代/次乘法
+（B 矩阵 225 个值里只有 6 个负数）。板级 ILA 窗口实测 84.3% 的提交落在该循环里。
+按指令数折算：**约 47 万条 / 每迭代 778,037 条 ≈ 60% 的指令花在软件乘法上**。
+
+### 3.3 量化收益（实体板实测，同一位流口径）
+
+| 指标 | RV32I（`cm50`，1000 迭代） | **RV32IM（`cmim`，2000 迭代）** | 变化 |
+|---|---:|---:|---:|
+| **CoreMark Score @50 MHz** | 46.816 | **113.642** | **2.43×** |
+| **CoreMark Score @85 MHz（与交付同频）** | 79.587（`cm85`） | **193.192**（`cmim85`，4000 迭代） | **2.43×** |
+| **CoreMark/MHz ×1000** | 936 | **2272**（50 与 85 MHz 两点一致） | **2.43×** |
+| ticks / 迭代 | 1,068,007 | 439,975（两个频点逐位一致） | −58.8% |
+| 每次迭代指令数 | 778,037 | 362,131 | −53.5% |
+| CPI | 1.494 | 1.550（50 MHz）/ 1.547（85 MHz） | +3.7% |
+| 迭代次数 / 运行时间 | 1000 / 21.36 s | 2000 / 17.60 s（50 MHz）· 4000 / 20.70 s（85 MHz） | 均 ≥10 s ✓ |
+| 官方 CRC | 全过 | **全过**（两个频点） | ✓ |
+| CoreMark/LUT（85 MHz 同源同频） | 0.0190（79.587÷4198，`cm85r`） | **0.0460**（193.192÷4198） | **2.43×** |
+| RTL 仿真 `cycles`（同 TB/程序） | 1,251,724 | 594,792 | −52.5% |
+
+证据：`release/evidence/coremark_uart_im.log` + `coremark_board_im.json`（50 MHz 点）、
+`release/evidence/coremark_uart_cmim85_20261014.log` + `coremark_board_cmim85_20261014.json`（85 MHz 点，与交付同频）、
+`release/evidence/board/run01/`（RV32I 基线）。**引用时必须写明哪一套 ISA 与哪个频点**——
+CoreMark 输出里自带 `Compiler flags : -O2 -march=rv32im -mabi=ilp32` 一行可自证；
+
+> ⚠️ 85 MHz 那一点是 2026-10-14 追加构建的（`fpga/coremark_im_85m`，源文件取自 `fpga/coremark_85m`，
+> 只换程序镜像）。补它的原因：原来的 RV32IM 工程 `.fdc` 写死 50 MHz、而 80/85/90 MHz 的计分工程
+> 建在 M 扩展之前从未重建，于是"与交付同频的 M 扩展分数"这一栏是空的——
+> **是没建过，不是跑不了**（带 M 的 85 MHz 构建 `All Constraints Met`，WNS +0.250 ns）。
+
+### 3.4 三个真 bug（都由证据定位，不是猜的）
+
+| # | 现象 | 根因 | 修法 |
+|---|---|---|---|
+| 1 | 背靠背两条除法指令中，第二条沿用第一条的结果（`rem` 返回了商） | 状态机只在 `run` 落下时才回 IDLE，而连续两条同类指令之间 `run` 从不落下 | 新增 `ack` 输入：流水线在"该指令被锁进 EX/MEM"那一拍给出消费脉冲，`S_DONE` 依 `ack \|\| !run` 回 IDLE |
+| 2 | CoreMark rv32im 跑到 306,637 条后整机死锁（停在一条 `lbu` 上） | 访存指令的"完成"由握手定义（`dstate` D_RSP→D_IDLE 只发生一次），而 MEM→WB 原来与"ID/EX 换入 EX/MEM"同拍原子发生。除法停顿把两者拆开后，`mem_done` 在握手结束那一刻落下，`mem_block` 永久为 1 | 新增 `exmem_retired` 标记：MEM→WB 只允许每条 EX/MEM 记录退休一次，`mem_done` 在退休后保持为 1，MEM 级因此可以与 EX 级解耦排空 |
+| 3 | 50 MHz 下 WNS 从 +2.676 ns 掉到 +0.234 ns；85 MHz 直接违例 −3.268 ns | 一拍组合 32×32 乘法被综合成 **4 级串联 APM**，端点 `mdu_unit/N25_m1..m4/gopapm → exmem_alu` | 分两段流水：先把 32×32 拆成两个 **16×32** 部分积分别寄存（串联链缩到 2 级 APM），第二段做"移位相加 + 符号修正"；每条乘法 3 拍。50 MHz WNS 回到 +1.841 ns，85 MHz `All Constraints Met` |
+
+### 3.5 端口与语义边界
+
+- Core 对外**端口未变**，M 扩展完全在 Core 内部（这是 ISA 扩展，不是外设）。
+- 单周期 Reference 与流水线**必须同 ISA**：这一条写在 `rtl/decoder.v` 顶部注释里。
+- `scripts/check_coremark_elf.ps1` 双向校验：rv32i 镜像必须"一条 M 指令都没有"，
+  rv32im 镜像必须"真的有 M 指令且 ELF 属性是 `rv32i2p1_m2p0...`"。
+- 新增/更新测试：`tb/tb_mdu.v`（46 项，含乘除全部边界、除零、溢出、背靠背、取消）、
+  `tb/tb_pipeline_m_ext.v`（流水线 vs 单周期，55 条提交 trace + x1~x31 + RAM + 手算常量 + 除法停顿精确 34 拍）、
+  `tb/tb_decoder.v` 的 M 编码用例（8 条 + 两条反例）。
+
+### 3.6 风险
+
+| 风险 | 评估 | 缓解 |
+|---|---|---|
+| 乘法器进关键路径 | **已实测并已修**（见 §3.4 第 3 条） | 两段流水；50 MHz +1.841 ns、85 MHz All Met |
+| 除法停顿 34 拍被误当成死锁 | 低。`tb_pipeline_m_ext.v` 逐条断言"每笔除法正好占 EX 34 拍" | 断言随回归常跑 |
+| 引用分数时混用两套 ISA | **中**（这正是 `claims_map` §12 记录过的那类风险） | 两个位流、两份证据文件、CoreMark 输出自带 `-march` 一行 |
+
+---
+
+## 改动 4：逻辑分析仪采集源双源可选（Core 外部，2026-10-14）
+
+| 项 | 内容 |
+|---|---|
+| `rtl/logic_analyzer_mmio.v` | 新增输入 `probe_channels[7:0]` 与寄存器 18（`src_sel`）；`active_channels` **寄存一拍**再进采集引擎（理由见下） |
+| 板级顶层（la50 / la80 / la85 / la90） | 新增 `core_probe`：8 根 Core 已有冻结输出（`i_req_valid`/`i_req_ready`/`i_rsp_valid`/`d_req_valid`/`d_req_ready`/`event_stall`/`event_flush`/`trace_valid`），**再打一拍**后接 `probe_channels` |
+| `software/logic_analyzer/logic_analyzer.c` | 新增 `LA_SRC` 定义与 **0xA8** 命令（16 字节，pre/post 各 16 位，[14]=采集源）；0xA5/0xA7 路径明确回写 `LA_SRC=0` |
+| 上位机 | `python/logic_analyzer_serial.py` 新增 `source`/`core` 模式/`CORE_PROBE_NAMES`；`python/core_probe_board.py` 板级验收；`python/test_logic_analyzer_serial.py` 新增 5 项 |
+| 端口 | 采集引擎、Pattern Generator、MMIO 对外契约不变；**J8 外部通路只多了"寄存一拍"** |
+
+**为什么 `active_channels` 必须寄存一拍**：spi 模式的 `sample_div=0` 让采集引擎每拍采样，
+是四种模式里最吃时序的一条路径。源选择 MUX 直接串在 `channels → 引擎` 之间时，
+85 MHz 下余量被吃光，**实测症状是"SPI 模式一发配置包固件就永久卡死，之后连 static 也无响应"**
+（与 2026-09-30 在 90 MHz 上记录的完全一致）。寄存之后引擎输入来自寄存器，
+这条路径比加功能之前更短；代价是采样点整体晚 1 个系统时钟，对所有判据无影响。
+
+**同一类问题的第二处**：Core 的事件信号是组合逻辑，直接接到采集引擎会让
+"Core 事件逻辑 → `capture_count` 使能"成为最差路径（85 MHz 实测 Endpoint
+`analyzer/cap/capture_count[3]/CE`、Slack −0.980 ns）。在板级顶层给探针打一拍即可，
+且**只影响探针，不影响 J8 通路**。
+
+---
+
 ## 下一轮候选（CPI 专项，有数据支撑，本轮未做）
 
 ### 候选 A：正确预测的跳转不再 Redirect（**当前收益最大**）
@@ -421,3 +516,130 @@ T1 用只读观测 Testbench（`tb/tb_cpi_attribution.v` + `tb/cpi_board_memory_
 | `scripts/run_cpi_attribution_tb.ps1` | T1 观测台运行入口（`-AllowHandoff` / `-DisablePredictor`） |
 | `python/cpi_attribution_report.py` | 逐 PC 直方图排序 + 关联 `coremark.dis` 给出指令文本 |
 | `tmp/cpi/cycle_trace-*.log` | 窗口前 120 拍逐拍信号证据（`i_req_valid`/`i_rsp_valid`/`if_req`/`if_arm`/`mem_block`…） |
+
+---
+
+## 改动 3（2026-10-18）：返回地址栈 RAS —— **已实现、已上板、默认关闭**
+
+### 3.1 动机
+
+BTB 每个 PC 只存**一个** target，而同一个 `ret` 会被多个调用点共享。
+CoreMark（rv32i）静态统计：`ret` 49 处 / `call` 158 处 / `jmp` 110 处 /
+条件分支 295 处（合计 619 条控制流，占 3417 条静态指令的 18.1%）。
+RAS 记的是整条返回路径的栈，不是"上次去了哪儿"。
+
+### 3.2 改动内容（全部可开关，默认 `ENABLE_RAS = 0`）
+
+| 文件 | 改动 |
+|---|---|
+| `rtl/ras.v` | **新增**：参数化深度的返回地址栈（环形指针 + 计数饱和；空栈 pop 不回绕；溢出覆盖最老项） |
+| `tb/tb_ras.v` | **新增**：27 条断言，深度 8/4/2/1 全部 PASS（含随机黄金模型比对） |
+| `scripts/run_ras_tb.ps1` | **新增**：一次跑四个深度 |
+| `rtl/pipeline_cpu.v` | 新增 `ENABLE_RAS` / `RAS_DEPTH` 参数；`id_advance` 提前声明；新增 `btb_is_ret[15:0]` 位图（与 BTB 同索引同更新点）；`predictor_target_eff` 在 ret 命中且栈非空时改用 `ras_top` |
+| `tb/tb_coremark_pipeline.v` | 新增 `ENABLE_RAS` 参数并透传 |
+| `scripts/run_coremark_pipeline_tb.ps1` | 新增 `$env:ENABLE_RAS` 开关（默认 0） |
+| 24 个 `scripts/run_*.ps1` | 源文件列表补 `rtl/ras.v` |
+| `fpga/coremark_ras_85m/` | **新增**独立工程（rsa.v 已加入 recipe），用于 RAS=1 的板级对照，不覆盖交付工程 |
+
+判定规则（RISC-V 没有专职 call/ret，只能看寄存器号）：
+`call = dec_jmp && rd==x1` → push `ifid_pc+4`；
+`ret = dec_jalr && rd==x0 && rs1==x1` → pop。
+更新点放在 **ID 级、按序**（`id_advance` 门控），被重定向冲刷的指令不会污染栈。
+
+### 3.3 Before / After（实测，非估算）
+
+| 口径 | RAS=0 | RAS=1 | 变化 |
+|---|---:|---:|---:|
+| RTL 仿真 cycles，**rv32i** | 1,251,724 | 1,226,872 | **−1.99%** |
+| RTL 仿真 cycles，**rv32im** | 604,288 | 603,090 | **−0.20%** |
+| **实体板 ticks**，rv32im @85 MHz（4000 迭代） | 1,759,901,953 | 1,755,563,957 | **−0.25%** |
+| **实体板 Score** | 193.192 | **193.669** | +0.25% |
+| CoreMark/MHz | 2.272 | **2.278** | +0.26% |
+| **LUT** | **4198** | **4308** | **+2.62%** |
+| **CoreMark/LUT** | **0.04602** | **0.04496** | **−2.30%** |
+| FF | 3361 | 3640 | +279 |
+| 路由后 WNS（85 MHz） | +0.250 ns | +0.117 ns | 余量变小 |
+
+板级证据：`release/evidence/coremark_uart_ras85_20261018.log`、
+`release/evidence/coremark_board_ras85_20261018.json`（四 CRC 全过、
+`Correct operation validated.`、`-march=rv32im` 自证、20.653 s ≥ 10 s）。
+
+### 3.4 结论：**功能正确，但净收益为负，默认关闭**
+
+1. **仿真与实体板完全吻合**：rv32im 仿真 −0.20% vs 实体板 −0.25%。
+   早期看到的 −1.99% 是 **rv32i** 口径——rv32i 下每次乘法都要调 `__mulsi3`
+   （84.3% 的提交落在里面），call/ret 对极多，RAS 才有大收益；
+   rv32im 把乘法变成单条指令后这些调用整个消失。
+   **引用 RAS 收益必须写明 ISA，不得把 rv32i 的 −2% 说成 rv32im 的成绩。**
+2. **面积代价（+110 LUT，+2.62%）大于分数收益（+0.25%）**，因此
+   CoreMark/LUT 反而掉了 2.3%。这是"小面积改动换小分数"的典型亏本交易。
+   深度扫描（4/8/16）周期数完全相同，减小深度也省不下足够的 LUT。
+3. 时序余量从 +0.250 ns 降到 +0.117 ns（85 MHz 仍 Met）：RAS 栈顶到
+   `fetch_pc` 多了一级 mux，落在原本就紧的预测链上。
+4. 按 `AGENTS.md` §9「功能正确性或时序稳定性下降时应优先恢复正确性」，
+   **默认值保持 `ENABLE_RAS = 0`，交付位流与既有证据口径不变**；
+   机制、Testbench 与板级 Before/After 全部留档，便于将来在
+   "面积更宽松 / 面积不计分"的场合直接打开。
+
+### 3.5 复现
+
+```powershell
+# 模块自测（深度 8/4/2/1）
+& '<pwsh5>' -NoProfile -File scripts\run_ras_tb.ps1
+
+# 仿真 Before/After（rv32i 与 rv32im 各跑一遍）
+$env:ENABLE_RAS=0; & '<pwsh5>' -NoProfile -File scripts\run_coremark_pipeline_tb.ps1 -March rv32im
+$env:ENABLE_RAS=1; & '<pwsh5>' -NoProfile -File scripts\run_coremark_pipeline_tb.ps1 -March rv32im
+
+# 板级 Before/After（RAS 位流在独立工程里，不动交付工程）
+cd fpga\coremark_ras_85m; & 'D:\Pango\PDS_2024.2-SP2\bin\pds_shell.exe' -file pds_recipe.tcl -project_name coremark_ras_85m_generated
+& '<pwsh5>' -NoProfile -File scripts\program_board.ps1 -BitstreamPath fpga\coremark_ras_85m\generate_bitstream\mes50hp_coremark_pll_top.sbit
+& '<pwsh5>' -NoProfile -File scripts\run_coremark_board.ps1 -Port COM11 -ClockHz 85000000 -TimeoutSeconds 180
+```
+
+---
+
+## 改动 4（2026-10-19）：`rtl/mdu.v` —— 乘法并行部分积，`MUL_LAT` 3 → 2
+
+> 完整记录（算法、三方对照、关键路径、复现命令）在 **`docs/mdu_parallel_partial_product.md`**，
+> 本节只保留"改动清单 + 结论"以便与改动 1～3 并列。
+
+### 4.1 改动文件
+
+| 文件 | 改动 |
+|---|---|
+| `rtl/mdu.v` | 新增参数 `MUL_LAT`（3/2/1，默认 **2**）；乘法由"两级串联 16x32 部分积"改为"四路并联 16x16 + 窄位宽（17/33 位）加法树 + 推测进位选择"；除法通路**一行未改** |
+| `rtl/pipeline_cpu.v` | 新增参数 `MDU_MUL_LAT`（默认 2）并透传给 `mdu`；`mdu` 例化改为 `mdu #(.MUL_LAT(MDU_MUL_LAT))`；注释里"乘法 2 拍"的旧说法改为引用参数 |
+| `tb/tb_mdu.v` | 由"写死 3 拍"改为按 `MUL_LAT` 判定时序（`-DMUL_LAT=n`），46 项手算用例三种模式共用同一组期望值 |
+| `tb/tb_pipeline_m_ext.v` | 新增 `MUL_LAT_CFG` 参数并透传（默认 2） |
+| `tb/tb_coremark_pipeline.v` | 新增 `MDU_MUL_LAT` 参数并透传（默认 2） |
+| `scripts/run_mdu_tb.ps1` / `run_pipeline_m_ext_tb.ps1` / `run_coremark_pipeline_tb.ps1` | 新增 `-MulLat` / `$env:MDU_MUL_LAT` 开关（默认 2），Before/After 靠它切换 |
+| `fpga/coremark_mul{1,2,3}_85m/` | **新增**三个对照工程（同一份镜像与约束，唯一变量 `MUL_LAT`），互不覆盖、不动交付工程 |
+
+### 4.2 结论（实测）
+
+| 项 | MUL_LAT=3（旧） | MUL_LAT=2（新默认） | 变化 |
+|---|---:|---:|---:|
+| 仿真 cycles（rv32im 一次迭代） | 604,288 | **594,792** | **−1.571%** |
+| 仿真 `mdu_block` | 24,307 | **14,810** | −9,497（= 每迭代乘法条数） |
+| 仿真 CoreMark/MHz | 1.965 | **2.002** | **+1.88%** |
+| 仿真 `instret` | 333,095 | 333,095 | **不变** |
+| LUT / FF（85 MHz PnR） | 4185 / 3361 | **4139 / 3324** | **−46 / −37** |
+| 路由后 WNS（85 MHz） | +0.281 ns | **+0.115 ns** | −0.166 ns，仍 `All Constraints Met` |
+| 估算 Fmax | 87.0800 MHz | **85.8391 MHz** | — |
+| **板级 ticks（4000 迭代）** | 1,759,901,953 | **1,722,317,953** | **−2.135%** |
+| **板级 Score / CoreMark/MHz** | 193.192 / 2.272 | **197.408 / 2.322** | **+2.183% / +2.20%** |
+
+- `instret` 与四行官方 CRC 三种配置完全相同 ⇒ **纯延迟改动，架构不变**。
+- `ΔScore/ΔArea` 判据：分数 +1.88%、面积 −1.10%，**同向为正**。
+- **MUL_LAT=1 实测违例**（WNS −4.471 ns / 61.59 MHz）：关键路径在
+  `core/rf/regs → 前递 MUX → 一级 APM` 就已 12.189 ns，超过 85 MHz 的 11.7647 ns 周期
+  ⇒ 85 MHz 下不存在"乘法输入直连前递操作数"的结构，`M_IDLE` 那一拍是必需的。
+- **板级已验证**（2026-10-19，MES50HP/COM11，两颗位流分别上板）：
+  Score **193.192 → 197.408（+2.183%）**、ticks −2.135%、`crcfinal 0x65c5` 两次相同、
+  `flush_count` 两次逐位相同；且**仿真与实板的每迭代 ticks 收益都是 9,396 拍**。
+  证据 `release/evidence/coremark_board_mul{3,2}_85m_20261019.json`。
+  上板后板子已恢复交付位流 `la85`。
+- **交付逻辑分析仪位流（la85）未重打**：`release/` 内既有位流与哈希未动。
+- **CPI 不得引用**：两次采集用默认 `PERF_WINDOW_ALIGN=0` 镜像，`cycle/instret/stall/branch`
+  含启动与等待 `R` 的轮询，两次不可比。

@@ -1,0 +1,13 @@
+[
+  {
+    "run": 0,
+    "mode": "mirror",
+    "value": 0,
+    "samples": 1201,
+    "trigger": 0,
+    "uart": "48454c4c4f2c524953432d56",
+    "uart_errors": 0,
+    "spi": "",
+    "text": "HELLO,RISC-V"
+  }
+]

@@ -32,8 +32,119 @@
 - Task 10 必须通过目标器件、时钟/Reset、BRAM 读写、初始化和资源推断的 PDS 冒烟验证。
 - 本届正式目标冻结为盘古 50（MES50HP）的紫光同创 Logos `PGL50H-6IFBG484`，系统时钟 `FPGA_GCLK_50M=P20` 为 50 MHz（20.000 ns），使用 PDS `.fdc`；平台和验证契约见 `docs/fpga_platform.md`。
 - MES50HP 的 Reset 选择、按键/LED 极性和 CP2102 UART 管脚全部由 Core 外部 board wrapper/约束处理。默认 `USE_EXTERNAL_RESET=0` 使用内部上电复位；底板 `REST` 是专用固件重加载信号，CPU 人工复位只从低有效用户按键分配。
-- 本届使用可综合片上 RAM/BRAM 完成稳定 Baseline，不实现 I/D Cache 或 burst；MMIO 始终属于 uncacheable 区域。
+- 稳定 Baseline 使用可综合片上 RAM/BRAM，**不依赖** Cache 或 burst；MMIO 始终属于 uncacheable 区域。
+- **2026-09-29 范围变更**：I/D Cache 与行式突发纳入本届（`AGENTS.md` §1.14），
+  存储层次见本文件「存储层次（行式突发 + 2 路组相联 Cache）」一节；Baseline 路径保持不变、可随时回退。
 - Task 9 的当前非对齐策略为检测且不拆分事务：`LB/LBU/SB` 接受任意 byte 地址，`LH/LHU/SH` 仅接受 `addr[0]=0`，`LW/SW` 仅接受 `addr[1:0]=2'b00`。不满足对齐时 `misaligned=1`；Store 保持 `wstrb=4'b0000`，禁止任何写副作用。Task 12 再冻结软件可见的完整 ISA 行为。
+
+## 3.1 存储层次（行式突发 + 2 路组相联 Cache）
+
+**阶段**：S2 行式突发（已完成）→ S3 2 路组相联 I-Cache → S4 2 路组相联 D-Cache。
+依据 `AGENTS.md` §1.14 的范围变更与 `docs/handoff_next.md` §3.3 的闸门。
+
+**为什么需要这一层**：Baseline 的后端是片上 BRAM，单笔事务、低延迟，
+Cache 挡在前面省不下周期，Off/On 也测不出差别。**一旦把代码/数据搬到板载 DDR3**，
+每次访问都要付 DDR 的行激活与命令开销，没有 Cache 会慢很多倍——
+这时组相联 Cache + 突发行填充才成为必需品，Off/On 才是真实后端上的真实数字。
+S1 已在实板跑通 DDR3 控制器（`S1 DDR3 SMOKE BOARD PASS`）。
+
+**层次结构**（全部位于 Core 外部，Core 端口与事务语义不变）：
+
+```text
+pipeline_cpu（rtl/pipeline_cpu.v，SHA-256 前缀 B58496706686E37B，端口未改）
+   ├── 统一取指端口 ──> [S3] I-Cache（2 路组相联）──> 行/突发适配器 ──> IMEM / DDR3
+   └── 统一数据端口 ──> [S4] D-Cache（2 路组相联，写穿+写缓冲）──> 互连 ──> DMEM / MMIO / DDR3
+                                                          └── MMIO 恒 uncacheable，强制绕行
+```
+
+**S2 已实现的部件**：`rtl/soc_line_burst_adapter.v`。
+它把 Core 的单字访问翻译成"一次行请求 + 连拍返回"（32 B = 8 拍），
+并用一个行缓冲接住整行；`BURST_LEN=1` 时退化为逐字事务，
+因此 Before/After 是**同一份 RTL**，差异只来自发包方式。
+
+**S3 已实现的部件**：`rtl/soc_icache_2way.v`（2 路 × 32 组 × 32 B = 2 KB，带 Off 开关）。
+模块级验证 26 项 PASS。**集成后净收益为负，默认关闭**，原因与边界见本节末。
+
+**S4 已实现的部件**：`rtl/soc_dcache_2way.v`（2 KB，写穿 + 写缓冲，写未命中不分配）。
+模块级验证 19 项 PASS，覆盖四项必做功能（写穿+写缓冲、MMIO 强制绕行、
+Store→Load 转发、字节写合并）。
+
+**实测收益**（S2，`tb/tb_soc_line_burst_adapter.v`，3 整行 × 8 字顺序读，两种模式各 3 次填充）：
+
+| 指标 | 逐字 | 突发 | 变化 |
+|---|---|---|---|
+| 下游请求数 | 24 | 3 | −87.5% |
+| 下游总线周期 | 48 | 30 | **−37.5%** |
+
+**D-Cache 收益与"后端有多慢"的关系**（`tb/tb_soc_dcache_2way.v`，同一 32 次带局部性的读序列）：
+
+| 后端 | 配置 | 下游读请求 | 下游总线周期 |
+|---|---|---|---|
+| 慢（读首拍 4 拍） | Off | 32 | 192 |
+| 慢 | **On**（命中率 90%） | **3（−90%）** | **39（−79%）** |
+| **零等待** | Off（对照） | 32 | 64 |
+
+**⚠️ 关键边界（这条比上面的数字更重要）**：Cache 的收益**完全取决于后端有多慢**。
+
+- 后端**零等待**（片上 BRAM，CoreMark 工程当前配置）：每次访问本来就 1 拍，
+  而 Cache 的命中响应是**寄存**的（1 拍），于是**每次取指多 1 拍**。
+  实测把 I-Cache 接进真实取指路径后 CoreMark **慢 2.31 倍**
+  （1,251,724 → 2,891,324 拍），按 §3.3 的止损规则**默认关闭**。
+  根因是 `rtl/pipeline_cpu.v` 第 727–741 行的"响应接收 + 新请求接受同拍交接"优化
+  让零等待后端能每拍取一条指令。
+- 后端**慢**（DDR3 那类，每次访问都有激活/命令开销）：命中省下的是实打实的多拍等待，
+  上表 −79% 就是这个量级。
+
+**因此**：要让 Cache 在**当前**工程配置下兑现，必须先完成
+"**零气泡（组合）命中路径**"——该方案已分析清楚但本会话未调通（见 `docs/debug_log.md`）；
+或者把后端换成真实慢存储（S1 已跑通的 DDR3），此时 Cache 的收益不依赖零气泡。
+
+**代价与前提（不得省略）**：上表来自**行填充式慢后端模型**（`dcache_mem_model`），
+**是模型级、非端到端**数字。
+
+### 3.1.1 S4 的最终实测结论（2026-09-29，已闭环）
+
+**先说功能**：D-Cache 接进 CoreMark 后**功能已正确**，判据有两条硬证据：
+
+1. **影子内存逐笔比对零错读**：用同一份 `coremark_dmem.mem` 建影子，
+   每一笔被 Core 接受的数据读都与影子比对 ⇒ **零笔不符**；
+2. **UART 日志逐行对比**（基线 vs D-Cache）：**只有计时/性能行不同**
+   （`Total ticks`、`CoreMark/MHz`、`PERF cycle=…`），
+   **所有 CRC、`Correct operation validated.`、`COREMARK_DONE` 逐字相同**，`bytes` 同为 655。
+
+**再说收益（端到端，零等待 BRAM 后端）**：
+
+| 配置 | cycles | vs 基线 |
+|---|---|---|
+| 基线（不接 D-Cache） | 1,251,724 | — |
+| **D-Cache On** | **1,348,302** | **+7.7%（净亏）** |
+
+`PERF` 行印证：`stall` 由 184,120 涨到 289,791。
+
+⇒ **S4 按 §3.3 的止损条件（Off-On 无净收益）收口：功能正确，但当前配置下无收益，
+D-Cache 默认关闭（`ENABLE_DCACHE=0`），不得宣称端到端收益。**
+
+**架构结论（这是本节最该记住的一句）**：
+**片上 BRAM 这种零等待后端比"Cache 命中"还快，所以在本工程当前的存储配置下，
+任何 Cache 都注定是净亏损。** 一个**正确**的 Cache 并不能改变这一点：
+它的价值只体现在"后端足够慢"的场合（DDR3 那类），
+而"后端足够慢"意味着必须先把 **DDR3/HMIC 行突发后端真正接进 SoC**
+（S1 只证明了板级连通，没有接进 CPU 访存路径）。
+**在此之前，Cache 的端到端收益不是一个"优化没做好"的问题，而是一个"前提不成立"的问题。**
+
+**一个不能引用的测量（留档）**：曾试"同后端 Off/On"（两边都用 `slow_ram_adapter` + 读延迟 4），
+Off 超时、On 1,217,422 拍。该组数字**不可引用**：
+在延迟 4 下**纯直连配置也报影子不符**（是慢后端**模型的写延迟**让影子对不上，不是 Cache 问题），
+且 On@4 的 `bytes=628 ≠ 655`，输出本身不完整。
+
+**设计约束（不得放宽）**：
+- I-Cache 只能位于取指端口与下级存储之间，D-Cache 只能位于数据端口与 SoC 互连之间；
+- MMIO 区域**恒为 uncacheable**，不进 Cache、不合并、不预取；
+  **且不可缓存读绝不能写 Cache 数据阵列**（这是 S4 集成错数据的根因，见 `docs/debug_log.md` 第九轮）；
+- Cache/突发全部在 Core 外部；Core 内不得出现 Cache 专用端口或设备状态机；
+- 每完成一步必须重跑 Trap 契约全部 99 条断言 + 最终回归 + CoreMark，任何退化即回退。
+
+
 
 ## 4. Core / SoC 边界与应用场景
 
@@ -112,15 +223,199 @@ Task 18 只冻结以上结构和时序边界。现有候选 RTL 中的 Forwardin
 
 这组约定属于 Core 内部时序 + Core 外部 adapter 的 ready 策略，**不改变任何端口、事务字段或 trace 语义**。
 
+### 5.3 控制流重定向只由"预测错误"触发（A1，2026-09-28）
+
+**背景与量化依据**：原实现在 EX 级对 `idex_jump`（JAL/JALR）**无条件**重定向，同时对条件分支按
+`idex_pred_taken != branch_taken` 或目标不符重定向。问题在于跳转同样被 BTB 查询过：只要预测命中，
+IF 就已经沿正确目标取指，此时再重定向一次等于把前端三条指令白扔掉。更糟的是跳转的 BTB 训练值
+取自对 JAL/JALR 无意义的 `branch_unit` 比较结果，跳转项几乎永远不会被训练成 taken，于是每次跳转都
+必然误预测。板级 CoreMark 窗口里这类"预测本可正确却被强制重定向"的跳转约占 28,500 次/迭代。
+
+**冻结的设计决定（两部分，缺一不可）**：
+
+1. **`rtl/branch_predictor.v` 区分"分支"与"跳转"**：每个 BTB 项新增 1 bit `is_jump`。
+   查询命中 `is_jump` 项时直接输出 `predicted_taken=1`，不再看 2-bit 饱和计数器；
+   2-bit 计数器仍按原语义服务条件分支。理由：条件分支的方向未知、必须靠计数器学；
+   而 JAL/JALR 恒 taken，方向不需要学。让两者共用计数器只会让跳转被分支污染成 not-taken。
+   `update_taken` 对跳转项恒为真，`update_target` 恒取 EX 算出的真实目标。
+2. **`rtl/pipeline_cpu.v` 只在校验失败时重定向**：新增
+   `control_resolve`（本条是控制指令且在 EX 且未被访存阻塞）、
+   `control_taken`（分支看 `branch_unit`，跳转恒 1）、
+   `pred_direction_ok`、`pred_target_ok`、`control_mispredict`。
+   `ex_redirect = control_mispredict`。重定向目标统一为 `control_taken ? ex_target : idex_pc + 4`。
+
+**安全性论证**（这是能改的前提，不是"能跑就行"）：
+
+- 预测"对了"的判据是**方向一致且目标相等**（目标只在真实跳走时才比较），
+  所以任何目标不符都仍然走重定向，错误路径不会被放行。
+- JAL 的目标由 `PC + J 立即数`决定，立即数来自指令位，因此 BTB 一旦命中就一定算对；
+  JALR 的目标依赖 `rs1`，BTB 里的目标可能过期，因此**必须**保留目标比较兜底。
+- `idex_jump || idex_branch` 之外的控制指令不存在，`control_resolve=0`，
+  所有比较都不触发，非控制指令行为逐位不变。
+- `ENABLE_BRANCH_PREDICTOR=0` 时 BTB 恒不命中、`pred_taken=0`，
+  跳转与 taken 分支都仍然误预测并重定向，Always-Not-Taken Baseline 语义不变。
+
+**事件口径（不许混用历史数据）**：
+
+| 事件 | 语义 | 与改动前的关系 |
+|---|---|---|
+| `event_branch` | 只统计条件分支 | **不变**，历史 branch_count 可直接比较 |
+| `event_branch_taken` | 只统计 taken 的条件分支 | **不变** |
+| `event_predict` | 所有被解析的控制指令（分支 + 跳转） | 口径**扩大**了（新增跳转），新材料必须注明 |
+| `event_btb_hit` | 解析时该控制指令在 BTB 中命中 | 口径随之扩大 |
+| `event_mispredict` | 方向或目标校验失败 | 改动前跳转从不计入，现在计入 |
+| `event_flush` | 实际发生的重定向 | 语义不变，数值因优化下降 |
+| `event_control_redirect` | **新增**：预测正确因而免掉重定向的控制指令数（仅 taken 分支与跳转） | 无历史对应项 |
+
+**量化收益（同一工作区、同一镜像、Predictor On、RTL 仿真）**：
+
+| 指标 | Before | After | 变化 |
+|---|---:|---:|---:|
+| CoreMark cycles | 1,295,932 | 1,251,724 | **−44,208（−3.41%）** |
+| CPI | 1.6539 | 1.5906 | −0.0633 |
+| flush_count | 81,562 | 69,120 | −12,442 |
+| 官方四 CRC 与 `Correct operation validated.` | 全过 | 全过 | 一致 |
+
+**明确不宣称的内容**：赛题页与旧文档里"约 7.7% 周期空间"是**估计上界**，本轮实测为 3.41%，
+差距来自 JALR（函数返回）目标依赖运行期值、16 项 BTB 容量有限，并非所有跳转都能预测正确。
+不得把 7.7% 写成已实现收益。
+
+**影响面**：涉及 `rtl/branch_predictor.v`、`rtl/pipeline_cpu.v`、`rtl/perf_monitor.v`
+（新增只读计数 `control_redirect_count`）及对应 Testbench；
+**不改变 Core/SoC 事务字段、握手语义、提交 trace 字段或 architectural state**。
+
+## 5.4 精确 Trap 数据通路（A3，2026-09-28）
+
+契约以 `docs/trap_contract.md` 为唯一来源；本节只记录**实现**层面的决定，
+以及"为什么这样接"和"改哪里会破坏什么"。
+
+### 5.4.1 检测级与"异常记录"
+
+每条指令携带一条 4-bit 异常记录（`EXC_NONE/IFETCH_ERR/ILLEGAL/EBREAK/LOAD_MIS/
+STORE_MIS/LOAD_ACC/STORE_ACC/ECALL/INSTR_MIS`）沿 `IF→ID→EX→MEM→WB` 前进，规则只有一条：
+**先到先得**——只在进入某一级时填一次，已有记录就不再覆盖。因为指令按程序序逐级推进，
+先填进去的必然是程序序更早的异常，因此天然满足契约 §5.2 的优先级要求，
+不需要再写一张"同拍多个异常谁赢"的组合优先级表。
+
+| 级 | 能确定的异常 | 说明 |
+|---|---|---|
+| IF | 取指错误、取指地址未对齐 | `i_rsp_error` 与 `pc[1:0]` |
+| ID | —— | 只把 IF 的记录搬到 ID/EX；译码得到 `csr_en/trap_ecall/trap_ebreak/trap_mret` |
+| EX | 指令地址未对齐、非法指令、CSR 非法、`ECALL`、`EBREAK`、访存未对齐 | 访存未对齐在 EX 就能判，见 5.4.3 |
+| MEM | 访存访问错误 | 必须等下游响应回来才知道 |
+
+`mtval` 不单独存：它的语义是"出错的地址或指令码"，这两样本来就躺在流水寄存器里
+（`memwb_pc` / `memwb_inst` / `memwb_alu`），在 WB 级按原因码选择即可。
+
+### 5.4.2 Trap 接受点：退休边界（WB）
+
+`trap_take = !mem_block && memwb_valid && (有同步异常 || irq_grant)`。
+
+- **只在 WB 接受**：此时"比出错指令更老"的指令全部已经退休并产生副作用，
+  满足契约 §5.1 第 1 条；而"更年轻"的指令仍在 EX/MEM、ID/EX、IF/ID 里，可以整体取消。
+- **同步异常**取消出错指令本身（`wb_cancel = trap_take && 有同步异常`），
+  `wb_fire`（写回与提交记录）因此落下，契约 §5.1 第 3 条成立。
+- **中断不取消** WB 这条指令：中断在语义上发生在它**提交之后**。
+  这是"同步异常优先于中断"的具体落点。
+- `mem_block` 期间不接受 Trap，避免"访存还没完成就改 PC"。
+- `MRET` 在 EX 级解析并重定向到 `mepc`；Trap 同拍优先，此时 `MRET` 被取消，
+  既不改 PC 也不改 `mstatus`（契约 §5.2 第 6 条）。
+
+### 5.4.3 访存未对齐为什么在 EX 级再判一次
+
+未对齐只要有地址就能确定，把它放在 EX 可以和非法指令、`ECALL/EBREAK` 走同一条通路。
+判定规则**直接再例化一个 `load_store_unit`**（`lsu_ex`），而不是手写一份比较：
+规则只能有一个出处，否则日后改了一处漏一处，EX 的"要不要报未对齐"与
+MEM 的"要不要发总线事务"就会互相矛盾。MEM 级的那一份仍然保留，
+负责"不发出总线事务"和 `event_misaligned`（每条指令恰好一次脉冲）。
+
+### 5.4.4 `mepc` 与 `mtval` 的来源
+
+| 情形 | `mepc` |
+|---|---|
+| 同步异常（含取指、未对齐、非法、`ECALL`/`EBREAK`） | 出错指令自己的 PC（`memwb_pc`），**不是 PC+4** |
+| Store 访问错误 | 出错 Store 的 PC+4（契约 §5.1 第 4 条：请求已被下游接受，视为在 Trap 之前提交，避免 handler 重试造成第二次总线副作用） |
+| 中断 | `memwb_next_pc`——本条指令**程序序上的下一条**，即"还没执行的那条" |
+
+`memwb_next_pc` 随指令一起流过流水线（EX 级按"是否真的跳走"算出），
+不能用 `exmem_pc` 顶替：跳转/分支重定向当拍，EX/MEM 里可能正是一个气泡。
+
+`mtval`：非法指令/`EBREAK` → 指令码；`ECALL` 与中断 → 0；
+取指错误/未对齐 → 出错取指地址；访存未对齐/访问错误 → 出错访存地址。
+
+### 5.4.5 中断输入为什么只有三根
+
+Core 只接 `irq_software_i` / `irq_timer_i` / `irq_external_i` 三根设备无关电平，
+加对应使能位构成请求。定时器、中断控制器、使能、聚合、优先级全部在 SoC 侧；
+`mip` 只是这三根线的只读窗口，Core 不锁存、不清除，因此**中断的清除是软件对 SoC 的动作**，
+Core 里不会出现任何设备名、设备地址或设备状态机（`AGENTS.md` §8）。
+
+### 5.4.6 影响面
+
+涉及 `rtl/pipeline_cpu.v`（异常记录、Trap 接受点、`MRET` 重定向）、新增 `rtl/csr_unit.v`、
+`rtl/decoder.v`（`ENABLE_SYSTEM` 参数，默认 0 保持单周期 Reference Model 逐位不变）。
+**不改变** `i_req_*`/`i_rsp_*`/`d_req_*`/`d_rsp_*` 的事务语义、握手规则与字段，
+也不改变已有的提交 trace 字段；新增的只有三根通用中断输入与两个 Trap 观察事件。
+
+## 5.5 M 扩展（RV32IM）的乘除法单元（2026-10-14）
+
+### 5.5.1 为什么做
+
+CoreMark 的矩阵段每次迭代固定 10,575 次乘法，RV32I 下全部走 libgcc `__mulsi3` 的移位加循环
+（反汇编实测循环体 6 条指令、平均 7.94 次循环迭代/次乘法；板级 ILA 窗口 84.3% 的提交落在该循环里）。
+按指令数折算，**约 60% 的退休指令花在软件乘法上**（`docs/coremark_cpi_analysis.md` §5 之后的最大单项）。
+板级实测 CoreMark/MHz **0.936 → 2.272**（2.43×）。
+
+### 5.5.2 数据通路
+
+```text
+ID/EX ──┬─ idex_mdu_en / idex_mdu_op[2:0] ─┐
+        │  (decoder 对 funct7=0000001 整组译码) │
+        └─ srca0 / srcb0（已前递的源操作数）──┴─► rtl/mdu.v ──► ex_result ──► EX/MEM
+                                                        │
+                                        busy ───────────┘（mdu_block：把 ID/EX 冻在 EX）
+```
+
+- **乘法组**（`op[2]=0`，mul/mulh/mulhsu/mulhu）：**3 拍**。
+  第 1 拍锁操作数 → 第 2 拍把 32×32 拆成两个 **16×32** 部分积并寄存 → 第 3 拍移位相加 + 符号修正。
+  为什么不是 1 拍组合：32×32 被综合成 **4 级串联 APM**，85 MHz 下 Slack −3.268 ns。
+  四种语义共用一个无符号全积，`mulh/mulhsu/mulh` 只差"操作数符号位各自贡献的一份修正项"。
+- **除法组**（`op[2]=1`，div/divu/rem/remu）：**32 拍**恢复余数法（shift-subtract），
+  有符号按"绝对值相除 + 末拍补符号"，除零返回全 1 / 被除数，溢出（−2³¹/−1）自然正确。
+- **握手**：`run`（EX 上有一条 M 指令）+ `ack`（该指令连同结果被锁进 EX/MEM 的那一拍）。
+  `ack` 的意义是**区分"还是同一条"与"换了一条"**——背靠背的同类指令之间 `run` 从不落下，
+  缺了它第二条会沿用第一条的结果（实测 `rem` 返回了商）。
+
+### 5.5.3 与流水线的耦合点（两处，都必须留在契约里）
+
+1. **`mdu_block`**：结果没就绪时把 ID/EX 冻在 EX。它是**EX 级**的暂停，与 MEM 级的 `mem_block` 是两回事。
+2. **`exmem_retired`**：访存的"完成"由握手定义（`dstate` D_RSP→D_IDLE 只发生一次），
+   而 MEM→WB 原来与"ID/EX 换入 EX/MEM"**同拍原子发生**。加入 EX 级暂停后两者被拆开，
+   必须有一个"这条 EX/MEM 记录已经退休过"的标记，MEM 级才能与 EX 级解耦排空
+   （否则 `mem_done` 在握手结束那拍落下、`mem_block` 永久为 1，实测整机死锁）。
+
+### 5.5.4 边界
+
+- **Core 对外端口一根未改**（`docs/interfaces.md` §293～299 不变）：M 是 ISA 扩展，不是外设。
+- **单周期 Reference Model 必须同 ISA**：两个 CPU 共用 `rtl/decoder.v` 的 M 译码与 `rtl/mdu.v`，
+  否则"最终架构状态一致"的比较在任何用到乘除法的程序上直接失效。
+- 引用 CoreMark 分数时**必须写明 ISA**：`rv32i`（默认/可比口径）与 `rv32im`（增强口径）并列，
+  CoreMark 输出自带 `Compiler flags` 一行可自证。
+
 ## 6. 本届评分范围、高阶功能与删减边界
 
 - 评分主线及取舍以 `docs/competition_scoring.md` 为准：完整 RV32I、五级流水线与 Hazard、UART/GPIO、CoreMark 三项性能指标、实际应用、ILA 分析和规范材料全部为 P0。
-- 官方“高级控制逻辑”按“动态分支预测以及完整异常/中断”描述。本届不实现完整异常/中断，因此不会仅凭 BTB 宣称完整完成该高级任务。
+- 官方“高级控制逻辑”按“动态分支预测以及完整异常/中断”描述。本届按期初的 BTB 完成其中"动态分支预测"一项；"完整异常/中断"按 `docs/trap_contract.md` 的机器模式子集另行实现，只有该契约逐项 PASS 才宣称完成该高阶组，且必须附覆盖表。
 - 最终流水线采用 16 项直接映射 BTB + 2-bit 饱和计数器，只预测条件分支；IF 携带命中、方向和目标元数据，EX 用真实结果恢复错误路径。
 - 以 Predictor Off 为 Always-Not-Taken Baseline，统计 prediction、BTB hit 和 misprediction，并比较 Predictor Off/On 的 CoreMark 周期、CPI、LUT、FF 与 Fmax。
 - BTB 单项不宣称完成官方“高级控制逻辑”；完整异常/中断仍不属于本届范围。
-- 本届明确删除 I-Cache、D-Cache、burst、完整异常/中断、AI/YOLO、自定义指令、外部 DDR、HDMI、PCIe 和千兆网，不建立这些 RTL 分支，也不在材料中宣称支持。
-- 接口文档保留 Cache/中断的未来解耦扩展原则，仅用于防止架构绑死，不表示本届计划实现。
+- **2026-09-29 经用户批准的范围变更**：**I-Cache、D-Cache、burst 与外部 DDR3 由"本届不做"改为"本届要做"**
+  （`AGENTS.md` §1.14），作为官方高阶项①按 S1→S2→S3→S4 推进；接口契约见 `docs/interfaces.md`
+  §5.1（行/突发适配器）与 §5.2（D-Cache），实测结论见本文 §3.1/§3.1.1。
+  **本届仍明确不做**：U/S 模式、向量 Trap、Debug Mode、`WFI`（机器模式子集已按 `docs/trap_contract.md` 实现）、
+  AI/YOLO、自定义 RISC-V 指令、HDMI、PCIe 和千兆网；RLE 仍为赛后研究。
+- 接口文档的 Cache 解耦扩展原则**已从"防止绑死"升级为"已实现的契约"**：
+  Cache/突发全部位于 Core 外部，**`rtl/pipeline_cpu.v` 的端口与事务语义未变**（SHA-256 前缀 `B58496706686E37B`）。
 - 逻辑分析仪 P0 固定为 8 通道、基础边沿/电平/掩码触发、前后采样、BRAM、Raw、UART/SPI 软件解析和简单 Python/VCD；本届冻结 RLE。16 通道、I²C、协议感知/多级触发、外部 DDR 和复杂 GUI 均删除。
 
 ## 7. 尚待对应 Gate 决定的项目

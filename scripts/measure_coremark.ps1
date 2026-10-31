@@ -1,10 +1,10 @@
-param(
+﻿param(
   [ValidateSet('cm50','cm80')][string]$Config='cm50',
   [string]$Port='',
   [int]$TimeoutSeconds=200,
   [switch]$SkipProgram
 )
-# 实体板 CoreMark 一键测量：下载对应位流 → 串口发送 'R' → 解析官方 CRC 与 Score。
+# 实体板 CoreMark 测量：下载对应位流 → 串口发送 'R' → 解析官方 CRC 与 Score。
 #
 #   cm50 = 50 MHz、1000 次迭代（计分点）
 #   cm80 = 80 MHz PLL、2500 次迭代（频率项交叉验证点）

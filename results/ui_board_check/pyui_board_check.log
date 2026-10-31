@@ -1,0 +1,45 @@
+== A core 默认(Core 源): mode=core source=None ==
+  panel: source=Core 内部观测点 sample_div=0 pre=64 post=1983 mask=ch6 type=rise level=0 低
+    [core] 报文 a80000000000000140004000bf070110 · 采集源=Core 内部观测点 时基 sample_div=0 速率 pattern_div=0 触发 rise mask=0x40 value=0x00 pre=64 post=1983 每比特 1 点
+    LOGIC ANALYZER BOARD RUN 1/1 PASS mode=core view=core samples=1987 trigger=3
+    ALL 1 LOGIC ANALYZER BOARD CAPTURES PASS output=D:\RISC_V_CPU_2026\results\ui_board_check\logic_analyzer\core
+  [A core 默认(Core 源)] 按面板参数采集 PASS
+== B uart 切 Core 源: mode=uart source=Core 内部观测点 ==
+  panel: source=Core 内部观测点 sample_div=0 pre=64 post=1983 mask=ch0 type=fall level=0 低
+    [uart] 报文 a802a5b10100000201004000bf070145 · 采集源=Core 内部观测点 时基 sample_div=0 速率 pattern_div=433 触发 fall mask=0x01 value=0x00 pre=64 post=1983 每比特 434 点
+    提示：采集源=Core 内部观测点，本窗按 core 解释（uart 模式只提供窗口与触发预设）
+    LOGIC ANALYZER BOARD RUN 1/1 PASS mode=uart view=core samples=1984 trigger=0
+    ALL 1 LOGIC ANALYZER BOARD CAPTURES PASS output=D:\RISC_V_CPU_2026\results\ui_board_check\logic_analyzer\uart
+  [B uart 切 Core 源] 按面板参数采集 PASS
+== C uart 默认(J8 源): mode=uart source=None ==
+  panel: source=J8 外部 8 路 sample_div=26 pre=64 post=191 mask=ch0 type=fall level=0 低
+    LOGIC ANALYZER BOARD RUN 1/1 PASS mode=uart view=uart samples=207 trigger=15
+    [uart] 报文 a502a5b1011a0002010040bf54 · 采集源=J8 外部 8 路 时基 sample_div=26 速率 pattern_div=433 触发 fall mask=0x01 value=0x00 pre=64 post=191 每比特 16 点
+    ALL 1 LOGIC ANALYZER BOARD CAPTURES PASS output=D:\RISC_V_CPU_2026\results\ui_board_check\logic_analyzer\uart
+  [C uart 默认(J8 源)] 按面板参数采集 PASS
+== D core 切回 J8 源: mode=core source=J8 外部 8 路 ==
+  panel: source=J8 外部 8 路 sample_div=0 pre=64 post=255 mask=ch0 type=level level=0 低
+    LOGIC ANALYZER BOARD RUN 1/1 PASS mode=core view=raw samples=256 trigger=0
+    提示：采集源=J8 外部 8 路，本窗按 raw 解释（core 模式只提供窗口与触发预设）
+    [core] 报文 a500000000000000010040ff1b · 采集源=J8 外部 8 路 时基 sample_div=0 速率 pattern_div=0 触发 level mask=0x01 value=0x00 pre=64 post=255 每比特 1 点
+    ALL 1 LOGIC ANALYZER BOARD CAPTURES PASS output=D:\RISC_V_CPU_2026\results\ui_board_check\logic_analyzer\core
+  [D core 切回 J8 源] 按面板参数采集 PASS
+
+  不勾面板时 core 显示采集源                               Core 内部观测点                 OK
+  不勾面板时 uart 显示采集源                               J8 外部 8 路                  OK
+  A core 默认(Core 源) 面板采集源                        Core 内部观测点                 OK
+  A core 默认(Core 源) 报文长度                         16                         OK
+  A core 默认(Core 源) 命令码                          0xa8                       OK
+  A core 默认(Core 源) [14] 采集源                     1                          OK
+  B uart 切 Core 源 面板采集源                          Core 内部观测点                 OK
+  B uart 切 Core 源 报文长度                           16                         OK
+  B uart 切 Core 源 命令码                            0xa8                       OK
+  B uart 切 Core 源 [14] 采集源                       1                          OK
+  C uart 默认(J8 源) 面板采集源                          J8 外部 8 路                  OK
+  C uart 默认(J8 源) 报文长度                           13                         OK
+  C uart 默认(J8 源) 命令码                            0xa5                       OK
+  D core 切回 J8 源 面板采集源                           J8 外部 8 路                  OK
+  D core 切回 J8 源 报文长度                            13                         OK
+  D core 切回 J8 源 命令码                             0xa5                       OK
+
+UI BOARD CHECK PASS

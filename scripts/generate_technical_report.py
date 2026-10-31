@@ -175,9 +175,9 @@ apply_font(r, size=15, color=BLUE)
 p.paragraph_format.space_after = Pt(42)
 add_table(doc, ["项目", "当前交付状态"], [
     ["处理器", "RV32I 单周期参考模型与五级流水线，自动回归 PASS"],
-    ["FPGA", "PGL50H-6IFBG484，50 MHz，唯一最终 bitstream 已生成"],
+    ["FPGA", "PGL50H-6IFBG484，板载晶振 50 MHz，交付设计经片上 PLL 工作在 85 MHz，主/备两个 bitstream 已生成"],
     ["应用", "8 通道 Raw 逻辑分析仪，UART/SPI 软件解析与 VCD 输出"],
-    ["版本", "competition final candidate，J8 实体闭环 80/80 PASS"],
+    ["版本", "competition final candidate，J8 上板验证连续 320/320 PASS"],
 ], [1.8, 4.8])
 p = doc.add_paragraph()
 p.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -186,31 +186,37 @@ apply_font(p.add_run("2026 全国大学生嵌入式芯片与系统设计竞赛\n
 p = doc.add_paragraph()
 p.alignment = WD_ALIGN_PARAGRAPH.CENTER
 p.paragraph_format.space_before = Pt(24)
-apply_font(p.add_run("技术报告候选版  2026 年 9 月 17 日"), size=11, color="666666")
+apply_font(p.add_run("技术报告候选版  2026 年 9 月 22 日"), size=11, color="666666")
 
 page_break(doc)
 add_heading(doc, "摘要", 1)
-add_paragraph(doc, "本项目在盘古 50 MES50HP 开发板上实现支持 RV32I 的处理器系统。开发过程先冻结单周期 CPU 作为架构参考，再实现 IF、ID、EX、MEM、WB 五级流水线，并加入数据前递、Load-Use 暂停、Branch/Jump 冲刷、随机背压与 Reset 中止处理。CPU Core 只通过统一取指事务、数据事务、提交 trace 和性能事件连接外部系统，RAM、UART、GPIO、地址译码、性能计数器与逻辑分析仪均位于 Core 外部。")
-add_paragraph(doc, "当前自动化回归覆盖完整 RV32I 定向测试、上游 RV32UI Core 29 项与 Memory 10 项、GCC 裸机程序、Single Cycle 与 Pipeline 的完整退休 trace、官方 CoreMark CRC、逻辑分析仪采集与 Python/VCD 工具。唯一最终 MES50HP 配置已生成 bitstream 并通过 50 MHz 时序约束。同一 CoreMark 镜像的 Predictor Off/On 对比中，On 的 CPI 为 2.3747，并减少 12.06% 周期；这些数值不替代实体板跑分。")
-add_paragraph(doc, "应用端提供八通道、256 点 Raw 缓存、可调采样分频、电平/上升沿/下降沿触发和触发前后采样。RISC-V 软件使用 MMIO 配置 Capture Engine，解析 UART/SPI 并通过 115200 8N1 串口发送样本，Python 工具复核协议并输出 VCD。软件、RTL、固件和约束已经收口；MES50HP JTAG 下载 DONE=1，J8 static、counter、UART 和 SPI 四模式各 20 次，共 80/80 实体闭环 PASS。")
+add_paragraph(doc, "本项目在盘古 50 MES50HP 开发板上实现支持 RV32I 的处理器系统。开发过程先固定单周期 CPU 作为架构参考，再实现 IF、ID、EX、MEM、WB 五级流水线，并加入数据前递、Load-Use 暂停、Branch/Jump 冲刷、随机背压与 Reset 中止处理。CPU Core 只通过统一取指事务、数据事务、提交 trace 和性能事件连接外部系统，RAM、UART、GPIO、地址译码、性能计数器与逻辑分析仪均位于 Core 外部。")
+add_paragraph(doc, "当前自动化回归覆盖完整 RV32I 定向测试、上游 RV32UI Core 29 项与 Memory 10 项、GCC 裸机程序、Single Cycle 与 Pipeline 的完整退休 trace、官方 CoreMark CRC、逻辑分析仪采集与 Python/VCD 工具。交付 MES50HP 配置（`fpga/logic_analyzer_85m`，顶层 `mes50hp_logic_analyzer_pll_top`）已生成 bitstream 并通过 85 MHz 时序约束：All Constraints Met，Setup WNS +0.588 ns、Hold WHS +0.310 ns、估算 Fmax 89.4721 MHz；发布包同时保留已上板验证的 50 MHz 备用 bitstream。")
+add_paragraph(doc, "同一 CoreMark 镜像的 Predictor Off/On 对比中，On 为 1,251,724 cycles、CPI 1.5907，相对 Off 的 1,604,264 cycles、CPI 2.0670 减少 21.98% 周期；这些仿真数值不替代实体板跑分。板载晶振为 50 MHz，交付设计经片上 PLL 工作在 85 MHz；实体 CoreMark 已在四个频点实测：50 MHz Score 46.816（1000 iterations、21.360 s）、80 MHz Score 74.905（2500 iterations、33.375 s）、85 MHz Score 79.587（2500 iterations、31.412 s）、90 MHz Score 84.269（2500 iterations、29.66 s），CoreMark/MHz 恒为 0.936，官方 CRC 全部 PASS。85 MHz 与交付时钟一致，因此交付口径的实体跑分是 Score 79.587、板级 CPI ≈1.50。以上实体分数与 CPI 全部来自 CoreMark 专用 bitstream，不来自交付的逻辑分析仪位流。")
+add_paragraph(doc, "应用端提供八通道、2048 点 Raw 缓存、可调采样分频、电平/上升沿/下降沿触发和触发前后采样。RISC-V 软件使用 MMIO 配置 Capture Engine，解析 UART/SPI 并通过 115200 8N1 串口发送样本，Python 工具复核协议并输出 VCD。2026-10-10 起板级演示进一步支持**镜像抓取**：上位机发出的任意 ASCII 字符串经 CP2102 送到 uart0_rx，板级顶层把它镜像到 J8-31/32（ch7），逻辑分析仪以起始位下降沿为触发一次抓满 2048 点，并把整句报文逐字符标在波形页上。软件、RTL、固件和约束已经收口；85 MHz 交付位流 MES50HP JTAG 下载 DONE=1，J8 static、counter、UART、SPI 与 mirror 五模式各 20 次上板验证零失败（`captures=100`），证据见 `release/evidence/logic_analyzer_board_85m/`；同一份源码重建的 50 MHz 备用位流另做了五模式 ×3 冒烟复测（`release/evidence/logic_analyzer_board_50m_recheck/`）。")
 add_heading(doc, "关键词", 2)
 add_paragraph(doc, "RISC-V  RV32I  五级流水线  FPGA  CoreMark  MMIO  逻辑分析仪")
 
 page_break(doc)
 add_heading(doc, "1 项目目标与范围", 1)
-add_paragraph(doc, "作品以完整、可验证的 RV32I 处理器为主线，以可重构逻辑分析仪证明软硬件协同和 Core 外设解耦。竞赛版本固定使用 MES50HP、50 MHz 和片上 RAM，不实现 Cache、burst、完整异常中断、AI、外部 DDR、HDMI、PCIe、千兆网或自定义指令。最终流水线加入经过 Predictor Off/On 对比验证的 16 项 BTB；RLE 仍冻结为赛后研究。")
+add_paragraph(doc, "作品以完整、可验证的 RV32I 处理器为主线，以可重构逻辑分析仪证明软硬件协同和 Core 外设解耦。竞赛版本固定使用 MES50HP，板载晶振为 50 MHz，交付设计经片上 PLL 工作在 85 MHz（并非把系统时钟固定在 50 MHz）。按 2026-09-29 确定的范围变更，I-Cache、D-Cache、burst 与外部 DDR3 已由“本届不做”改为“本届要做”：机器模式 CSR/Trap/MRET 与定时器中断已实现并进入交付配置，异常与中断的 M-01…M-24 全部 PASS、独立断言 99/99 通过，板级裸机定时器中断演示已采集 12 次中断（自计时期中位数 12,517,376 拍 = 250.348 ms）；S1 板级 DDR3 冒烟测试 PASS（BIST 错误计数全程为 0），但 DDR3 尚未接入 CPU 存储路径，因此不宣称任何 DDR3 性能数字；S2 行式突发 PASS，总线周期 48 → 30（−37.5%）；S3 2 路组相联 I-Cache 与 S4 2 路组相联 D-Cache 功能正确，但实测均无净收益，按回退条件默认关闭。最终流水线加入经过 Predictor Off/On 对比验证的 16 项 BTB。本届仍不实现 AI/YOLO、HDMI、PCIe、千兆网和自定义 RISC-V 指令；RLE 仍留作赛后研究。")
+add_paragraph(doc, "Cache 与突发这一路线的结论是诚实的负结果：S3 2 路组相联 I-Cache 使 cycles 从 1,251,724 变为 2,891,324（2.31× 变慢），S4 2 路组相联 D-Cache 使 cycles 从 1,251,724 变为 1,348,302（+7.7%），两者均已按回退条件默认关闭。原因是片内 BRAM 的访问延迟已经优于 Cache 命中延迟，在后端仍是 BRAM 的前提下 Cache 不可能产生净收益；只有真实 DDR3/HMIC 后端接入存储路径后才可能翻盘。交付位流与实体 CoreMark 分数均不含 Cache。")
 add_table(doc, ["交付主线", "实现内容", "验收证据"], [
     ["ISA 与 Reference", "RV32I 单周期 CPU", "定向测试、RV32UI、GCC、提交 trace"],
     ["流水线", "五级数据通路与 Hazard", "固定/随机背压、Reset、Reference 对比"],
     ["性能", "计数器与官方 CoreMark", "CRC、CPI、PDS Timing/Resource"],
     ["应用", "8 通道 Raw 分析仪", "独立 TB、SoC、Python/VCD、板级脚本"],
-    ["发布", "唯一最终 FPGA 配置", "bitstream、报告、固件、SHA-256"],
+    ["发布", "85 MHz 主位流加 50 MHz 已验证备用位流", "bitstream、报告、固件、SHA-256"],
 ], [1.35, 2.25, 3.0])
 add_heading(doc, "证据口径", 2)
 add_bullets(doc, [
     "RTL 仿真估算用于说明架构性能和官方 CRC，不写成实体跑分。",
-    "PDS 数字来自综合、布局布线和时序报告，统一注明目标器件与 50 MHz 约束。",
+    "PDS 数字来自综合、布局布线和时序报告，统一注明目标器件与约束频率（交付配置为 85 MHz，备用配置为 50 MHz）。",
     "实体结论只接受板卡脚本、串口日志、Fabric Debugger 波形和断电复测记录。",
+    "Cache 与 burst 的对比数字来自同一 CoreMark 镜像的对照实验；Cache 为默认关闭项，不得写成收益。",
+    "DDR3 目前只有板级连通性结论，不宣称吞吐量或延迟数字。",
+    "交付包同时包含 85 MHz 主位流与已验证的 50 MHz 备用位流，满足 `docs/roadmap.md` Task 35 中“主版本失败时能切换已验证备用版本”的要求；备用位流是此前已上板验证的同一配置，不是未验证临时代码。",
+    "85 MHz 由片上 PLL 从板载 50 MHz 晶振生成，两者是同一交付设计的时钟来源，不属于两次不同交付。",
 ])
 
 page_break(doc)
@@ -222,7 +228,7 @@ add_table(doc, ["层级", "职责", "边界"], [
     ["应用外设", "Capture Engine、触发、BRAM、pattern generator", "Application MMIO 子窗口"],
     ["Board Wrapper", "时钟、Reset、I/O 极性和 MES50HP 引脚", "PDS .fdc 与板级顶层"],
 ], [1.35, 2.8, 2.45])
-add_paragraph(doc, "取指端口和数据端口均采用单 outstanding 的 request/response 握手。请求只有在 valid 与 ready 同时为 1 时接受；等待期间地址、写数据与字节使能保持稳定。每个已接受事务产生且只产生一次响应，写副作用恰好发生一次。该契约使低速 UART、逻辑分析仪 MMIO 和同步 BRAM 都能通过背压接入，而不向 Core 增加 busy 或 done 信号。")
+add_paragraph(doc, "取指端口和数据端口均采用单 outstanding 的 request/response 握手。请求只有在 valid 与 ready 同时为 1 时接受；等待期间地址、写数据与字节使能保持稳定。每个已接受事务产生且只产生一次响应，写副作用恰好发生一次。这套事务约定使低速 UART、逻辑分析仪 MMIO 和同步 BRAM 都能通过背压接入，而不向 Core 增加 busy 或 done 信号。")
 add_heading(doc, "地址映射", 2)
 add_table(doc, ["区域", "地址", "用途"], [
     ["RAM", "0x00000000 起", "程序与数据，配置按 SoC 参数确定"],
@@ -256,7 +262,7 @@ add_table(doc, ["流水级", "主要工作", "关键状态"], [
 add_heading(doc, "Hazard 处理", 2)
 add_bullets(doc, [
     "Forwarding 选择 EX/MEM 为最高优先级，MEM/WB 为次优先级；Load、x0、无效或错误写回被排除。",
-    "Load-Use 相关冻结 PC 与 IF/ID，并向 ID/EX 注入 Bubble；Store 和 Branch 的两个源操作数均参与检测。",
+    "Load-Use 相关保持 PC 与 IF/ID，并向 ID/EX 注入 Bubble；Store 和 Branch 的两个源操作数均参与检测。",
     "Branch、JAL 和 JALR 在 EX 级重定向并冲刷错误路径。被冲刷指令不得写 RegFile、RAM、MMIO 或提交 trace。",
     "数据事务等待期间保持流水线状态，WB 值继续可前递；定向用例 `wb_hold` 覆盖该边界。",
 ])
@@ -271,27 +277,56 @@ add_table(doc, ["层次", "验证内容", "当前结果"], [
     ["Pipeline", "10 个 Hazard/背压/Reset/Trace 入口", "全部 PASS"],
     ["GCC", "c_smoke 与 array_control，固定/随机延迟", "trace 与状态一致"],
     ["Application", "采集、MMIO、SoC、UART 协议、Python/VCD", "自动化全部 PASS"],
-    ["Release", "范围审计、唯一最终 bitstream、SHA-256", "自动化 PASS"],
+    ["Release", "范围审计、85 MHz 主位流与 50 MHz 备用位流、SHA-256", "自动化 PASS"],
 ], [1.15, 3.3, 2.15])
 add_paragraph(doc, "Debug 原则固定为沿 IF、ID、EX、MEM、WB 查找第一个错误周期和第一个错误信号。提交级比较优先于最终状态比较，因为它能够区分前递选择错误、错误路径提交、写回时机错误和 Store 数据错误。")
 add_heading(doc, "最终自动化入口", 2)
-add_paragraph(doc, "`scripts/run_final_regression.ps1` 先运行 RV32I 与历史 Reference，再运行 Pipeline、GCC、性能计数器、CoreMark、应用和范围审计，最后核对唯一最终 bitstream 的存在性、长度与 SHA-256。Quick 模式跳过长 CoreMark 仿真，但不跳过其他安全检查。")
+add_paragraph(doc, "`scripts/run_final_regression.ps1` 先运行 RV32I 与历史 Reference，再运行 Pipeline、GCC、性能计数器、CoreMark、应用和范围审计，最后核对交付主位流与 50 MHz 备用位流两者的存在性、长度与 SHA-256。Quick 模式跳过长 CoreMark 仿真，但不跳过其他安全检查。")
 
 page_break(doc)
 add_heading(doc, "6 CoreMark 与性能结果", 1)
-add_paragraph(doc, "官方 EEMBC CoreMark checkout 固定到提交 1f483d5b8316753a742cbf5590caf5bd0a4e4777。编译目标为 `-march=rv32i -mabi=ilp32`。fixed latency、random backpressure 和同步 FPGA memory model 均输出官方 CRC；正式镜像为 1000 iterations，串口收到 R 后启动。")
-add_table(doc, ["指标", "当前值", "证据类型"], [
-    ["ticks/iteration", "1,923,077", "RTL FPGA memory model"],
-    ["Cycles", "2,042,520", "RTL 仿真计数器"],
-    ["Predictor On cycles", "1,852,156", "RTL 仿真计数器"],
-    ["Predictor On Instret", "779,952", "RTL 仿真计数器"],
-    ["Predictor On CPI", "2.3747", "Cycles / Instret"],
-    ["Predictor cycle reduction", "12.06%", "同一镜像相对 Predictor Off"],
-], [2.0, 2.05, 2.55])
-add_table(doc, ["配置", "LUT", "FF", "DRM", "Setup WNS", "Hold WNS", "估算 Fmax"], [
-    ["唯一最终版", "3459", "3129", "5.5", "+2.661 ns", "+0.312 ns", "57.6735 MHz"],
-], [1.25, .62, .62, .55, .9, .9, 1.05])
-add_paragraph(doc, "资源与时序数字来自唯一最终 PDS 构建；CoreMark 性能来自同一流水线 RTL 的官方 CRC 仿真。二者均可自动复核，但不合并冒充实体板 CoreMark/LUT 成绩。")
+add_paragraph(doc, "官方 EEMBC CoreMark checkout 固定到提交 1f483d5b8316753a742cbf5590caf5bd0a4e4777。编译目标为 `-march=rv32i -mabi=ilp32`。fixed latency、random backpressure 和同步 FPGA memory model 均输出官方 CRC；50 MHz 点的正式镜像为 1000 iterations，80 / 85 / 90 MHz 点为 2500 iterations，串口收到 R 后启动。同一条流水线 RTL 修复取指交接空洞后，实体板 CoreMark 在 50 MHz 点达到 Score 46.816。修复前记录的 Score 29.559、CPI 2.3443 属于当时的历史测量，未登记在本次交付证据文件中，仅作参考，不作为交付数字引用。实体跑分与交付位流分开记账：四个频点的分数全部来自 CoreMark 专用 bitstream，交付使用的是逻辑分析仪位流，两类数字不混用。")
+add_heading(doc, "实体板实测（权威数据）", 2)
+add_table(doc, ["实测频点 / ISA", "实体跑分与运行数据", "CoreMark 专用源工程", "证据类型"], [
+    ["50 MHz（RV32I 基线）", "Score 46.816；1000 iterations；21.360 s；ticks 1,068,006,999", "`fpga/coremark`（`mes50hp_coremark_top.sbit`）", "实体板串口日志"],
+    ["50 MHz（RV32IM，M 扩展）", "Score 113.642；2000 iterations；17.599 s；ticks 879,950,706；CoreMark/MHz 2.272", "`fpga/coremark_im`（`mes50hp_coremark_top.sbit`，`-march=rv32im`）", "实体板串口日志"],
+    ["80 MHz（RV32I）", "Score 74.905；2500 iterations；33.375 s；ticks 2,670,014,377", "`fpga/coremark_80m`（`mes50hp_coremark_pll_top.sbit`）", "实体板串口日志"],
+    ["85 MHz（交付时钟，RV32I）", "Score 79.587；2500 iterations；31.412 s；ticks 2,670,014,377", "`fpga/coremark_85m`（`mes50hp_coremark_pll_top.sbit`）", "实体板串口日志"],
+    ["90 MHz（RV32I）", "Score 84.269；2500 iterations；29.66 s；ticks 2,670,014,377", "`fpga/coremark_90m`（`mes50hp_coremark_pll_top.sbit`）", "实体板串口日志"],
+    ["CoreMark/MHz", "RV32I **0.936**（50／80／85／90 MHz 四个频点一致）；RV32IM（M 扩展）**2.272**（50 MHz）——两套 ISA 并列，引用必须写明", "五个独立位流交叉核对", "Score 与时钟严格成比例"],
+    ["官方 CRC", "RV32I 四个频点 + RV32IM 全部 PASS", "各自位流", "Correct operation validated."],
+], [1.35, 2.25, 1.95, 1.05])
+add_table(doc, ["实测频点", "cycles", "instret", "CPI（窗口敏感）"], [
+    ["50 MHz", "1,279,896,248", "848,491,425", "1.508"],
+    ["80 MHz", "3,168,067,024", "2,102,229,407", "1.507"],
+    ["85 MHz（交付时钟）", "3,246,595,732", "2,149,346,653", "1.510"],
+    ["90 MHz", "2,843,232,531", "1,907,328,726", "1.490"],
+], [1.5, 1.7, 1.7, 1.7])
+add_paragraph(doc, "第二张表的板级计数器取自 `release/evidence/` 下的 CoreMark 记录：50 MHz 为 `coremark_board.json`，80 / 85 / 90 MHz 分别为 `coremark_board_cm80_20260930.json`、`coremark_board_cm85_20260930.json`、`coremark_board_cm90_20260930.json`，均对应 CoreMark 专用位流。四个频点的板级 CPI 都在 ≈1.50，交付时钟 85 MHz 点写作 ≈1.50，且不得按四位有效数字引用：同一颗位流两次运行实测 1.494 与 1.508，而 ticks、Score、flushes 逐位相同，说明性能计数器窗口边界带来约 ±1% 抖动。Score、ticks 与官方 CRC 精确可复现，CPI 不可以。")
+add_paragraph(doc, "四个频点的 Score 与时钟严格成比例，CoreMark/MHz 恒为 0.936（RV32I 口径）。85 MHz 一行与交付时钟一致，是交付口径的实体跑分；90 MHz 一行只说明 CPU 核心加最小 SoC 能跑 90 MHz 并跑完 CoreMark，不代表完整逻辑分析仪应用能在 90 MHz 工作（该频点 SPI 模式挂死，见下文时序章节）。`fpga/coremark_95m` 工程存在，但 PDS 时序违例（WNS −0.391 ns），从未上板，本报告不给出任何 95 MHz 分数。完整频点数据见 `release/evidence/fmax_ceiling/README.md`。")
+add_paragraph(doc, "**RV32IM 增强口径（2026-10-14 新增）**：Core 实现了完整 M 扩展（`mul`/`mulh`/`mulhsu`/`mulhu`/`div`/`divu`/`rem`/`remu`，见 `rtl/mdu.v`）。动机有实测依据：CoreMark 矩阵段每迭代固定 10,575 次乘法全部走 libgcc 的软件乘法 `__mulsi3`，板级 ILA 的 512 拍窗口里 84.3% 的提交落在该循环，按指令数折算约 60% 的退休指令花在软件乘法上。做法是同一份 RTL、同一份程序，只把 `-march` 从 `rv32i` 换成 `rv32im`：实体板 50 MHz Score 由 46.816 提升到 **113.642**、`CoreMark/MHz` 由 0.936 提升到 **2.272**（2.43 倍），每迭代周期数下降 58.8%，指令数下降 53.5%。两套 ISA 并列，**rv32i 仍是默认与可比口径**；CoreMark 输出自带 `Compiler flags` 一行可自证，引用分数必须写明是哪一套。")
+add_heading(doc, "RTL 仿真（同一 CoreMark 镜像，Predictor Off/On）", 2)
+add_table(doc, ["指标", "Predictor Off", "Predictor On", "证据类型"], [
+    ["cycles", "1,604,264", "1,251,724", "RTL 仿真计数器"],
+    ["Instret", "776,138", "786,925", "RTL 仿真计数器"],
+    ["CPI", "2.0670", "1.5907", "Cycles / Instret"],
+    ["BTB hit / misprediction", "0 / 161,742", "221,615 / 69,120", "RTL 仿真计数器"],
+    ["周期减少", "—", "−21.98%", "同一镜像相对 Predictor Off"],
+], [1.9, 1.7, 1.7, 1.3])
+add_heading(doc, "最终配置资源与时序", 2)
+add_table(doc, ["配置", "LUT", "FF", "DRM", "Setup WNS", "Hold WHS", "估算 Fmax"], [
+    ["交付主版本 85 MHz（`fpga/logic_analyzer_85m`）", "4479", "3610", "6.0", "+0.588 ns", "+0.310 ns", "89.4721 MHz"],
+    ["已验证备用版 50 MHz（`fpga/logic_analyzer`）", "4704", "3903", "6.0", "+2.217 ns", "—", "55.7338 MHz"],
+], [1.75, .62, .62, .55, .9, .9, 1.05])
+add_paragraph(doc, "资源与时序数字来自 PDS 构建，两版均为 All Constraints Met，与 `release/evidence/automated_metrics.json` 及发布包 README 逐字段一致；布局布线后已实现 FF 见 `release/evidence/automated_metrics.json`（2026-10-14 重建批次：85 MHz 交付主版本 3908 FF、50 MHz 备用版 3903 FF）。交付主版本的 85 MHz 时钟由片上 PLL 从板载 50 MHz 晶振生成：`50 MHz / IDIV 1 = PFD 50 MHz`、`× FDIV 17 = VCO 850 MHz`、`/ ODIV0 10 = 85.000 MHz`，为整数频率、无小数分频误差；PDS 自行推导该生成时钟并报 All Constraints Met，时序报告中该时钟名为 `clk_50m|u_pll/u_pll_85m/CLKOUT0_Inferred`，该生成时钟行给出的周期为 11.7647 ns（对应 85.0000 MHz，估算 Fmax 89.3841 MHz，Setup WNS +0.577 ns，2026-10-14 重建批次）。Fmax 相关口径分五类分别陈述，不得混用：交付配置 85 MHz（板级实测，J8 五模式各 20 次共 100/100）；PDS 估算 89.3841 MHz；90 MHz 下 CoreMark 配置时序通过（slack +0.072 ns）并跑出 84.269，但完整逻辑分析仪应用在该频点 SPI 模式挂死且可复现，因此逻辑分析仪应用的板级上界记为 85 MHz，PDS 收敛上界约 90.6 MHz；95 MHz 违反 PDS 时序（WNS −0.391 ns），从未上板；最后一类是收紧约束候选的 PDS 估算值（明细见下表），它只代表时序能力上限，不代表板上跑得更快。旧的 `release/evidence/coremark_board_cpi50m.json` 与 `coremark_board_cpi80m.json` 属于 2026-09-17 那一代位流的记录，已被取代，不再作为引用来源。完整 Fmax 上界报告见 `release/evidence/fmax_ceiling/README.md`。")
+add_paragraph(doc, "与此并列的还有一组收紧约束候选（N4，2026-09-30 的历史扫描，数字对应当时归档的候选位流，**不是本批交付数字**）：同一份未改动的 RTL，只收紧 `.fdc` 约束、不新建工程也不用 PLL，用于探测时序能力上限。必须说清区别：这组候选只改约束、时钟仍是板载 50 MHz；交付设计达到 85 MHz 靠的是片上 PLL，不是靠收紧约束。")
+add_table(doc, ["约束周期", "目标频率", "估算 Fmax", "Setup WNS", "All Met", "LUT", "FF"], [
+    ["20.000 ns", "50 MHz（对应 50 MHz 备用配置）", "55.5216 MHz", "+1.989 ns", "MET", "4536", "3852"],
+    ["13.333 ns", "75 MHz", "80.0897 MHz", "+0.847 ns", "MET", "4805", "3858"],
+    ["12.500 ns", "80 MHz", "85.2370 MHz", "+0.768 ns", "MET", "4814", "3858"],
+    ["11.765 ns", "85 MHz", "89.2538 MHz", "+0.561 ns", "MET", "4794", "3858"],
+], [1.2, 1.6, 1.15, 1.0, .6, .55, .5])
+add_paragraph(doc, "四个候选点使用完全相同的 RTL（`rtl_sha256.txt` 可交叉证明），其中 20.000 ns 一组的估算 Fmax / WNS / LUT / FF 与 `release/evidence/automated_metrics.json` 完全一致。11.765 ns 候选位流（`702EFAD1…`）做过板级功能验证：`PROGRAM PASS`、四模式 80/80 通过，且捕获数据与当时的交付位流逐字节相同，证明收紧约束只改布局布线、不改功能；但这绝不是 89.2538 MHz 的实测——板上跑的仍是 50 MHz 晶振，该数字始终是 PDS 估算值。证据见 `release/artifacts/fmax_tuning_2026-09-30/`、`release/evidence/fmax_candidate_board/` 与 `release/evidence/claims_map.md` §8。")
 
 page_break(doc)
 add_heading(doc, "7 性能计数器与 PDS DebugCore", 1)
@@ -304,40 +339,44 @@ add_table(doc, ["DebugCore 位段", "信号"], [
     ["172..176", "stall / load stall / branch / taken / flush"],
     ["177..182", "reset 与取指/数据握手、memory ready"],
 ], [2.5, 4.1])
-add_paragraph(doc, "开发阶段的 DebugCore 用于观察退休、Branch 与 Flush，但不作为第二套交付配置。MES50HP 已完成最终位流下载和 J8 四模式 80/80 实体回环；Fabric Debugger 内部波形仍只在取得真实截图后陈述。最终包使用十项性能计数器保留可重复的量化证据。")
+add_paragraph(doc, "开发阶段的 DebugCore 用于观察退休、Branch 与 Flush，但不作为第二套交付配置。MES50HP 已完成 85 MHz 交付主位流与 50 MHz 备用位流的下载，85 MHz 主位流完成 J8 五模式各 20 次共 **100/100** 实体采集（2026-10-14 复测；更早批次另有四模式 320 次零失败）；Fabric Debugger 内部波形仍只在取得真实截图后陈述。最终包使用十项性能计数器保留可重复的量化证据。")
 
 page_break(doc)
 add_heading(doc, "8 可重构多协议逻辑分析仪", 1)
 add_table(doc, ["能力", "实现"], [
-    ["通道与深度", "8 通道，256 samples Raw 缓存"],
-    ["采样", "sample_div 可调，50 MHz 时 sample_div=0 对应 50 MS/s"],
+    ["通道与深度", "8 通道，2048 samples Raw 缓存（2026-10-10 由 256 提高，用于整句报文一屏抓完）"],
+    ["采样", "sample_div 可调；采样时钟即交付设计时钟 85 MHz，sample_div=0 为逐拍采样"],
     ["触发", "电平、上升沿、下降沿，通道掩码与触发值可编程"],
     ["窗口", "精确 pre + trigger + post，trigger index 为 Raw 逻辑索引"],
-    ["激励", "static、counter、UART 8N1、SPI mode 0"],
+    ["激励", "static、counter、UART 8N1、SPI mode 0；另加**镜像抓取**：被测信号就是上位机发出的串口线本身（ch7 = J8-31/32），窗口从起始位下降沿开始"],
     ["软件", "RV32I MMIO 驱动、UART/SPI 解析、Python 复核与 VCD"],
 ], [1.6, 5.0])
-add_paragraph(doc, "正式固件上电发送 `LA_READY`，随后接收 13 字节配置包。包内包含 mode、data、pattern divider、sample divider、trigger type、mask、value、pre、post 和 XOR checksum。每次采集输出 Raw count、trigger index、样本、协议解析结果与 `LA_DONE`，完成后重新发送 `LA_READY`。")
+add_paragraph(doc, "正式固件上电发送 `LA_READY`，随后接收 13 字节配置包。包内包含 mode、data、pattern divider、sample divider、trigger type、mask、value、pre、post 和 XOR checksum；镜像抓取用 `0xA7` 前缀，同样 13 字节，只把 `[2]` 重新定义为每比特采样点数、`[10]|[11]` 重新定义为 16 位 post。交互式固件 Arm 生效后先打印 `LA_ARMED`，上位机必须等到这一行再把字符串发出去——否则字符串会比 Arm 早到，窗口会从报文中间开始。每次采集输出 Raw count、trigger index、样本、协议解析结果（镜像模式还会输出 `LA TEXT … ascii=<整句>`）与 `LA_DONE`，完成后重新发送 `LA_READY`。")
 add_table(doc, ["量化指标", "当前值", "边界"], [
     ["触发延迟", "0 个额外 sample tick", "命中样本同拍成为 trigger sample"],
     ["UART 线路速率", "115200 bit/s", "8N1，有效上限 11520 B/s"],
-    ["256 点文本上传", "约 0.20 s", "约 9 B/sample 的线路估算"],
+    ["2048 点文本上传", "约 1.6 s", "约 9 B/sample 的线路估算；镜像模式每次抓满 2048 点"],
+    ["镜像抓取窗口", "2048 点 ≈ 2.2 ms（每比特 8 点）", "整句 12 字符 = 120 bit = 1.04 ms，留一倍余量吸收 USB 串口字节间间隙"],
     ["自动化连续压力", "20/20 PASS", "每五轮 Reset"],
-    ["实体 J8 回环", "80/80 PASS", "static、counter、UART、SPI 各 20 次"],
+    ["实体 J8 回环（85 MHz 交付位流）", "100/100 PASS", "static、counter、UART、SPI、mirror 五模式各 20 次；镜像每次回包都带 `ascii=HELLO,RISC-V`"],
+    ["实体 J8 回环（旧位流 `788F1CEB…`）", "320/320 PASS", "四模式首轮 80 次加三轮 soak 各 80 次（该位流无镜像抓取）"],
 ], [1.9, 1.7, 3.0])
 
 page_break(doc)
 add_heading(doc, "9 FPGA 平台与发布配置", 1)
-add_table(doc, ["项目", "冻结值"], [
+add_table(doc, ["项目", "固定值"], [
     ["开发板与器件", "盘古 50 MES50HP，PGL50H-6IFBG484"],
-    ["时钟", "P20，50 MHz，20.000 ns"],
+    ["时钟", "P20 板载晶振 50 MHz（周期 20.000 ns）；交付设计经片上 PLL 输出 85.000 MHz（周期 11.7647 ns）"],
     ["UART", "RX=R8，TX=R9，115200 8N1"],
     ["Reset", "默认内部上电复位；REST 用于重新加载固件"],
     ["采集输入", "J8-4,8,12,16,20,24,28,32"],
     ["激励输出", "J8-3,7,11,15,19,23,27,31；逐位连接隔行相邻输入脚"],
 ], [2.0, 4.6])
 add_table(doc, ["文件", "用途", "验收口径"], [
-    ["mes50hp_riscv_logic_analyzer.sbit", "唯一最终下载文件", "完整 CPU 与逻辑分析仪应用"],
+    ["bitstream/mes50hp_riscv_logic_analyzer.sbit", "85 MHz 主下载文件（交付默认）", "完整 CPU 与逻辑分析仪应用（含镜像抓取）；SHA-256 `66A1E9A7…A1584ABC`"],
+    ["bitstream/mes50hp_riscv_logic_analyzer_50m_fallback.sbit", "50 MHz 已验证备用下载文件", "主版本失败时切换；SHA-256 `0477DDA4…C0402A7D`（与主位流同一份源码重建）"],
 ], [2.45, 2.35, 1.8])
+add_paragraph(doc, "主版本源工程为 `fpga/logic_analyzer_85m`，顶层模块 `mes50hp_logic_analyzer_pll_top`，位流路径 `fpga/logic_analyzer_85m/generate_bitstream/mes50hp_logic_analyzer_pll_top.sbit`；备用版本源工程为 `fpga/logic_analyzer`，顶层模块 `mes50hp_logic_analyzer_top`。两个位流随发布包一同交付，满足 `docs/roadmap.md` Task 35“主版本失败时能切换已验证备用版本”的要求。")
 add_paragraph(doc, "`release/SHA256SUMS.txt` 覆盖源码、测试、PDS 证据和交付物，`release/build_manifest.txt` 记录 Git、CoreMark 提交、Pipeline Core 哈希、工具版本、器件与时钟。任何 RTL 或软件修改都必须重跑最终回归并重建清单。")
 
 page_break(doc)
@@ -345,24 +384,26 @@ add_heading(doc, "10 复现与实体验收", 1)
 add_paragraph(doc, "自动化构建从仓库根目录运行 `scripts/build_competition_release.ps1`。在已有 PDS 产物时可使用 `-SkipPds`；完整构建通过 `-LicenseFile` 或 `PANGO_LICENSE_FILE` 提供本机许可证。脚本不复制许可证，也不把实体结果从仿真推导出来。")
 add_heading(doc, "实体板验收状态", 2)
 add_bullets(doc, [
-    "CoreMark 的官方 CRC、Predictor Off/On 和十项计数器由自动 RTL 回归复核；唯一最终 bitstream 用于完整逻辑分析仪应用演示。",
-    "J8-3↔4、7↔8、11↔12、15↔16、19↔20、23↔24、27↔28、31↔32 已完成实体回环，四种模式各 20 次，UART、JSON 和 VCD 已归档。",
-    "完成三轮断电五秒、重新供电、重新下载与复测，分别保存到 run01、run02、run03。",
+    "交付主位流 `bitstream/mes50hp_riscv_logic_analyzer.sbit`（85 MHz，源工程 `fpga/logic_analyzer_85m`，顶层 `mes50hp_logic_analyzer_pll_top`，SHA-256 `66A1E9A74A9C55CC8FC20CC3C01A6A6C8CF46C1F5DB752A03A345864A1584ABC`，2026-10-10 镜像抓取版）已通过 JTAG 下载，`The done bit is 1`。交付包同时提供已验证备用位流 `bitstream/mes50hp_riscv_logic_analyzer_50m_fallback.sbit`（50 MHz，SHA-256 `0477DDA4B8D308B3EC4804FB0F7B93FF475BE033445E84302F60A2BFC0402A7D`，与主位流同一份源码重建），满足 Task 35 的备用切换要求。实体 CoreMark 计分使用独立的 CoreMark 专用 bitstream，与交付的逻辑分析仪位流不是同一份：85 MHz（交付时钟）Score 79.587、2500 iterations、31.412 s，官方 CRC 校验 PASS；其余实测点为 50 MHz 46.816、80 MHz 74.905、90 MHz 84.269；板级 CPI 四个频点均为 ≈1.50（85 MHz 点 ≈1.50），CPI 对性能计数器窗口敏感，只作 ≈1.50 口径引用。",
+    "J8-3↔4、7↔8、11↔12、15↔16、19↔20、23↔24、27↔28、31↔32 已在当前 85 MHz 交付主位流上完成实体回环：static、counter、UART、SPI、mirror 五模式各 20 次共 **100/100 PASS**（`LOGIC ANALYZER PHYSICAL BOARD ACCEPTANCE PASS captures=100`）。其中第 8 对（31↔32）是被测的外部信号通道——上位机发出的 ASCII 字符串（默认 `HELLO,RISC-V`）经 CP2102 送到 `uart0_rx`，板级顶层镜像到 J8-31，逻辑分析仪抓 J8-32（ch7），每次回包都带 `LA TEXT … ascii=HELLO,RISC-V bytes=0000000C`，即板上固件自己把波形解回了整句。UART、JSON、VCD 与波形页已归档（`release/evidence/logic_analyzer_board_85m/`，含 `mirror/` 子目录）。旧位流（`788F1CEB…`，无镜像抓取）另有四模式累计 320 次零失败的 soak 记录，见 `release/evidence/logic_analyzer_board_85m_soak/`；引用时必须说清是哪一版位流。",
+    "Fabric Debugger 已用 TCL 模式在实体板抓到 512 拍 CoreMark 流水线窗口（IPC 0.635 / CPI 1.575），证据见 `release/evidence/ila_coremark/README.md`。该组数字属于 2026-09-17 的 `fpga/coremark_ila` 批次（50 MHz、`mes50hp_coremark_top.sbit`），不是 85 MHz 交付主位流的采集结果，其板级对照也来自同批次记录，不得与当前批次（板级 CPI ≈1.50）做跨批次差值比较。",
+    "尚未完成：三轮断电五秒、重新供电、重新下载与复测（run01 / run02 / run03）；以及最终成片视频素材。",
 ])
 add_heading(doc, "失败处理", 2)
-add_paragraph(doc, "任一脚本没有输出 PASS 时停止冻结，保留原始日志并定位第一个失败点。现场只允许重新连接、重新下载同一 SHA-256 bitstream、重启串口和按恢复卡复测；不得临时改 RTL、接口、采样协议或性能数字。")
+add_paragraph(doc, "任一脚本没有输出 PASS 时停止推进，保留原始日志并定位第一个失败点。现场只允许重新连接、重新下载同一 SHA-256 bitstream、重启串口和按恢复卡复测；不得临时改 RTL、接口、采样协议或性能数字。")
 
 page_break(doc)
 add_heading(doc, "11 当前限制与后续工作", 1)
 add_table(doc, ["项目", "当前状态", "进入 competition final 的条件"], [
-    ["实体 CoreMark", "未采集", "串口脚本 PASS，计时不少于 10 秒"],
-    ["物理回环", "80/80 PASS", "实体数据、协议解析与 VCD 已归档"],
-    ["断电压力", "未执行", "三轮断电、下载、Reset 与演示一致"],
-    ["报告/PPT/视频", "候选材料已生成", "替换待补证位置并核对同一清单"],
-], [1.45, 1.65, 3.2])
-add_paragraph(doc, "项目目前满足自动化 Regression、PDS 发布和 G11 物理回环条件。实体 CoreMark、Fabric Debugger 波形、断电压力和最终视频仍按独立证据出口管理，因此版本保持 `competition_final_candidate`。这些项目不需要修改 CPU、外设 RTL、软件协议或 J8 约束。")
+    ["实体 CoreMark", "RV32I 已采集四个频点（50 MHz 46.816、80 MHz 74.905、85 MHz（交付时钟）79.587、90 MHz 84.269，CoreMark/MHz 恒为 0.936，CRC 全部 PASS，板级 CPI ≈1.50）；RV32IM（M 扩展）两个频点：50 MHz Score 113.642、**85 MHz（交付时钟）193.192**，CoreMark/MHz 均为 2.272，CRC 全部 PASS", "满足：计时不少于 10 秒（最短 17.599 s）"],
+    ["物理回环", "100/100 PASS（85 MHz 交付主位流，五模式 ×20，2026-10-14 复测）；更早批次另有 320/320（旧位流口径）", "满足：实体数据、协议解析与 VCD 已归档"],
+    ["内部调试波形", "已采集（512 拍 CoreMark 窗口，IPC 0.635 / CPI 1.575；来自 2026-09-17 的 `fpga/coremark_ila` 批次，非 85 MHz 交付位流）；另**作品自带逻辑分析仪**的 Core 探针（双源可选，两个上位机界面上都能直接切换，不用重新综合）已上板：窗口 IPC ≈0.597、停顿占 39.5%；判据、通道名与波形页标注均按**采集源**（而非模式）选择，避免把流水线信号按协议解码", "满足：Fabric Debugger 实体抓取 + 自研仪器实测"],
+    ["断电压力", "未执行；另记一条已知限制：触发条件永不出现会停住固件（无 Arm 超时），只能按 REST 或重下位流恢复，恢复路径已写入现场恢复卡", "三轮断电、下载、Reset 与演示一致"],
+    ["报告/PPT/视频", "报告与 PPT 数字已对齐实体证据", "补齐断电压力与最终成片视频"],
+], [1.75, 2.55, 2.2])
+add_paragraph(doc, "项目目前满足自动化 Regression、PDS 发布、实体 CoreMark 计分、内部调试波形和物理回环条件。仅剩断电压力复测与最终成片视频按独立证据出口管理，因此版本保持 `competition_final_candidate`。这两项不需要修改 CPU、外设 RTL、软件协议或 J8 约束。此外，85 MHz 是逻辑分析仪应用的板级实测上界（90 MHz 下 SPI 模式挂死），PDS 收敛上界约 90.6 MHz；若现场需要进一步提速，必须重新做板级五模式验证，不得只依据 PDS 报告宣称更高频点可用。")
 add_heading(doc, "结论", 1)
-add_paragraph(doc, "本项目完成了可由自动化证据追踪的 RV32I 单周期参考模型、五级流水线 Core、基础 SoC、官方 CoreMark 集成和八通道逻辑分析仪应用。统一事务接口与提交级比较把 CPU 正确性、外设扩展和性能分析连接成同一验证链。MES50HP J8 四模式实体回环已连续 80 次通过，剩余证据仅限 CoreMark 实体计分、内部调试波形、断电复测与视频素材。")
+add_paragraph(doc, "本项目完成了可由自动化证据追踪的 RV32I 单周期参考模型、五级流水线 Core、基础 SoC、官方 CoreMark 集成和八通道逻辑分析仪应用。统一事务接口与提交级比较把 CPU 正确性、外设扩展和性能分析连接成同一验证链。交付设计在 MES50HP 上由板载 50 MHz 晶振经片上 PLL 以 85 MHz 运行，实体 CoreMark 达到 0.936 CoreMark/MHz（RV32I，交付时钟 85 MHz 对应 Score 79.587、板级 CPI ≈1.50，四个频点 50/80/85/90 MHz 的 CRC 全部 PASS），并在加入完整 M 扩展后以 RV32IM 口径把 CoreMark/MHz 提升到 2.272——50 MHz 的 Score 为 113.642，**与交付时钟同频的 85 MHz 上是 193.192（同源同频 CoreMark/LUT 从 0.0190 提到 0.0460，2.43×）**；逻辑分析仪五模式实体回环 100/100 PASS，且采集源可在两个上位机界面上直接切到 Core 内部观测点（自研仪器量自研 CPU：窗口 IPC ≈0.597，四组「模式 × 采集源」实板全 PASS）；未完成的证据仅剩三轮断电压力复测和最终成片视频。")
 
 OUT.parent.mkdir(parents=True, exist_ok=True)
 doc.save(OUT)

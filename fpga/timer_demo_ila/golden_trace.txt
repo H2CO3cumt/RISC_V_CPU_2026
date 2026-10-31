@@ -1,0 +1,89 @@
+# N2 金标准：板级 ILA **应该**抓到的波形模式（由仿真固化，供板上导出波形机械比对）
+#
+# 生成命令（零 RTL 改动；本段在 `ifdef TIMER_DEMO_ILA_PROBE_SIM 里，默认回归不受影响）：
+#   iverilog -g2012 -DTIMER_DEMO_SIM -DTIMER_DEMO_TB_DELTA=200000 -DTIMER_DEMO_ILA_PROBE_SIM \
+#            -s tb_timer_demo_board_top -o tmp/timer_demo/tb_gold <sources...>
+#   vvp tmp/timer_demo/tb_gold
+#
+# 判据（板上抓取必须同时满足）：
+#   C1 出现 event_trap 脉冲                        -> GOLD-TRAP
+#   C2 每次进入都跟一次 event_trap_return（12/12） -> GOLD-RET
+#   C3 进入时 irq_timer = 1（原因 = 机器定时器中断）
+#   C4 进入后 PC 从被打断处跳到 ISR 入口并顺序推进；返回后回到原 PC
+#   C5 相邻两次进入的间隔恒定（gap_stable=1）
+#
+# 观测点与 fpga/timer_demo_ila 的 192 位探针接的是同一批信号：
+#   event_trap / event_trap_return / irq_timer / 取指地址 ia / 提交 PC fetch_pc
+#
+# 关键数字（仿真 delta=200000）：
+#   进入次数 = 12，返回次数 = 12（严格配平）
+#   相邻间隔 = 8000240（恒定，gap_stable=1）
+#   被打断 PC = 0x00000054；ISR 入口 = 0x00000068；ISR 体 0x68..0x80
+#   单次 ISR 时长 ≈ 34,776 拍（trap 到 ret）
+
+GOLD-TRAP #1 t=8011100000 gap=0 irq=1 fetch_pc=00000054 ia=00000054
+GOLD-RET  #1 t=8706620000 fetch_pc=00000054 ia=00000054
+GOLD-COUNT traps=1 rets=1 gap_stable=1
+GOLD-TRAP #2 t=16011340000 gap=8000240 irq=1 fetch_pc=00000054 ia=00000054
+GOLD      t=16011340000 trap=1 ret=0 irq=1 ia=00000054 fetch_pc=00000054
+GOLD      t=16011380000 trap=0 ret=0 irq=1 ia=00000068 fetch_pc=00000068
+GOLD      t=16011420000 trap=0 ret=0 irq=1 ia=00000068 fetch_pc=00000068
+GOLD      t=16011460000 trap=0 ret=0 irq=1 ia=0000006c fetch_pc=0000006c
+GOLD      t=16011500000 trap=0 ret=0 irq=1 ia=00000070 fetch_pc=00000070
+GOLD      t=16011540000 trap=0 ret=0 irq=1 ia=00000074 fetch_pc=00000074
+GOLD      t=16011580000 trap=0 ret=0 irq=1 ia=00000074 fetch_pc=00000074
+GOLD      t=16011620000 trap=0 ret=0 irq=1 ia=00000074 fetch_pc=00000074
+GOLD      t=16011660000 trap=0 ret=0 irq=1 ia=00000078 fetch_pc=00000078
+GOLD      t=16011700000 trap=0 ret=0 irq=1 ia=0000007c fetch_pc=0000007c
+GOLD      t=16011740000 trap=0 ret=0 irq=1 ia=00000080 fetch_pc=00000080
+GOLD      t=16011780000 trap=0 ret=0 irq=0 ia=00000080 fetch_pc=00000080
+GOLD      t=16011820000 trap=0 ret=0 irq=0 ia=00000080 fetch_pc=00000080
+GOLD      t=16011860000 trap=0 ret=0 irq=0 ia=00000080 fetch_pc=00000080
+GOLD      t=16011900000 trap=0 ret=0 irq=0 ia=00000084 fetch_pc=00000084
+GOLD      t=16011940000 trap=0 ret=0 irq=0 ia=00000088 fetch_pc=00000088
+GOLD      t=16011980000 trap=0 ret=0 irq=0 ia=0000008c fetch_pc=0000008c
+GOLD      t=16012020000 trap=0 ret=0 irq=0 ia=0000008c fetch_pc=0000008c
+GOLD      t=16012060000 trap=0 ret=0 irq=0 ia=00000090 fetch_pc=00000090
+GOLD      t=16012100000 trap=0 ret=0 irq=0 ia=00000094 fetch_pc=00000094
+GOLD      t=16012140000 trap=0 ret=0 irq=0 ia=00000098 fetch_pc=00000098
+GOLD      t=16012180000 trap=0 ret=0 irq=0 ia=0000009c fetch_pc=0000009c
+GOLD      t=16012220000 trap=0 ret=0 irq=0 ia=0000009c fetch_pc=0000009c
+GOLD      t=16012260000 trap=0 ret=0 irq=0 ia=000000a0 fetch_pc=000000a0
+GOLD-RET  #2 t=16706860000 fetch_pc=00000054 ia=00000054
+GOLD-COUNT traps=2 rets=2 gap_stable=1
+GOLD-TRAP #3 t=24011580000 gap=8000240 irq=1 fetch_pc=00000054 ia=00000054
+GOLD-RET  #3 t=24707100000 fetch_pc=00000054 ia=00000054
+GOLD-COUNT traps=3 rets=3 gap_stable=1
+GOLD-TRAP #4 t=32011820000 gap=8000240 irq=1 fetch_pc=00000054 ia=00000054
+GOLD-RET  #4 t=32707340000 fetch_pc=00000054 ia=00000054
+GOLD-TRAP #5 t=40012060000 gap=8000240 irq=1 fetch_pc=00000054 ia=00000054
+GOLD-RET  #5 t=40707580000 fetch_pc=00000054 ia=00000054
+GOLD-TRAP #6 t=48012300000 gap=8000240 irq=1 fetch_pc=00000054 ia=00000054
+GOLD-RET  #6 t=48707820000 fetch_pc=00000054 ia=00000054
+GOLD-TRAP #7 t=56012540000 gap=8000240 irq=1 fetch_pc=00000054 ia=00000054
+GOLD-RET  #7 t=56708060000 fetch_pc=00000054 ia=00000054
+GOLD-TRAP #8 t=64012780000 gap=8000240 irq=1 fetch_pc=00000054 ia=00000054
+GOLD-RET  #8 t=64708300000 fetch_pc=00000054 ia=00000054
+GOLD-TRAP #9 t=72013020000 gap=8000240 irq=1 fetch_pc=00000054 ia=00000054
+GOLD-RET  #9 t=72708540000 fetch_pc=00000054 ia=00000054
+GOLD-TRAP #10 t=80013260000 gap=8000240 irq=1 fetch_pc=00000054 ia=00000054
+GOLD-RET  #10 t=80708780000 fetch_pc=00000054 ia=00000054
+GOLD-TRAP #11 t=88013500000 gap=8000240 irq=1 fetch_pc=00000054 ia=00000054
+GOLD-RET  #11 t=88709020000 fetch_pc=00000054 ia=00000054
+GOLD-TRAP #12 t=96013740000 gap=8000240 irq=1 fetch_pc=00000054 ia=00000054
+GOLD-RET  #12 t=96709260000 fetch_pc=00000054 ia=00000054
+TEST 1 PASS N1: ISR was entered at least INTERRUPTS times
+TEST 2 PASS N1: LED0 toggled exactly once per ISR entry (12)
+TEST 3 PASS N1: interrupt interval is exactly reproducible (200006)
+TEST 4 PASS N1: interrupt interval is delta + bounded fixed overhead
+TEST 5 PASS N1: mtimecmp reload step is delta + bounded fixed overhead
+TEST 6 PASS N1: mtimecmp reload step is constant (200006)
+TEST 7 PASS N1: mtimecmp_hi was cleared by software (0)
+TEST 8 PASS N1: mtime advanced
+TEST 9 PASS 1: LED0 alternates 0/1 each interrupt, other LED bits stay 0 (0)
+TEST 10 PASS N1: boot self-check '=' sent over UART ('=')
+TEST 11 PASS N1: UART byte count = 1 + 5 per interrupt (61)
+TEST 12 PASS : UART stream is '=' then (count, LED, mtime[27:16]) records (0)
+TEST 13 PASS N1: after the last mret the core is back in the main loop
+TEST 14 PASS N1: no UART framing errors (0)
+ALL TIMER DEMO BOARD TOP TEST PASS (interrupts=12, uart_bytes=61)

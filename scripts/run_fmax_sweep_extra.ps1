@@ -1,4 +1,4 @@
-param(
+﻿param(
   [string]$SweepRoot = 'D:\RISC_V_CPU_2026\tmp\fmax_sweep',
   [string]$PdsRoot = $(if($env:PDS_ROOT){$env:PDS_ROOT}else{'D:\Pango\PDS_2024.2-SP2'}),
   [string]$LicenseFile = $(if($env:PANGO_LICENSE_FILE){$env:PANGO_LICENSE_FILE}else{'D:\Downloads\new_pds_60452e195a32.lic'}),

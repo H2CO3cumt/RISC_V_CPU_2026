@@ -1,0 +1,17 @@
+﻿{
+    "round":  1,
+    "reset_kind":  "re-download (reset-equivalent, FPGA reconfigured)",
+    "timestamp":  "2026-09-30T18:24:53.6165864+08:00",
+    "port":  "COM11",
+    "runs_per_mode":  20,
+    "la_pass":  true,
+    "la_files":  164,
+    "coremark_ticks":  1068006999,
+    "coremark_crcfinal":  "0xd340",
+    "coremark_iterations":  1000,
+    "coremark_score_x1000":  46816,
+    "coremark_validation":  "PASS",
+    "coremark_cpi_x1000":  1494,
+    "bitstream_la50_sha256":  "BCAE040A3B96652BB4B73907FFA03178C05453C0E9CD07E5697E401845FDD184",
+    "bitstream_cm50_sha256":  "DC95F9D087B7E29BB8780A46179FDE8D754563BB018B4E973FD08103232F5675"
+}

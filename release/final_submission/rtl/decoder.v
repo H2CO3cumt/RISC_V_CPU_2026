@@ -1,5 +1,5 @@
 // ENABLE_SYSTEM 控制 SYSTEM（opcode 1110011）编码的语义：
-//   0（默认，冻结的单周期 Reference Model 使用）：ECALL/EBREAK/MRET 与全部 CSR 指令
+//   0（默认，单周期参考模型使用）：ECALL/EBREAK/MRET 与全部 CSR 指令
 //     保持 `illegal=1`，沿用"未实现编码只抑制副作用、PC 顺序 +4"的既定行为，
 //     单周期 CPU 的行为与既有约束测试因此逐位不变。
 //   1（流水线 Core 使用）：按 docs/trap_contract.md 译码出 CSR 读改写与
@@ -7,8 +7,13 @@
 //
 // 当前状态：A3（精确 Trap/中断）集成尚未完成，流水线暂停使用这一参数，
 // 因此这里临时改回 0，保持 A0/A1 的已验证行为。A3 的 CSR 单元
-// （rtl/csr_unit.v，32/32 PASS）与契约（docs/trap_contract.md）保留不动。
+// （rtl/csr_unit.v，32/32 PASS）与 docs/trap_contract.md 的约定保留不动。
 // 完成 A3 集成时把流水线改回 #(.ENABLE_SYSTEM(1)) 即可。
+//
+// M 扩展（mul/mulh/mulhsu/mulhu/div/divu/rem/remu）**不受 ENABLE_SYSTEM 影响**，
+// 两个 CPU（五级流水与单周期 Reference Model）都按 RV32IM 译码这八条编码：
+// 单周期 Reference 与流水线必须对同一程序给出相同架构状态，若只给一边加 M，
+// RTL 等价性比较会在任何用到乘除法的程序上直接失效。
 module decoder #(
     parameter ENABLE_SYSTEM = 0
 )(
@@ -24,7 +29,7 @@ module decoder #(
     output reg        jump,
     output reg        jalr,
     output reg        illegal,
-    // ---- Zicsr / SYSTEM（异常契约见 docs/trap_contract.md）----
+    // ---- Zicsr / SYSTEM（异常约定见 docs/trap_contract.md）----
     // csr_en：本指令是 CSR 读改写指令；
     // csr_wen：本次访问真的会产生"写"副作用（CSRRS/CSRRC 用 x0 时是纯读，不算写）；
     // csr_imm：源操作数取 5-bit 无符号立即数（CSRRWI/CSRRSI/CSRRCI）；
@@ -37,7 +42,12 @@ module decoder #(
     output reg [1:0]  csr_funct,
     output reg        trap_ecall,
     output reg        trap_ebreak,
-    output reg        trap_mret
+    output reg        trap_mret,
+    // ---- M 扩展（RV32IM 的 mul/mulh/mulhsu/mulhu/div/divu/rem/remu）----
+    // mdu_en：本条指令由乘除法单元执行（结果写 rd，不走 ALU/访存/CSR）；
+    // mdu_op：直接就是 funct3，编码见 rtl/mdu.v 顶部（op[2]=1 表示需要迭代除法）。
+    output reg        mdu_en,
+    output reg [2:0]  mdu_op
 );
 
 wire [6:0] opcode;
@@ -67,6 +77,8 @@ always @(*) begin
     trap_ecall  = 1'b0;
     trap_ebreak = 1'b0;
     trap_mret   = 1'b0;
+    mdu_en      = 1'b0;
+    mdu_op      = 3'b000;
 
     case (opcode)
         7'b0110011: begin
@@ -120,6 +132,25 @@ always @(*) begin
                     reg_write = 1'b1;
                     alu_ctrl  = 4'b1001; // sltu
                     illegal   = 1'b0;
+                end
+                // M 扩展：funct7=0000001 的整组 R-Type 全部合法，funct3 直接
+                // 作为 mdu_op 传给乘除法单元（000..111 恰好对应八条指令）。
+                // 这八条不写内存、不碰 CSR，写回值由 mdu 给出，因此
+                // result_src 保持 00（走"ALU 结果"那条写回通路）。
+                10'b0000001_000,
+                10'b0000001_001,
+                10'b0000001_010,
+                10'b0000001_011,
+                10'b0000001_100,
+                10'b0000001_101,
+                10'b0000001_110,
+                10'b0000001_111: begin
+                    reg_write  = 1'b1;
+                    result_src = 2'b00;
+                    alu_ctrl   = 4'b0000;
+                    mdu_en     = 1'b1;
+                    mdu_op     = funct3;
+                    illegal    = 1'b0;
                 end
                 default: begin
                     // Keep safe defaults for illegal R-Type encodings.
@@ -315,7 +346,7 @@ always @(*) begin
                 // Zicsr 一定会写 rd：写回值 = CSR 旧值。注意具体值不在这里产生，
                 // 而是由流水线在 EX 级把 ALU 结果换成 CSR 读值（见 pipeline_cpu 的
                 // ex_result 定义）。单周期 Reference Model 用 ENABLE_SYSTEM=0，
-                // 这三行对冻结行为没有任何影响。
+                // 这三行对默认行为没有任何影响。
                 reg_write  = 1'b1;
                 result_src = 2'b00;
                 csr_funct = (funct3[1:0] == 2'b01) ? 2'b00 :  // CSRRW/CSRRWI：直接写

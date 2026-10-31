@@ -3,11 +3,13 @@ set_arch -family Logos -device PGL50H -speedgrade -6 -package FBG484
 clean -all
 add_design ../../rtl/pipeline_cpu.v
 add_design ../../rtl/branch_predictor.v
+add_design ../../rtl/csr_unit.v
 add_design ../../rtl/forward_unit.v
 add_design ../../rtl/hazard_unit.v
 add_design ../../rtl/perf_monitor.v
 add_design ../../rtl/perf_mmio.v
 add_design ../../rtl/regfile.v
+add_design ../../rtl/mdu.v
 add_design ../../rtl/alu.v
 add_design ../../rtl/imm_gen.v
 add_design ../../rtl/decoder.v

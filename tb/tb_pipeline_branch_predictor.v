@@ -23,16 +23,29 @@ module tb_pipeline_branch_predictor;
  ram_adapter #(.DEPTH(4),.RANDOM_DELAY(0)) on_dm(.clk(clk),.reset(reset),.req_valid(on_dv),.req_ready(on_dr),.req_addr(on_da),.req_write(on_dw),.req_wdata(on_dwd),.req_wstrb(on_dst),.rsp_valid(on_dsv),.rsp_ready(on_dsr),.rsp_rdata(on_drd),.rsp_error(on_de),.write_side_effect_count());
  ram_adapter #(.DEPTH(4),.RANDOM_DELAY(0)) off_dm(.clk(clk),.reset(reset),.req_valid(off_dv),.req_ready(off_dr),.req_addr(off_da),.req_write(off_dw),.req_wdata(off_dwd),.req_wstrb(off_dst),.rsp_valid(off_dsv),.rsp_ready(off_dsr),.rsp_rdata(off_drd),.rsp_error(off_de),.write_side_effect_count());
  always #5 clk=~clk;
+ // 两个 Core 共用同一时钟，程序都用一条自跳转 JAL 收尾空转。为了让事件统计
+ // 与周期比较只反映真正的测试程序段：
+ //  - on_core 首次提交 Store 后立即停止计数；
+ //  - on_cycle / off_cycle 只在各自尚未提交 Store 时累加，
+ //    得到的是"跑到同一条 Store 退休"的周期数，halt 空转不会污染比较。
  always @(posedge clk) if(!reset) begin
   cycles=cycles+1;
-  if(on_predict)on_predicts=on_predicts+1;if(on_hit)on_hits=on_hits+1;if(on_miss)on_misses=on_misses+1;if(off_hit)off_hits=off_hits+1;
-  if(!on_done&&on_tmw&&on_tmaddr==0)begin on_done=1;on_cycle=cycles;end
-  if(!off_done&&off_tmw&&off_tmaddr==0)begin off_done=1;off_cycle=cycles;end
+  if(!on_done) begin
+   on_cycle=on_cycle+1;
+   if(on_predict)on_predicts=on_predicts+1;if(on_hit)on_hits=on_hits+1;if(on_miss)on_misses=on_misses+1;
+  end
+  if(!off_done) begin off_cycle=off_cycle+1; end
+  if(off_hit)off_hits=off_hits+1;
+  if(!on_done&&on_tmw&&on_tmaddr==0)begin on_done=1;end
+  if(!off_done&&off_tmw&&off_tmaddr==0)begin off_done=1;end
  end
  initial begin
   repeat(2)@(negedge clk);reset=0;
   wait(on_done&&off_done);#1;
   if(on_dm.mem[0]!==32||off_dm.mem[0]!==32)begin $display("TEST predictor architectural result FAIL on=%0d off=%0d",on_dm.mem[0],off_dm.mem[0]);failures=failures+1;end else $display("TEST predictor architectural result PASS");
+  // 该程序里唯一的 JAL 是收尾的 halt（自跳转），程序段本身只有一条循环分支：
+  // 第一次执行必然 miss（BTB 冷启动）、循环退出时方向翻转再 miss 一次，
+  // 其余全部命中。计数已在首次 Store 提交时停住，halt 空转不再计入。
   if(on_hits<20||on_misses!=2||off_hits!=0)begin $display("TEST predictor events FAIL hit=%0d miss=%0d off_hit=%0d",on_hits,on_misses,off_hits);failures=failures+1;end else $display("TEST predictor events PASS predict=%0d hit=%0d miss=%0d",on_predicts,on_hits,on_misses);
   if(on_cycle>=off_cycle)begin $display("TEST predictor cycle reduction FAIL on=%0d off=%0d",on_cycle,off_cycle);failures=failures+1;end else $display("TEST predictor cycle reduction PASS on=%0d off=%0d saved=%0d",on_cycle,off_cycle,off_cycle-on_cycle);
   if(failures==0)$display("ALL PIPELINE BRANCH PREDICTOR TEST PASS");else $fatal(1,"PIPELINE BRANCH PREDICTOR %0d FAIL",failures);$finish;

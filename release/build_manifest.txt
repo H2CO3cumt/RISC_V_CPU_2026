@@ -1,9 +1,9 @@
 ﻿release_id=competition_final_candidate
-generated=2026-10-09T21:39:07.9330862+08:00
-git=e13c4af300ceb2477ea12b7aef527cec786dab12
+generated=2026-10-30T16:17:21.1338823+08:00
+git=47f1d93aa6125f0b69a5e742d0851a0618774321
 git_dirty=dirty
 coremark_git=1f483d5b8316753a742cbf5590caf5bd0a4e4777
-pipeline_cpu_sha256=B58496706686E37BBA09E01861F1C7FE2AED8A5765C0F277E1F0DF5B91B071C2
+pipeline_cpu_sha256=9BC5C3C6895ADFA9AAA4F613450C50B394C49DF9CF2F280ABCC1AB8065866882
 pds=D:\Pango\PDS_2024.2-SP2
 iverilog=Icarus Verilog version 12.0 (devel) (s20150603-1539-g2693dd32b)
 gcc=riscv-none-elf-gcc.exe (xPack GNU RISC-V Embedded GCC x86_64) 15.2.0

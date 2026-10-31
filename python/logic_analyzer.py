@@ -44,24 +44,36 @@ def decode_uart(samples: Sequence[int], channel: int = 0, bit_samples: int = 16)
     """
     mask = 1 << channel
     level = [1 if s & mask else 0 for s in samples]
-    out = bytearray(); errors = 0; i = 1
+    out = bytearray(); errors = 0; i = 0
     # The falling edge only identifies a candidate start-bit boundary.  Sampling
     # on subsequent bit boundaries works in an ideal simulation but is fragile on
     # a real board because the generated waveform and capture clock can have an
     # arbitrary phase.  Sample each data/stop bit in its centre instead.
+    #
+    # 【2026-10-10 修的 bug —— 别改回 i=1】
+    # 镜像抓取用 pre=0：窗口的**第 0 个采样点就是起始位的第一个低电平**，
+    # 从 i=1 起扫会跳过这个真正的帧头，然后锁到某个数据位内部的假下降沿上，
+    # 解出一串乱码（实板实测：板上固件已经把波形解成 HELLO,RISC-V，上位机却解出
+    # b'\x1511=,RISC-V'）。i=0 时"上一拍"按 UART 空闲电平=高处理；猜错也不会错帧：
+    # 停止位不合法时这一帧会被丢掉并继续往后扫。
     half_bit = max(1, bit_samples // 2)
     while i + bit_samples * 9 + half_bit < len(level):
-        if level[i - 1] == 1 and level[i] == 0:
+        previous = level[i - 1] if i > 0 else 1
+        if previous == 1 and level[i] == 0:
             value = 0
             for bit in range(8):
                 value |= level[i + bit_samples * (bit + 1) + half_bit] << bit
             stop = level[i + bit_samples * 9 + half_bit]
             if stop == 1:
                 out.append(value)
-                i += bit_samples * 10
+                # 【2026-10-10 修】不要固定跳 10 个比特。实板采样的边沿有 ±1 点抖动，
+                # 实测帧长在 79~81 点之间浮动；固定跳 bit*10=80 会让误差逐帧随机游走，
+                # 走到半个比特就开始解错字节（实测 12 个字符错 5 个：HE??RI??-V），
+                # 只能靠 stop 位失败后重新找下降沿才勉强恢复。
+                # 改成"从停止位取样点之后继续逐点扫"：每一帧都用**自己的起始位**重新对齐，
+                # 误差不再累积。理想波形下与旧实现逐字节、逐帧边界完全相同。
+                i = i + bit_samples * 9 + half_bit + 1
             else:
-                # 不是帧起始（多半是数据位内部的跳变）：继续往后找真正的起始位，
-                # 不要在这里记 framing error，也不要跳过 10 个比特。
                 i += 1
         else:
             i += 1

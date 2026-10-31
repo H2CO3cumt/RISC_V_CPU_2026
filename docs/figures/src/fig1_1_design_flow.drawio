@@ -1,0 +1,32 @@
+﻿<mxfile host="app.diagrams.net" type="device">
+  <diagram name="图1-1 设计流程图" id="fig1_1">
+    <mxGraphModel dx="1440" dy="1000" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1440" pageHeight="1000" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="s1" value="1  需求与指标定义&#10;赛题指标 · 评分依据 · 范围冻结" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fontSize=15;fontFamily=Microsoft YaHei;fillColor=#FFE9D2;strokeColor=#D9822B;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="80" y="120" width="280" height="110" as="geometry" /></mxCell>
+        <mxCell id="s2" value="2  单周期 RV32I 参考模型&#10;回归全 PASS · 提交序列冻结" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fontSize=15;fontFamily=Microsoft YaHei;fillColor=#FFE9D2;strokeColor=#D9822B;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="420" y="120" width="280" height="110" as="geometry" /></mxCell>
+        <mxCell id="s3" value="3  SoC 与 MMIO · UART / GPIO&#10;核边界冻结 · 换外设不改核" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fontSize=15;fontFamily=Microsoft YaHei;fillColor=#FFE9D2;strokeColor=#D9822B;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="760" y="120" width="280" height="110" as="geometry" /></mxCell>
+        <mxCell id="s4" value="4  五级流水与冒险处理&#10;前递 · 停顿 · 冲刷 · 等价性回归" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fontSize=15;fontFamily=Microsoft YaHei;fillColor=#FFE9D2;strokeColor=#D9822B;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="1100" y="120" width="280" height="110" as="geometry" /></mxCell>
+
+        <mxCell id="s5" value="5  性能计数与 CoreMark&#10;Before / After 数据 · CPI 分解" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fontSize=15;fontFamily=Microsoft YaHei;fillColor=#CCE2F7;strokeColor=#2E6FB7;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="1100" y="420" width="280" height="110" as="geometry" /></mxCell>
+        <mxCell id="s6" value="6  上板与时序收敛&#10;PDS 时序全满足 · 85 MHz 实测" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fontSize=15;fontFamily=Microsoft YaHei;fillColor=#CCE2F7;strokeColor=#2E6FB7;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="760" y="420" width="280" height="110" as="geometry" /></mxCell>
+        <mxCell id="s7" value="7  应用闭环：八通道采集&#10;五模式 × 20 次上板验收" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fontSize=15;fontFamily=Microsoft YaHei;fillColor=#D6C2F5;strokeColor=#6335C6;strokeWidth=2.5;" vertex="1" parent="1"><mxGeometry x="420" y="420" width="280" height="110" as="geometry" /></mxCell>
+        <mxCell id="s8" value="8  材料与交付&#10;证据链 · 位流哈希 · 最终回归" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fontSize=15;fontFamily=Microsoft YaHei;fillColor=#EDEDED;strokeColor=#5F5F5F;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="80" y="420" width="280" height="110" as="geometry" /></mxCell>
+
+        <mxCell id="gate" value="每一阶段设进入条件与验收条件：未通过验证不进入下一阶段；增强项以 Before / After 数据判定是否保留" style="rounded=0;whiteSpace=wrap;html=1;fontSize=15;fontFamily=Microsoft YaHei;align=center;fillColor=#FFFFFF;strokeColor=#B5641A;strokeWidth=1.5;dashed=1;" vertex="1" parent="1"><mxGeometry x="80" y="610" width="1300" height="90" as="geometry" /></mxCell>
+
+        <mxCell id="e12" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#5F5F5F;strokeWidth=2;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="s1" target="s2"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e23" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#5F5F5F;strokeWidth=2;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="s2" target="s3"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e34" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#5F5F5F;strokeWidth=2;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="s3" target="s4"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e45" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#5F5F5F;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="s4" target="s5"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e56" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#5F5F5F;strokeWidth=2;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" edge="1" parent="1" source="s5" target="s6"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e67" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#5F5F5F;strokeWidth=2;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" edge="1" parent="1" source="s6" target="s7"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e78" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#5F5F5F;strokeWidth=2;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" edge="1" parent="1" source="s7" target="s8"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e8g" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#8C8C8C;strokeWidth=1.5;dashed=1;exitX=0.5;exitY=1;entryX=0.11;entryY=0;" edge="1" parent="1" source="s8" target="gate"><mxGeometry relative="1" as="geometry" /></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
+

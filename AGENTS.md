@@ -13,17 +13,31 @@
 5. 五级流水线 CPU Core 与 SoC/外设严格解耦；Core 只通过统一取指、数据访问和提交/性能事件接口对外连接，未实现的中断扩展不得引入设备专用端口。
 6. 在 Core 外集成 RAM、UART、GPIO 和 MMIO；更换或增加 SPI、传感器、逻辑分析仪或加速器时不得重新设计流水线主体。
 7. 支持以 `-march=rv32i -mabi=ilp32` 编译的 RISC-V GNU bare-metal C 程序，最终运行 CoreMark。Windows 当前固定使用 xPack 的 `riscv-none-elf-` 前缀，并通过用户环境变量 `RISCV_PREFIX` 统一引用，不得在构建脚本中硬编码其他前缀。
+   **2026-10-14 经用户批准的范围变更**：Core 实现**完整 M 扩展**（mul/mulh/mulhsu/mulhu/div/divu/rem/remu），两个 CPU（五级流水与单周期 Reference Model）都必须实现，否则 RTL 等价性比较在任何用到乘除法的程序上直接失效。
+   范围纪律：**`rv32i` 仍是一切的默认与可比口径**（历史成绩、`claims_map` 既有数字、交付镜像都不变），`rv32im` 作为**并列的增强配置**单独构建、单独留档、单独引用；
+   引用分数时必须写明是哪一套 ISA（`software/coremark/Makefile` 的 `MARCH` 参数，默认 rv32i；`scripts/check_coremark_elf.ps1` 对两个方向都做校验）。
 8. 本届正式 FPGA 平台冻结为盘古 50（MES50HP）开发板：紫光同创 Logos `PGL50H-6IFBG484`、50 MHz 系统时钟、PDS `.fdc`、板载 CP2102 USB-UART 和用户按键/LED；在正式 CPU 综合前完成 PDS、时钟/复位、BRAM 读写时序和实体板下载的早期可行性验证，完整契约见 `docs/fpga_platform.md`。
 9. 在运行 CoreMark 前完成最小性能计数器，并用提交级 trace 自动比较 Single Cycle 与 Pipeline。
 10. 评分主线固定为：完整 RV32I、五级流水线与 Hazard、UART/GPIO、CoreMark/MHz、Fmax、CoreMark/LUT、实际应用、代码规范和 ILA 性能分析；评分依据与范围取舍以 `docs/competition_scoring.md` 为准。
 11. 在 `pipeline_coremark_stable` 后，以 Core 外部 MMIO 外设方式完成“可重构多协议逻辑分析与故障诊断平台”的 P0 端到端闭环；应用范围和验收以 `docs/application_logic_analyzer.md` 为准。
 12. 按最终完善路线，比赛版本纳入 16 项直接映射 BTB + 2-bit 饱和计数器，并保留 Predictor Off/On 的 Before/After 数据；RLE 仍冻结为赛后研究，不进入本届配置。
-13. 官方“高级控制逻辑”同时包含动态预测与完整异常/中断；本届不以 BTB 单项宣称完成该高级任务。本届明确不实现 I-Cache、D-Cache、burst、完整异常/中断、AI/YOLO、外部 DDR、HDMI、PCIe、千兆网和自定义 RISC-V 指令。
+13. 官方“高级控制逻辑”同时包含动态预测与完整异常/中断；本届不以 BTB 单项宣称完成该高级任务。按 `docs/advanced_task_plan_qa.md` 选定的进阶路线，本届在 BTB 之后继续实现 **机器模式 CSR/Trap 与中断**，其支持矩阵、优先级与验收条目以 `docs/trap_contract.md` 为唯一契约；只有该契约逐项 PASS 才能宣称完成该高阶组。
+14. **本届仍明确不实现** AI/YOLO、HDMI、PCIe、千兆网和自定义 RISC-V 指令；RLE 仍为赛后研究。Trap 实现不得顺手扩大为 U/S 模式、向量 Trap、Debug Mode 或 `WFI`。
+    **2026-09-29 经用户批准的范围变更**：**I-Cache、D-Cache、burst 与外部 DDR3 由"本届不做"改为"本届要做"**，
+    作为官方高阶项①（2 路组相联 I/D Cache + burst），执行顺序为
+    **S1 打通 DDR3 → S2 行式突发接口 → S3 2 路组相联 I-Cache → S4 2 路组相联 D-Cache**，
+    闸门、量化证据与止损条件以 `docs/handoff_next.md` §3.3 为准；接口契约以 `docs/interfaces.md` 为准。
+    约束边界（不得放宽）：I-Cache 只能位于取指端口与下级存储之间，D-Cache 只能位于数据端口与 SoC 互连之间，
+    **`rtl/pipeline_cpu.v` 的端口与事务语义不得改变**；MMIO 区域始终 uncacheable；
+    Cache/突发全部属于 Core 外部，Core 内不得出现 Cache 专用端口或设备状态机；
+    每完成一步必须重跑 Trap 契约全部断言 + 最终回归 + CoreMark，任何退化即回退。
+15. 进阶任务的执行顺序、Before/After 证据规则与止损条件以 `docs/advanced_task_plan_qa.md` 的 A0～A8 任务包为准；`docs/advanced_tasks_ai_checklist.md` 作为同一路线的补充参考。两份清单与本文冲突时，以本文的范围纪律和 `docs/trap_contract.md` 的边界为准。
 
 ## 2. 开发与教学原则
 
 本项目首先用于真正学习 CPU 微架构，而非单纯完成比赛工程。
 
+- **只回答问题，不动手改东西（本条优先于本节其余各条，2026-10-03 用户明确要求）。** 凡以提问形式提出的请求（“为什么…”“从哪来的”“什么原因”“是不是…”等），一律只用**只读**手段调查，然后给出结论、证据与必要的不确定性说明；**不得**为此新增、修改或删除任何文件（RTL、Testbench、脚本、文档、固件、存储器镜像、交付件），不得顺手补测试、补证据、补优化、补文档，不得自行展开用户没要求的探索、测量或重构。不要自作聪明：不替用户做决定，不扩大范围。确需动手时，先说明“准备改哪个文件、改什么、为什么”，得到用户明确同意后再改；未经同意一律不改。
 - 不得未经请求重写整个 CPU，也不得为了代码更漂亮而大规模重构。
 - 用户询问新知识点时，先判断其理解：明确正确与错误之处，再解释原理。
 - 用户理解模块结构前，不直接生成大段完整 RTL。
@@ -76,11 +90,21 @@ RISC-V 基础 -> RV32I ISA -> 单周期模块 -> 单周期 CPU
 -> CoreMark -> Performance Analysis -> Logic Analyzer Application
 -> Final Regression/Materials/Release
 
-最终增强与验证：16-entry BTB 性能实验 -> Final Regression/Materials/Release
+最终增强与验证（按 docs/advanced_task_plan_qa.md）：
+A0 冻结可回退基线 -> A1 跳转/控制流预测优化（Before/After）
+-> A2 Trap 契约冻结（docs/trap_contract.md）
+-> A3 机器模式 CSR/Trap/MRET + SoC 定时器中断与通用中断输入
+-> P3 高阶项①：DDR3 真实后端 -> S2 行式突发 -> S3 2 路组相联 I-Cache -> S4 2 路组相联 D-Cache
+   （按 docs/handoff_next.md §3.3 的 S1～S4 闸门与止损执行，范围契约见 §1.14 与 docs/interfaces.md）
+-> 最终 Regression / PDS Timing / 实板演示 / 材料收口
 赛后研究（不属于本届 Release）：RLE
 ```
 
-基础阶段未通过时，不得建议直接进行增强项。I/D Cache、异常/中断、AI、RLE 和其他已冻结功能不属于本届执行路线。BTB 只在流水线、CoreMark 与性能计数基线通过后进入最终配置。
+基础阶段未通过时，不得建议直接进行增强项。AI/YOLO、RLE、HDMI、PCIe 和千兆网不属于本届执行路线；
+**I/D Cache、burst 与外部 DDR3 已于 2026-09-29 经用户批准纳入本届路线**（见 §1.14 与 `docs/handoff_next.md` §3.3），
+但必须按 S1→S2→S3→S4 的闸门与止损顺序推进，任一步未达标不得进入下一步。
+异常/中断只在 A2 契约冻结、A3 的前置回归全绿之后进入；BTB 只在流水线、CoreMark 与性能计数基线通过后进入最终配置。
+A1 若拿不到可复现的净收益，必须回退到 A0 基线，不得把预计收益写成已实现。
 
 ## 5. Debug 原则
 
@@ -109,9 +133,11 @@ RISC-V 基础 -> RV32I ISA -> 单周期模块 -> 单周期 CPU
 - RAM/BRAM、地址译码、MMIO 互连、UART、GPIO、SPI、传感器、逻辑分析仪、加速器、厂商总线和板级引脚均属于 Core 外部。
 - Core 不得包含设备专用地址常量、片选、Busy/Done 状态或协议状态机。低速设备只能通过统一事务的背压使 Core 等待。
 - UART、GPIO 是基础 SoC 的参考配置，不是五级流水线的固定组成部分。以后替换或新增外设时，Core 源文件和 Core Regression 必须保持不变。
-- 本届不实现 Cache；接口只保留未来可插拔能力，所有 MMIO 区域始终属于 uncacheable，任何未来 Cache 也不得改变 Core/SoC 边界。
-- 本届不实现异常/中断；若赛后研究，只允许使用通用中断输入，具体中断源和聚合逻辑仍属于 SoC。
-- 边界、握手、事务副作用和验证矩阵以 `docs/interfaces.md` 为唯一接口契约。
+- I/D Cache 与 burst **按 §1.14 的范围变更纳入本届**（2026-09-29 用户批准），但它们与 AI、RLE 和二百万门级外设不同：
+  必须位于 Core 外部、不得改变 Core 事务语义；AI、RLE 与二百万门级外设仍不在本届范围。
+  **机器模式异常/中断按下述边界实现**。
+- Trap/CSR 实现只允许使用 `docs/trap_contract.md` 冻结的三根通用中断输入（software/timer/external）；中断源、定时器、使能位、聚合与优先级全部属于 SoC。Core 内不得出现设备名、设备地址或设备状态机。
+- 边界、握手、事务副作用和验证矩阵以 `docs/interfaces.md` 为唯一接口契约；Trap 语义与验收条目以 `docs/trap_contract.md` 为唯一契约，两者不得互相削弱。
 - 最终应用已选定为可重构多协议逻辑分析仪，但“应用已确定”不等于“Core 可以感知应用”。Capture Engine、触发、BRAM、状态寄存器和上位机链路全部位于 Core 外；赛后若研究 RLE，也只能位于 Core 外。详细范围以 `docs/application_logic_analyzer.md` 为准。
 
 ## 9. 性能优化原则
@@ -120,7 +146,10 @@ RISC-V 基础 -> RV32I ISA -> 单周期模块 -> 单周期 CPU
 
 任何性能优化必须提供 Before/After 数据；不得仅因增加模块而判断优化成功。功能正确性或时序稳定性下降时，应优先恢复正确性。
 
-两个月 P0 范围已冻结：逻辑分析仪固定为 8 通道、基础触发、前后采样、BRAM、Raw、UART/SPI 软件解析和简单 Python/VCD；本届不实现 RLE。不得增加 16 通道、I²C、协议感知/多级复杂触发、外部 DDR 或复杂 GUI。
+两个月 P0 范围已冻结：逻辑分析仪固定为 8 通道、基础触发、前后采样、BRAM、Raw、UART/SPI 软件解析和简单 Python/VCD；本届不实现 RLE。不得增加 16 通道、I²C、协议感知/多级复杂触发或复杂 GUI。
+> **外部 DDR3 不属于上句的冻结范围**：该句中的"外部 DDR"指的是**逻辑分析仪 P0 应用的采样存储**，
+> 即逻辑分析仪不得改用外部 DDR 当采样缓存；而 §1.14 批准的 DDR3 指的是 **CPU 的存储层次后端（高阶项①）**。
+> 两者是不同用途，不得相互援引扩大范围。
 
 国赛冲刺以 `docs/roadmap.md` 的 60 天硬节点为准。Task 0～30、33～35 构成本届唯一交付主线；任何提前完成产生的余量优先用于 Regression、Timing、CoreMark 复现、逻辑分析仪稳定性、报告、视频和答辩演练，不得用来恢复已冻结功能。
 
@@ -136,7 +165,9 @@ RISC-V 基础 -> RV32I ISA -> 单周期模块 -> 单周期 CPU
 - 开发 Gate 和验收条件以 `docs/roadmap.md` 为准。
 - MES50HP 的器件、时钟、Reset、有效电平、UART、J8、PMOD 和约束纪律以 `docs/fpga_platform.md` 为准。
 - CoreMark 关键循环的 ILA 波形、CPI 分解和资源/时序数据必须形成可提交的性能分析材料。
-- 学习者掌握工程的阅读、重建与多视角追问计划写入 `docs/learning_plan.md`；该文件只记录学习进度与自检结果，不作为项目完成度证据，也不得替代 `docs/progress.md`。
+- 学习者掌握工程的计划写入 `docs/learning_plan.md`。当前版本为**源码精读版**：自顶向下从 `rtl/pipeline_cpu.v` 读到各例化子模块，逐模块由 Agent 讲解源代码逻辑并出题验收；验收线是"能指着任意一行说出它为什么在这里、改动它会破坏什么"，不含 RTL 重建。答辩逃生包（旧答辩版）作为该文件附录 A 保留。"吃透/重建优先"版本已停用。该文件只记录学习进度与自检结果，不作为项目完成度证据，也不得替代 `docs/progress.md`。
+- 源码精读遵循"只读不改"：讲解与验收期间不得顺带修改 `rtl/*.v`；精读中发现的疑点写入 `docs/learning_plan.md` 的观察清单，是否改动按 `docs/roadmap.md` 的 Gate 另行决定。
+- 源码精读的**讲解语言约定**以 `docs/learning_plan.md` §0.0 为准：学习者不具备本领域词汇基础，讲解必须先打生活化的比方、再给代码里的真名，不许用术语解释术语，不许出现未解释的缩写；比方之后必须补一句"这个比方在哪儿不准"。本条只约束**怎么讲**，不降低技术内容与行号引用的准确性；答辩口径仍以准确表述为准，不得只用比方作答。
 - 不得将历史聊天作为唯一项目记录。
 
 ## 11. 协作与变更要求

@@ -6,7 +6,7 @@
 //       ModelSim 的波形窗口直接打开（工程内的 wgt_simulation 已配置好 target
 //       与 sim_exe_dir，不需要用户手工设置任何东西）。
 //
-// 与 tb/tb_logic_analyzer_board_top.v 的三点区别，都是为「在 PDS 里一键出波形」
+// 与 tb/tb_logic_analyzer_board_top.v 的三点区别，都是为「在 PDS 里直接出波形」
 // 服务的：
 //   1) 时钟按真实板级 50 MHz（20 ns 周期）产生，UART 用真实 115200 分频，
 //      波形时间轴与实体板一致，不需要换算；
@@ -44,6 +44,7 @@ module tb_msim_logic_analyzer_top;
     integer rx_bytes = 0;
     integer rx_errors = 0;
     integer cycles = 0;
+    integer mirror_errors = 0;
 
     // 50 MHz 板级时钟。
     always #CLK_HALF_NS clk_50m = ~clk_50m;
@@ -152,6 +153,9 @@ module tb_msim_logic_analyzer_top;
             cycles = cycles + 1;
             if (rx_vld) rx_bytes = rx_bytes + 1;
             if (rx_err) rx_errors = rx_errors + 1;
+            // ch7 必须每拍都镜像 uart0_rx（组合直连）：整包 13 字节传输期间持续检查，
+            // 这样"上位机发什么、J8-31 就出什么"才是被证明的，而不是某一拍碰巧对上。
+            if (loopback_tx[7] !== uart_rx) mirror_errors = mirror_errors + 1;
         end
     end
 
@@ -181,8 +185,14 @@ module tb_msim_logic_analyzer_top;
             $display("[MSIM-TB] FAIL timeout cycles=%0d bytes=%0d", cycles, rx_bytes);
             failures = failures + 1;
         end
-        if (led !== 8'h5A || loopback_tx !== 8'h01) begin
-            $display("[MSIM-TB] FAIL output led=%h loopback=%h", led, loopback_tx);
+        if (led !== 8'h5A || loopback_tx[6:0] !== 7'h01 || loopback_tx[7] !== uart_rx) begin
+            $display("[MSIM-TB] FAIL output led=%h loopback=%h uart_rx=%b", led, loopback_tx, uart_rx);
+            failures = failures + 1;
+        end else begin
+            $display("[MSIM-TB] PASS mirror loopback=%h (ch7=uart_rx)", loopback_tx);
+        end
+        if (mirror_errors != 0) begin
+            $display("[MSIM-TB] FAIL mirror mismatched cycles=%0d", mirror_errors);
             failures = failures + 1;
         end
         if (rx_errors != 0) begin

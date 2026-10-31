@@ -1,0 +1,57 @@
+﻿<mxfile host="app.diagrams.net" type="device">
+  <diagram name="图2-4 软件整体架构图" id="fig2_4">
+    <mxGraphModel dx="1800" dy="1000" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1800" pageHeight="1000" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="FFPGA" value="FPGA 侧（片上）" style="rounded=0;whiteSpace=wrap;html=1;fontSize=16;fontFamily=Microsoft YaHei;fontStyle=1;fontColor=#B5641A;fillColor=#FFFAF5;strokeColor=#D9822B;strokeWidth=2;dashed=1;verticalAlign=top;align=left;spacingLeft=16;spacingTop=10;" vertex="1" parent="1"><mxGeometry x="190" y="90" width="640" height="840" as="geometry" /></mxCell>
+        <mxCell id="FPC" value="PC 侧（上位机）" style="rounded=0;whiteSpace=wrap;html=1;fontSize=16;fontFamily=Microsoft YaHei;fontStyle=1;fontColor=#3F3F3F;fillColor=#FAFAFA;strokeColor=#ABABAB;strokeWidth=2;dashed=1;verticalAlign=top;align=left;spacingLeft=16;spacingTop=10;" vertex="1" parent="1"><mxGeometry x="1050" y="90" width="720" height="840" as="geometry" /></mxCell>
+
+        <mxCell id="probe" value="J8 八通道探针&#10;八路被测信号" style="rounded=0;whiteSpace=wrap;html=1;fontSize=14;fontFamily=Microsoft YaHei;fillColor=#D6C2F5;strokeColor=#6335C6;strokeWidth=2.5;" vertex="1" parent="1"><mxGeometry x="20" y="320" width="150" height="110" as="geometry" /></mxCell>
+
+        <mxCell id="top" value="板级顶层&#10;时钟 PLL · 复位 · 电平极性 · 采集源选择" style="rounded=0;whiteSpace=wrap;html=1;fontSize=15;fontFamily=Microsoft YaHei;fillColor=#CCE2F7;strokeColor=#2E6FB7;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="230" y="150" width="600" height="110" as="geometry" /></mxCell>
+        <mxCell id="la" value="逻辑分析仪外设&#10;MMIO 寄存器 · 触发判定 · 采集引擎 · 2048 样本缓存" style="rounded=0;whiteSpace=wrap;html=1;fontSize=15;fontFamily=Microsoft YaHei;fontStyle=1;fillColor=#D6C2F5;strokeColor=#6335C6;strokeWidth=2.5;" vertex="1" parent="1"><mxGeometry x="230" y="320" width="600" height="200" as="geometry" /></mxCell>
+        <mxCell id="xbar" value="SoC 数据互连&#10;地址译码 · 背压 · MMIO 复用" style="rounded=0;whiteSpace=wrap;html=1;fontSize=15;fontFamily=Microsoft YaHei;fillColor=#CCE2F7;strokeColor=#2E6FB7;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="230" y="580" width="600" height="110" as="geometry" /></mxCell>
+        <mxCell id="cpu" value="处理器核与性能监视器&#10;五级流水 · 提交事件计数" style="rounded=0;whiteSpace=wrap;html=1;fontSize=15;fontFamily=Microsoft YaHei;fontStyle=1;fillColor=#FFD9B0;strokeColor=#C86F17;strokeWidth=2.5;" vertex="1" parent="1"><mxGeometry x="230" y="750" width="600" height="110" as="geometry" /></mxCell>
+
+        <mxCell id="usb" value="CP2102&#10;USB 串口&#10;115200 8N1" style="rounded=0;whiteSpace=wrap;html=1;fontSize=15;fontFamily=Microsoft YaHei;fillColor=#EDEDED;strokeColor=#5F5F5F;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="860" y="150" width="160" height="110" as="geometry" /></mxCell>
+
+        <mxCell id="s1" value="串口层&#10;115200 8N1 · 帧同步" style="rounded=0;whiteSpace=wrap;html=1;fontSize=15;fontFamily=Microsoft YaHei;fillColor=#EDEDED;strokeColor=#5F5F5F;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="1090" y="150" width="640" height="110" as="geometry" /></mxCell>
+        <mxCell id="s2" value="报文层&#10;0xA5 四模式 13 字节 · 0xA7 镜像 13 字节 · 0xA8 双源 16 字节 · XOR 校验" style="rounded=0;whiteSpace=wrap;html=1;fontSize=15;fontFamily=Microsoft YaHei;fillColor=#EDEDED;strokeColor=#5F5F5F;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="1090" y="320" width="640" height="140" as="geometry" /></mxCell>
+        <mxCell id="s3" value="解析层&#10;Raw 重建 · UART / SPI 解码 · 仪器读数" style="rounded=0;whiteSpace=wrap;html=1;fontSize=15;fontFamily=Microsoft YaHei;fillColor=#EDEDED;strokeColor=#5F5F5F;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="1090" y="520" width="640" height="140" as="geometry" /></mxCell>
+        <mxCell id="s4" value="呈现层&#10;波形页 · 读数表 · VCD 导出" style="rounded=0;whiteSpace=wrap;html=1;fontSize=15;fontFamily=Microsoft YaHei;fillColor=#EDEDED;strokeColor=#5F5F5F;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="1090" y="720" width="640" height="140" as="geometry" /></mxCell>
+
+        <mxCell id="e_probe" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#6335C6;strokeWidth=2.5;exitX=1;exitY=0.5;entryX=0;entryY=0.6;" edge="1" parent="1" source="probe" target="la"><mxGeometry relative="1" as="geometry" /></mxCell>
+        
+
+        <mxCell id="e_top_la" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2E6FB7;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="top" target="la"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="l_top_la" value="控制与回读" style="edgeLabel;html=1;horizontal=1;fontSize=13;fontFamily=Microsoft YaHei;fontColor=#1F5E9E;align=center;" vertex="1" connectable="0" parent="e_top_la"><mxGeometry x="0.5" relative="1" as="geometry"><mxPoint x="60" y="0" as="offset" /></mxGeometry></mxCell>
+
+        <mxCell id="e_la_xbar" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2E6FB7;strokeWidth=2;dashed=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="la" target="xbar"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="l_la_xbar" value="MMIO 访问" style="edgeLabel;html=1;horizontal=1;fontSize=13;fontFamily=Microsoft YaHei;fontColor=#1F5E9E;align=center;" vertex="1" connectable="0" parent="e_la_xbar"><mxGeometry x="0.5" relative="1" as="geometry"><mxPoint x="66" y="0" as="offset" /></mxGeometry></mxCell>
+
+        <mxCell id="e_xbar_cpu" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2E6FB7;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="xbar" target="cpu"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="l_xbar_cpu" value="数据事务" style="edgeLabel;html=1;horizontal=1;fontSize=13;fontFamily=Microsoft YaHei;fontColor=#1F5E9E;align=center;" vertex="1" connectable="0" parent="e_xbar_cpu"><mxGeometry x="0.5" relative="1" as="geometry"><mxPoint x="60" y="0" as="offset" /></mxGeometry></mxCell>
+
+        <mxCell id="e_obs" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#C86F17;strokeWidth=2;dashed=1;exitX=1;exitY=0.5;entryX=1;entryY=0.85;" edge="1" parent="1" source="cpu" target="la"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="862" y="805" /><mxPoint x="862" y="490" /></Array></mxGeometry></mxCell>
+        <mxCell id="l_obs" value="核内观测点" style="edgeLabel;html=1;horizontal=1;fontSize=13;fontFamily=Microsoft YaHei;fontColor=#B5641A;align=center;" vertex="1" connectable="0" parent="e_obs"><mxGeometry x="0.5" relative="1" as="geometry"><mxPoint x="62" y="-150" as="offset" /></mxGeometry></mxCell>
+
+        <mxCell id="e_cmd" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#5F5F5F;strokeWidth=2;exitX=0;exitY=0.35;entryX=1;entryY=0.35;" edge="1" parent="1" source="s1" target="usb"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_rd" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#5F5F5F;strokeWidth=2;exitX=1;exitY=0.65;entryX=0;entryY=0.65;" edge="1" parent="1" source="usb" target="s1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_bus" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#5F5F5F;strokeWidth=2;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="top" target="usb"><mxGeometry relative="1" as="geometry" /></mxCell>
+        
+
+        <mxCell id="e_s12" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#5F5F5F;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="s1" target="s2"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="l_s12" value="字节流" style="edgeLabel;html=1;horizontal=1;fontSize=13;fontFamily=Microsoft YaHei;fontColor=#3F3F3F;align=center;" vertex="1" connectable="0" parent="e_s12"><mxGeometry x="0.5" relative="1" as="geometry"><mxPoint x="70" y="0" as="offset" /></mxGeometry></mxCell>
+        <mxCell id="e_s23" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#5F5F5F;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="s2" target="s3"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="l_s23" value="校验通过" style="edgeLabel;html=1;horizontal=1;fontSize=13;fontFamily=Microsoft YaHei;fontColor=#3F3F3F;align=center;" vertex="1" connectable="0" parent="e_s23"><mxGeometry x="0.5" relative="1" as="geometry"><mxPoint x="74" y="0" as="offset" /></mxGeometry></mxCell>
+        <mxCell id="e_s34" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#5F5F5F;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="s3" target="s4"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="l_s34" value="采样序列与读数" style="edgeLabel;html=1;horizontal=1;fontSize=13;fontFamily=Microsoft YaHei;fontColor=#3F3F3F;align=center;" vertex="1" connectable="0" parent="e_s34"><mxGeometry x="0.5" relative="1" as="geometry"><mxPoint x="110" y="0" as="offset" /></mxGeometry></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
+
+
+

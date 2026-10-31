@@ -371,8 +371,17 @@ class ValidationUI(tk.Tk):
 
         ttk.Label(page, text="CPU 数据流 · 逐条指令与寄存器热力图",
                   font=("Segoe UI", 15, "bold")).grid(row=0, column=0, sticky="w", pady=(0, 2))
-        ttk.Label(page, text="发一个字符串给 CPU —— 它真的逐字节读、改、存；下面按退休顺序把每条指令与寄存器变化摊开。",
-                  foreground="#174a7c").grid(row=1, column=0, sticky="w", pady=(0, 6))
+        # 副标题与「离线回放」徽标同一行（2026-10-28 修正）：徽标只在回放时出现，
+        # 用醒目底色把"板上刚采的"和"从文件里放录像"分开。此前回放提示只写进
+        # 第①页的日志框，用户停在②页根本看不见，于是把这一页当成写死的假图。
+        row_title = ttk.Frame(page)
+        row_title.grid(row=1, column=0, sticky="ew", pady=(0, 6))
+        ttk.Label(row_title, text="发一个字符串给 CPU —— 它真的逐字节读、改、存；下面按退休顺序把每条指令与寄存器变化摊开。",
+                  foreground="#174a7c").pack(side="left")
+        self.trace_replay_label = tk.Label(row_title, text="", font=("Segoe UI", 9, "bold"),
+                                           foreground="#7a4b00", background="#ffe9b0",
+                                           padx=6, pady=1)
+        self._trace_replay_note = ""
 
         row_input = ttk.Frame(page)
         row_input.grid(row=2, column=0, sticky="ew")
@@ -466,6 +475,22 @@ class ValidationUI(tk.Tk):
         self.trace_log.insert("end", text)
         self.trace_log.see("end")
         self.trace_log.configure(state="disabled")
+
+    def _set_trace_replay(self, note: str) -> None:
+        """第 2 页顶部的「离线回放」徽标：有内容就显示，空串就撤掉。
+
+        **实时采集必须传空串**——否则上一枪回放的徽标会留在屏幕上，
+        把"板子刚采的一枪"标成"回放的录像"，正好是我们这次要消灭的那种误导。
+        """
+        self._trace_replay_note = note
+        label = getattr(self, "trace_replay_label", None)
+        if label is None:
+            return
+        if note:
+            label.configure(text=note)
+            label.pack(side="right")
+        else:
+            label.pack_forget()
 
     def _on_trace_live(self) -> None:
         if self.trace_live_var.get() and not self.running:
@@ -880,6 +905,46 @@ class ValidationUI(tk.Tk):
 
         self._start_worker("CPU 数据流采集", work)
 
+    def _load_trace_log(self, path, phase=None) -> None:
+        """离线回放一枪 0xAA 回包：没有开发板也能把第 2 页（寄存器热力图）画出来。
+
+        走的是与真采集**同一套** parse_capture / build_flow / judge / summarise，
+        只多一步"从文件读回包"，所以离线看到的记录、依赖边与热力图焊点位置
+        与板上那一枪逐条一致——不另写一份解析，也不另写一份画图。
+
+        **发送的字符串必须从打点还原，不能取回包里的 text 字段**（2026-10-28 修正）：
+        回包的 ``TRACE TEXT`` 是固件处理**之后**的结果（阶段 0 已把小写字母转成大写），
+        拿它去比打点值会直接判出 2 条假 FAIL（"打点值等于发送的字符"与"大写字符计数"）。
+        真采集路径（``_run_trace``）传的是输入框里的原文，这里必须与那条路径同口径。
+        """
+        import trace_board
+        import trace_view
+
+        log = Path(path)
+        text_in = log.read_bytes().decode("utf-8", errors="replace")
+        capture = trace_view.parse_capture(text_in)
+        # 打点值是"当时真正送进 CPU 的原始字节"（固件先记打点、再做大写化），
+        # 所以它就是 sent_text 的唯一真实来源，长度也与字符数一致。
+        sent = "".join(chr(m["value"]) for m in capture["marks"])
+        if not sent:                       # 没有打点的坏包：退回回包文本，让判据自己去报错
+            sent = "".join(chr(c) for c in capture["text"])
+        phase = 0 if phase is None else int(phase)
+        mem = self.base_dir.parent / "fpga" / "trace85" / "rtl" / "logic_analyzer_program.mem"
+        imem = trace_view.load_program_mem(mem) if Path(mem).exists() else None
+        flow = trace_view.build_flow(capture, imem)
+        results = trace_view.judge(capture, sent, phase, imem, depth=4096)
+        self._append_log("离线回放：%s（%d 条记录 · %d 个打点）\n"
+                         % (log, capture["count"], capture["mark_count"]))
+        # 与 _run_trace 一样投事件队列，由 _poll_events 在 UI 线程里画
+        self.events.put(("trace", {
+            "text": sent, "phase": phase, "count": capture["count"],
+            "status": capture["status"], "marks": capture["marks"],
+            "nodes": flow["nodes"], "judgements": results,
+            "summary": trace_board.summarise(capture, flow, sent),
+            "html": "", "pass": trace_view.judgements_pass(results),
+            "replay": str(log),
+        }))
+
     def _run_wave(self) -> None:
         """0xAB 组合采集：**一次运行**同时拿 Core 探针波形和逐条指令，并按拍对齐。"""
         self._cancel_trace_refresh()
@@ -959,6 +1024,10 @@ class ValidationUI(tk.Tk):
         self.trace_nodes = payload["nodes"]
         self.trace_marks = payload["marks"]
         self.trace_pass = bool(payload["pass"])
+        # 回放/实采必须一眼分得开：payload["replay"] 非空 = 这是在放录像。
+        replay = payload.get("replay") or ""
+        self._set_trace_replay(
+            ("离线回放：%s · 判据仅供参考" % Path(replay).name) if replay else "")
         # 普通 0xAA 那一枪没有波形：把上一次 0xAB 的波形与对齐一起撤掉，
         # 否则界面会拿旧的拍号去定位新的记录（"图说的和板子做的不一样"）。
         if not payload.get("wave"):
@@ -968,8 +1037,9 @@ class ValidationUI(tk.Tk):
         self.trace_sel = 0
         self.trace_scrub.configure(to=max(0, len(self.trace_nodes) - 1))
         self._set_scrub(0)
-        self._append_trace_log("\n===== 这一枪：%r（阶段 %d）=====\n"
-                               % (payload["text"], payload["phase"]))
+        self._append_trace_log("\n===== %s：%r（阶段 %d）=====\n"
+                               % ("离线回放" if replay else "这一枪",
+                                  payload["text"], payload["phase"]))
         for name, ok, detail in payload["judgements"]:
             self._append_trace_log("%s %s — %s\n" % ("PASS" if ok else "FAIL", name, detail))
         summary = payload["summary"]
@@ -977,8 +1047,9 @@ class ValidationUI(tk.Tk):
                               % (summary["records"], summary["chars"], 100.0 * summary["top4_share"]))
         if payload["html"]:
             self._append_trace_log("浏览器页：%s\n" % payload["html"])
-        self.status_var.set("CPU 数据流：%s（%d 条记录）" % ("PASS" if payload["pass"] else "FAIL",
-                                                        payload["count"]))
+        self.status_var.set("%s：%s（%d 条记录）"
+                            % ("CPU 数据流 · 离线回放" if replay else "CPU 数据流",
+                               "PASS" if payload["pass"] else "FAIL", payload["count"]))
         self._trace_select(0)
         # 「连续采集（实时刷新）」：上一枪跑完立刻再来一枪，热力图就一直跟着板子动。
         if self.trace_live_var.get() and payload["pass"]:
@@ -2001,10 +2072,17 @@ def main(argv=None) -> int:
     ap.add_argument("--capture-text", default="", help="启动后自动在第 2 页采集这个字符串")
     ap.add_argument("--wave-text", default="",
                     help="启动后自动在第 2 页跑一次 0xAB（波形 + 指令流按拍对齐）")
+    ap.add_argument("--trace-log", default="",
+                    help="离线回放：把保存下来的 0xAA 回包日志画进第 2 页（不需要开发板）")
+    ap.add_argument("--trace-phase", type=int, default=0, choices=(0, 1),
+                    help="离线回放按哪个阶段判据：0=只记处理过程 1=连串口轮询一起记（要与录包对应）")
     args, _unknown = ap.parse_known_args(argv)
     app = ValidationUI()
     if args.page == 2:
         app.notebook.select(1)
+    if args.trace_log:
+        app.notebook.select(1)
+        app.after(600, lambda: app._load_trace_log(Path(args.trace_log), args.trace_phase))
     if args.phase:
         app.trace_phase_var.set(TRACE_PHASE_LABELS[min(args.phase, len(TRACE_PHASE_LABELS) - 1)])
     if args.capture_text:

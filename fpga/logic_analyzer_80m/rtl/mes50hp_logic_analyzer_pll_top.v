@@ -18,7 +18,7 @@ module mes50hp_logic_analyzer_pll_top #(
  pll_80m u_pll(.clk_50m_in(clk_50m),.clk_80m(clk_80m),.pll_locked(pll_locked));
 
  // 顶层内部自复位：先等 PLL 锁定，再用 8 位计数器完成上电复位释放。
- // USE_EXTERNAL_RESET=0 的内部上电复位契约保持不变，只是改为 80 MHz 域计数。
+ // USE_EXTERNAL_RESET=0 的内部上电复位约定保持不变，只是改为 80 MHz 域计数。
  reg [7:0] por_count = 0; reg reset = 1;
  always @(posedge clk_80m) begin
   if(!pll_locked) begin por_count<=0; reset<=1; end

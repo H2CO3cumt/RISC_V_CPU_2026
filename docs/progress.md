@@ -1,6 +1,21 @@
 # Project Progress
 
-> 最后更新：2026-10-21（**提交级 trace 可视化（进行中）**：Core 外部的 trace 缓冲 +
+> 最后更新：2026-10-30（**上位机收口为一个 py 文件**：用户明确要求"一个 py 文件实现所有功能"。
+> 唯一用户入口改为仓库根目录 `逻辑分析仪演示.py`（单文件、自包含，只依赖 pyserial），
+> 本日补齐 13 条 trace 判据 + 示例/实时来源标识，并把内置样例换成与当前固件同源的 100 条实板记录；
+> 根目录 `pyUI.py` 退化为跳板，`python/start_logic_analyzer*.cmd` 改为拉起单文件。
+> 多文件那套（`python/mes50hp_validation_ui.py` + 5 模块）只保留为回归被测对象，**不再是入口**。
+> 详见文末 2026-10-30 章节。）
+> 上一版：2026-10-28（**第 ② 页离线回放与交付包收口**：修掉"热力图看起来是写死的"
+> ——样本换成与当前 trace85 镜像同源的那一枪（15/15 PASS）、回放判据改用打点值当输入、
+> 第 ② 页加「离线回放」徽标、真采集/离线拆成两个入口；交付包 10-14 之后首次重跑导出链：
+> `EXPORT PASS files=315` → `MANIFEST PASS files=4092` → `AUDIT PASS final_files=316`。
+> 不改任何 RTL、不改 `pipeline_cpu.v`、不重打位流。详见文末 2026-10-28 章节。）
+> 上一版：2026-10-28（**提交代码包与用语清理**：桌面生成
+> `RISC-V_CPU_2026_提交代码_20261028.zip`（2,440 个文件 / 8.54 MB），只含代码；
+> 72 个源码与脚本文件里的过程性黑话已清理，RTL 只动注释；包内按 23 条词表复扫 0 命中，
+> 解压后直接跑回归全 PASS。详见文末 2026-10-28 章节。）
+> 上一版：2026-10-21（**提交级 trace 可视化（进行中）**：Core 外部的 trace 缓冲 +
    MMIO 从端口 + 固件 0xAA 命令 + 单页数据流可视化；模块级与上位机判据全 PASS、
    **PDS `All Constraints Met`**；SoC 端到端仿真场景 2 还差一个 TB 缓冲参数，
    **实板验证被"JTAG 下载线未被系统识别"阻塞**。详见文末 2026-10-21 章节。
@@ -1583,3 +1598,301 @@ dv=404 rec=404 mismatch=0        （判据 7/7 PASS）
   所以 **load 地址不在记录里**；页面能显示 load 读到的值，地址只在基址寄存器
   于窗口内被写过时才推算，推不出来就显示 `?`。这一条必须原样写进材料与答辩。
 - 不把本功能称为 PDS ILA，也不宣称替代它。
+
+## 2026-10-28 提交代码包与用语清理
+
+### 1. 做了什么
+
+- 桌面生成 `RISC-V_CPU_2026_提交代码_20261028.zip`：2,444 个文件，未压缩 69.6 MB，
+  压缩后 8.54 MB。内容为纯代码——`rtl/`、`tb/`、`software/`、`python/`、`scripts/`、
+  `tests/`、`third_party/`，以及 `fpga/` 下 27 个工程的 rtl、constraints、`.pds`、
+  `pds_recipe.tcl`、位流、布线后时序报告与厂商 IP 源码，外加一份顶层 `README.txt`。
+  按用户决定，`docs/` 不进包。
+- **上位机入口补回**：第一版把 `python/*.cmd` 整批排除了，导致带寄存器热力图的主界面
+  （`python\pyUI.py`，页面②「CPU 数据流」）在包里没有入口。四个 `.cmd` 已放进包，
+  其中三个原本把路径写成交付包的 `tools\` 布局、在源码树里跑不通，已改成仓库布局
+  （`..\scripts\...` 与同目录 `pyUI.py`、`trace_board.py`），失败提示里的位流路径也换成
+  `fpga\...` 实际位置。冒烟验证：包内 `ValidationUI()` 建成两个页签，
+  含「CPU 数据流（寄存器热力图）」。README 增加「0) 打开上位机」一节。
+- 清掉源码与脚本里的过程性黑话，共 72 个文件：`契约`改为`规范`/`验收条目`/`约定`，
+  `冻结`改为`固定`/`保持不变`/`已归档`，`止损`改为`回退条件`/`取舍条件`，
+  `闸门`改为`阶段检查`，`闭环`改为`端到端`，`打通`改为`跑通`/`已验证`，
+  `经用户批准`改为`已确认`，代码里的 `Agent` 字样删除。
+  **RTL 只改注释，没有动任何逻辑语句**；改完按 23 条词表复扫包内 2,265 个文本文件，0 命中。
+- 包内 `README.txt` 的每条命令都实测过再写，其中三条按实测更正：
+  `check_coremark_elf.ps1` 必须带 `-Disassembly`/`-Attributes`；
+  `逻辑分析仪演示.py --selftest` 同样要接开发板；上位机依赖 pyserial 3.5。
+
+### 2. 顺手修掉的一处既有问题
+
+`scripts/run_scope_audit.ps1` 原为 UTF-8 无 BOM。PowerShell 5.1 按 ANSI(936) 解码时
+会把换行吞掉（实测 83 行读成 72 行），脚本里的前置检查与 `throw` 行号全部错位，
+该审计必然失败。已补 BOM；全仓 `scripts/*.ps1` 现在都带 BOM。
+
+### 3. 验证（都在解压出来的包目录里跑，不是开发仓库）
+
+- `scripts\run_pipeline_regression.ps1`：ALL PIPELINE REGRESSION PASS（13 项）
+- `scripts\run_rv32i_regression.ps1`：ALL RV32I REGRESSION PASS
+- `scripts\run_coremark_pipeline_tb.ps1`：ALL COREMARK PIPELINE TEST PASS，
+  cycles=1,251,724、retired=786,925，与包内 README 印的数字一致
+- `run_trap_pipeline_tb`、`run_trap_golden_judge`、`run_csr_unit_tb`、`run_timer_irq_tb`、
+  `run_mdu_tb`、`run_pipeline_m_ext_tb`、`run_ras_tb`、`run_cpi_attribution_tb`、
+  `run_logic_analyzer_tb`、`run_logic_analyzer_board_top_tb`、`run_logic_analyzer_mirror_tb`、
+  `run_trace_buffer_tb`、`run_core_trace_mmio_tb`：全 PASS
+- `scripts\run_scope_audit.ps1`：SCOPE AUDIT PASS（补 BOM 之后）
+- `scripts\generate_coremark_fpga_memory.ps1`：COREMARK FPGA MEMORY GENERATED
+- `python -m py_compile`、`.ps1` 语法解析、`node --check`：改过的文件全 PASS
+
+### 4. 有意没动的部分
+
+- `docs/`、`AGENTS.md`、`AGENTS.local.md` 里的过程用语保留原样：它们是开发记录与规则文件，
+  不进提交包，改写它们会破坏证据链。
+- `scripts/apply_scope_change.py` 没进包：它是文档迁移用的一次性脚本，通篇在讲内部流程。
+  `python/*.cmd` 这一版已进包并修好路径（见 §1），不再排除。
+- RTL/TB 注释里"不是 A，而是 B"的对比句留了 8 处，它们承担真实对照，不是话术。
+- 厂商 IP（`fpga/*/ip/**`、`pds_ip_probe/rtl/ips_*`）没改：里面有加密保护声明，改了就坏。
+
+## 2026-10-28 追加：寄存器写回热力图改为复用现有上位机（不另写一份）
+
+### 1. 经过
+
+用户先指出交付包里的 `逻辑分析仪演示.py` 没有寄存器写回热力图，随后明确纠正：
+既然 `python/mes50hp_validation_ui.py` 第 2 页早就有这个热力图，就直接用它，不要另写一份。
+第一版我在单文件里独立实现了一遍（协议 + 解析 + 反汇编 + Canvas 画图 + HTML 导出，约 810 行），
+虽然自检与交叉验证都过了，但**两份实现必然走形**，已整段删除：
+文件从 2576 行回到 1766 行（原始 1702 行 + 跳转入口）。
+
+### 2. 现在的做法
+
+- `python/mes50hp_validation_ui.py` 只加两个小口子，热力图本身一行没动：
+  - `--trace-log PATH`：离线回放一枪保存下来的 0xAA 回包，第 2 页照样出图，不需要开发板；
+  - `ValidationUI._load_trace_log()`：走的是与真采集**同一套**
+    `parse_capture / build_flow / judge / summarise`，只多一步"从文件读回包"；
+    结果投进既有事件队列，由 `_poll_events` 在 UI 线程里画。
+- `python/samples/trace_hello_rv.log`：2026-10-24 板上跑 `hello,rv` 的真实回包
+  （100 条记录 / 8 个打点），供离线回放。
+  **2026-10-28 修正**：此前这份文件实际停留在 2026-10-23 那一版固件（PC 整段比现在低 0x434），
+  已换成 `release/evidence/trace85_board/trace_phase0.log` 的逐字节副本，与当前
+  `fpga/trace85/rtl/logic_analyzer_program.mem` 判据 **15/15 PASS**；配对关系与自检命令见
+  `python/samples/README.md`。
+- `逻辑分析仪演示.py` 新增 `find_pyui()` / `sample_trace_log()` / `open_full_ui()`，
+  顶部按钮改成「▶ CPU 数据流（寄存器热力图）」：点子进程打开 pyUI 第 2 页，
+  没有板子时顺带离线回放上面那份样本。演示程序里不再有任何热力图绘制代码。
+
+### 3. 验证
+
+- 包内（解压后）检查：`find_pyui()` / `sample_trace_log()` 均指向包内文件；
+  `open_full_ui` 起的命令与工作目录正确；第 2 页离线回放出 **100 条记录、
+  324 个矩形（焊点）**，选中第 42 条得 `lbu x15,0(x8)`。
+- `python python/mes50hp_validation_ui.py --page 2 --trace-log python/samples/trace_hello_rv.log`
+  实起一次：进程在跑（参数被接受、窗口起来了），验证后已关闭；`--page 9` 会被 argparse 拒绝。
+- 既有测试全绿：`test_logic_analyzer_ui` + `test_trace_ui` 共 39 项 OK、
+  `test_logic_analyzer_singlefile` 6 项 OK、`singlefile_protocol_check.py` PASS。
+
+### 4. 踩到的坑
+
+- `probe` 回调的实参个数不能改：既有测试按 7 个参数回调，我一度加了第 8 个，
+  `after` 回调里抛 TypeError，整个测试超时。入口统一挂在 `st["open_trace"]` 上。
+- 离线回放要先把 notebook 切到第 2 页再画：页面没显示时画布宽度是 0，
+  `_tl_geom()` 只算得出几个像素的视窗（第一版验证脚本就是这么假失败的）。
+
+### 5. 交付包的 UI 入口改为 pyUI（2026-10-28 收尾）
+
+用户明确要求：包里只放"之前那份含热力图的完整 UI"，旧的单文件演示程序不要。
+
+- 打包清单里删掉 `逻辑分析仪演示.py`，包根目录只剩 `README.txt`；上位机入口为
+  `python\pyUI.py`，页面②就是寄存器写回热力图。
+- `python/pyUI.py` 改成不带参数即 `--page 2 --trace-log samples/trace_hello_rv.log`，
+  所以双击它直接停在热力图页，并且已经离线回放一枪真实记录（100 条），没有板子也有图；
+  带参数时行为不变（例如 `--page 1` 仍是八通道波形页）。
+- 包内验证（解压后）：无 `*演示.py`；`pyUI.py` 默认参数正确；第 2 页 100 条记录、
+  324 个矩形焊点；选中第 7 条得 `sw x15,0(x12)`；`python pyUI.py` 起得来且不退出。
+- 仓库里的 `逻辑分析仪演示.py` 暂时保留：`singlefile_protocol_check.py`、
+  `test_logic_analyzer_singlefile.py` 与 `export_final_submission.ps1`、
+  `audit_release_package.ps1`、`build_submission_bundle.ps1`、`run_ui_source_board.ps1`
+  都指向它，直接删会让回归与导出脚本报错。工具链里这一条留待用户确认后一并处理。
+- 另外记一笔排查结论：单文件版里 `<<TreeviewSelect>>` 会自己触发自己
+  （回调里再 `selection_set`），Tk 事件队列永远清不空、窗口卡死；
+  用"已经是那一行就不再 selection_set"的幂等写法修掉（该文件现已不在交付包内）。
+### 6. 上位机入口提到包根目录（2026-10-28 收尾）
+
+用户要求把 UI 放到醒目位置。做法是在包根目录放一个 `pyUI.py`（1.4 KB，只有入口逻辑）：
+把 `python/` 加进 `sys.path` 后调用 `mes50hp_validation_ui.main()`，
+**不复制任何 UI 代码**；界面本体仍然是 `python/mes50hp_validation_ui.py` 那一份。
+不带参数时传 `--page 2 --trace-log python/samples/trace_hello_rv.log`，
+所以双击包根目录的 `pyUI.py` 直接落在寄存器热力图页且已有数据。
+
+包内验证（解压后）：根目录只有 `pyUI.py` 与 `README.txt`；默认参数正确；
+第 2 页 100 条记录、324 个矩形焊点；从包根目录起进程能存活。
+### 7. "双击打不开"的真实原因与修法（2026-10-28 收尾）
+
+用户报告双击 pyUI.py 报错。逐项排查后确认是两件环境事实，都不是代码 bug：
+
+1. 这台机器上 `.py` 的默认打开方式是 VS Code：
+   `AssocQueryString(ASSOCSTR_COMMAND, ".py")` = `"D:\Microsoft VS Code\Code.exe" "%1"`。
+   双击 .py 只会把文件在编辑器里打开，不会运行它；VS Code 本来就在跑，
+   所以连新进程都不会出现。注册表里 `HKCU\Software\Classes\.py` 是 `Python.File`、
+   `Python.File\shell\open\command` 是 py.exe，但实际优先级被 VS Code 的
+   `Applications\Code.exe` 与 `FileExts\.py\OpenWithList` 抢走（无 UserChoice）。
+2. 桌面上当时**没有解压目录**，只有 zip。在资源管理器"压缩文件夹预览"里双击，
+   系统只放出单个临时文件，旁边的 `python\` 不在，于是必然 ModuleNotFoundError；
+   双击时窗口一闪就没，所以用户只看到"报错"。
+
+处理：
+- 包根目录放 `双击我-打开上位机.lnk`：目标 `py.exe`，参数与起始位置用
+  `%USERPROFILE%\Desktop\RISC-V_CPU_2026_提交代码\`（实测 .lnk 参数里的环境变量会展开）。
+  双击 .lnk 永远执行目标，与 .py 关联无关。
+- `pyUI.py` 加自诊断：找不到 `python/mes50hp_validation_ui.py` 时打印中文说明并
+  `input()` 停住，不再一闪而过。
+- 排查期间曾临时改过 `HKCU\Software\Classes\.py`（并把 OpenWithList 备份后删掉）；
+  **已用 reg export 的备份原样回滚**，`.py` 仍是 VS Code，临时建的 `PyScriptRun` 已删除。
+- 验证：把最终 zip 解压到桌面默认目录，ShellExecute 包内那个 .lnk →
+  python 带 `Desktop\RISC-V_CPU_2026_提交代码\pyUI.py` 起来并存活；
+  之前已单独验证该 pyUI 默认参数为第 2 页 + 回放样本，页面 100 条记录 / 324 个焊点矩形。
+
+## 2026-10-28 第 ② 页离线回放与交付包收口（用户授权"全修"）
+
+用户看演示素材时报告"第二页的热力图是写死的"。核查结论：**画图不是写死的**
+（四条泳道全部由 `trace_nodes` 现算，无数据时显示"还没有数据 —— 填字符串，然后点「采集」"），
+但"看起来是写死的"这个判断成立，因为它周围有四个真问题：
+
+1. 默认入口固定喂一份 **2026-10-23 的旧固件录包**，每次打开都是同一张图；
+2. 那份录包与当前 `fpga/trace85/rtl/logic_analyzer_program.mem` **不同源**（PC 整段差 0x434），
+   于是 `pc 与位流镜像同源` 100 条全错，状态栏常驻 `FAIL`；
+3. 回放路径把回包 `TRACE TEXT`（已大写化）当成"发送的字符"，稳定多出 2 条假 FAIL；
+4. 第 ② 页没有任何"这是回放"的标识（提示只进了第①页的日志框），
+   且交付包里**根本没有第 ② 页**（缺 `trace_view.py`/`trace_board.py`，包内 UI 是 40 KB 旧版）。
+
+用户当日批准"全修"。本轮**不改任何 RTL、不改 `pipeline_cpu.v`、不重打位流、不改任何位流哈希**。
+
+### 1. 改动清单
+
+| 文件 | 改动 | 为什么 |
+|---|---|---|
+| `python/samples/trace_hello_rv.log` | 换成 `release/evidence/trace85_board/trace_phase0.log` 的**逐字节副本** | 归档证据与当前镜像 **15/15 PASS**，旧样本 100 条 PC 全不一致 |
+| `python/samples/README.md`（新增） | 记录来源、`hello,rv`、100 条/8 打点、样本 SHA、镜像 SHA、自检命令 | 样本与镜像是"一对"，配对关系必须写在样本旁边 |
+| `python/mes50hp_validation_ui.py` | ①`_load_trace_log` 的 `sent` 改为从打点还原（新增 `phase` 参数与 `--trace-phase`）；②`_show_trace` 识别 `payload["replay"]`，置/撤「离线回放」徽标，判据标题与状态栏写明"离线回放/仅供参考"；③新增 `_set_trace_replay()` | 消掉 2 条假 FAIL；让"放录像"与"板子刚采的"一眼可分 |
+| `python/start_logic_analyzer.cmd` | 自动探测 `pyUI.py` / `tools\pyUI.py`，显式 `--page 1` | 原版写死 `pyUI.py`，在交付包根目录必然报"找不到文件" |
+| `python/start_logic_analyzer_offline.cmd`（新增） | 第 ② 页离线回放入口，样本两处布局都能找到 | 真采集与离线演示拆成两条入口，不再靠"默认行为"隐式区分 |
+| `scripts/export_final_submission.ps1` | 增补 `python/samples/` → `tools/samples/`、`离线演示.cmd`；README 段说明两条入口 | 包里没有样本，第 ② 页在评委机上只有一句"还没有数据" |
+| `scripts/audit_release_package.ps1` | `$required` 加 `tools/trace_view.py`、`tools/trace_board.py`、`tools/samples/trace_hello_rv.log`、`离线演示.cmd` | 2026-10-22 就加了 trace 文件拷贝但包没重导，审计没拦住 ⇒ 把它写进必检清单 |
+| `scripts/make_desktop_shortcuts.ps1` | 加一条 `06b_上位机_离线演示_无板可看.lnk`（未运行该脚本） | 桌面出口与新增入口保持一致 |
+| `python/test_trace_ui.py` | 新增 `OfflineReplaySampleTests`（3 项）与 `ReplayBannerTests`（3 项） | 钉住"样本↔镜像同源""sent 必须取打点""徽标置/撤"三件事 |
+
+### 2. 验证（实际执行的命令与结果）
+
+```powershell
+# ① 样本 ↔ 镜像同源（headless，不需要板子）
+cd python; python -c "import trace_view as tv; from pathlib import Path; cap=tv.parse_capture(Path('samples/trace_hello_rv.log').read_bytes().decode('utf-8','replace')); sent=''.join(chr(m['value']) for m in cap['marks']); im=tv.load_program_mem(Path('../fpga/trace85/rtl/logic_analyzer_program.mem')); r=tv.judge(cap,sent,0,im,depth=4096); print(tv.judgements_pass(r), [n for n,ok,_ in r if not ok])"
+# 修前：旧样本用当前镜像 → FAIL（pc 同源 100 条不一致）；用回包文本当 sent → 3 条 FAIL
+# 修后：True []（15/15 PASS）
+
+# ② 上位机测试
+cd python; python test_trace_ui.py           # Ran 34 tests ... OK（含新增 6 项）
+cd python; python test_trace_ui_pixels.py    # Ran 4 tests ... OK
+cd python; python test_logic_analyzer_ui.py  # Ran 11 tests ... OK
+
+# ③ 启动入口四种布局实测（假 pyUI 只打印 argv）
+#   仓库布局（pyUI.py 同级）：live ['--page','1'] / offline ['--page','2','--trace-log','samples\\trace_hello_rv.log']
+#   交付包布局（仅 tools\pyUI.py）：live ['--page','1'] / offline ['--page','2','--trace-log', ...]
+#   样本缺失：打印中文提示后落 --page 2（空白页，不崩）
+
+# ④ 交付链（2026-10-14 之后首次重跑）
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\export_final_submission.ps1
+#   FINAL SUBMISSION EXPORT PASS files=315 zip=release\MES50HP_RISCV_Logic_Analyzer_Final.zip
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\create_release_manifest.ps1
+#   RELEASE MANIFEST PASS files=4092
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\audit_release_package.ps1
+#   RELEASE PACKAGE AUDIT PASS final_files=316 artifacts=3
+
+# ⑤ 演示自检（只读）
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\demo_preflight.ps1 -Port COM11
+#   DEMO PREFLIGHT PASS warnings=0（demo files 13 entries present）
+```
+
+包内抽查：`tools/trace_view.py`、`tools/trace_board.py`、`tools/trace_viewer.html`、
+`tools/capture_trace.cmd`、`tools/trace_ui_board_check.py`、`tools/samples/trace_hello_rv.log`、
+`tools/samples/README.md`、`离线演示.cmd` 全部在包内；包内 `tools/pyUI.py` 是带默认回放的版本
+（`--page 1` 才走真采集）。
+
+### 3. 本轮没做的事（如实列出）
+
+- **没有上板重录样本**：归档证据 `trace_phase0.log` 与当前镜像逐条 PASS；它本身就是登记在
+  `claims_map.md` §15 的实板证据，换包不换数据。若以后重打 trace85 位流，必须按
+  `python/samples/README.md` 的自检命令复核，或重新采一枪。
+- **没有手点 GUI 截图验证徽标外观**：徽标的"置/撤"由 `ReplayBannerTests` 断言
+  （`winfo_manager()` 为 `pack` / 空），外观留待录屏时目视一次。
+- `scripts/make_desktop_shortcuts.ps1` 只改了定义、**没有运行**（它会往桌面写快捷方式）。
+- 顺带修的两处环境坑（`.ps1` 需 UTF-8 BOM、`.cmd` 需 CRLF）只覆盖本次涉及的文件，
+  详见 `docs/debug_log.md` 2026-10-28 的附录。
+
+### 4. 对演示视频素材的影响（必须遵守）
+
+- 第 ② 页「寄存器热力图」**只能现场真采一枪才准上镜**：双击 `离线演示.cmd` 出来的画面顶部有
+  「离线回放」徽标，那是录像，不能当"板子此刻在跑"的证据。
+- 现场真采需要板子跑 `trace85` 位流（不是交付位流 `la85`）：`scripts\run_trace85_pds.ps1` 建、
+  `scripts\program_board.ps1` 下载后，用 `启动逻辑分析仪.cmd` 或 `pyUI.py --page 1` 进第①页，
+  再到第②页点「采集」。拍完记得把板子恢复成交付位流 `la85`。
+
+## 2026-10-30 上位机收口：只保留一个 py 文件（用户明确要求）
+
+> 用户原话："不要把 py UI 文件分布放置，我要一个 py 文件能实现所有功能。"
+> 此事自 2026-10-10 起已被要求多次，但前几轮把"完整 UI（含热力图）"做成了
+> `python/mes50hp_validation_ui.py` + 5 个模块的多文件结构，并把单文件版判为"重复实现"而弃用。
+> 这是**判断错误**：单文件版 `逻辑分析仪演示.py` 一直在仓库根目录，且功能覆盖更全。
+
+### 1. 唯一用户入口
+
+| 用途 | 文件 | 说明 |
+|---|---|---|
+| **唯一上位机** | `逻辑分析仪演示.py`（仓库根目录，146 KB） | 自包含单文件，只依赖 `pyserial`；五种采集模式 + 双采集源 + 仪器面板 + 波形 + 仪器读数 + VCD/HTML/Markdown 报告 + **CPU 数据流（逐条指令 + 寄存器写回热力图）** |
+| 跳板 | `pyUI.py`（根目录） | 只剩 30 行：`runpy` 拉起上面那个文件，自己不再实现任何功能 |
+| 启动器 | `python/start_logic_analyzer.cmd`（交付包 `启动逻辑分析仪.cmd`） | 拉起单文件；仓库布局（`python\` 下）与交付包布局（根目录）都自动定位 |
+| 启动器 | `python/start_logic_analyzer_offline.cmd`（交付包 `离线演示.cmd`） | `--trace` 直接开「CPU 数据流」窗口，点『示例数据』即可看热力图，**不需要板子、不需要样本文件** |
+
+多文件那套（`python/mes50hp_validation_ui.py`、`trace_view.py`、`trace_board.py`、
+`logic_analyzer*.py`、`waveform_panel.py`）**保留但不再是入口**：它们现在是
+`test_trace_ui.py` / `test_trace_ui_pixels.py` / `test_logic_analyzer_ui.py` 的被测对象，
+删掉会让回归断链。
+
+### 2. 本次给单文件补齐的功能（此前只有多文件版有）
+
+| 补齐项 | 内容 |
+|---|---|
+| **13 条 trace 判据** | 新增 `expected_phase0` / `sent_text_from_marks` / `judge_trace` / `judgements_pass`；`TraceWindow` 底部新增「判据（这一枪可不可信）」面板，逐条列 PASS/FAIL，标题行给 `n/n` 汇总 |
+| **示例/实时来源标识** | 状态栏与判据标题都写明来源：`示例数据（离线，不是本机板子）` / `实时采集（本机板子）`，避免把内置样例当成板子刚采的 |
+| **判据口径修正** | `sent` 一律取**打点值**（`sent_text_from_marks`），不用回包 `TRACE TEXT`（那是大写化之后的，会白报 2 条 FAIL） |
+| **内置样例换成当前固件同源的那一枪** | 原内置样片是 **32 条节选**且打点值是大写化之后的：`打点索引` 越界（索引 4…39 > count 32）、`大写字符计数` 也对不上，判据一上就假失败。现替换为 `release/evidence/trace85_board/trace_phase0.log` 全文（100 条 / 8 打点 / `status=0x4`，与 `fpga/trace85/rtl/logic_analyzer_program.mem` 同源） |
+
+### 3. 验证（实际执行）
+
+```powershell
+python "逻辑分析仪演示.py" --trace-selftest
+#   TRACE SELFTEST PASS（20 项）：解析 100 条 / 8 打点 / 发送文本取打点值 'hello,rv'
+#   / 判据全部通过（13 条）/ 用回包文本判据必然报错 / 反汇编 12 条 / 59 个写回方格
+#   / 画图与空数据不崩 / 导出网页 45176 字节
+
+python python\test_logic_analyzer_singlefile.py     # Ran 6 tests ... OK
+python python\singlefile_protocol_check.py         # SINGLE FILE CHECK PASS
+python pyUI.py --trace-selftest                    # 跳板可用，同上 PASS
+
+# 启动器四种布局实测（假 app 打印 argv）
+#   仓库布局 python\*.cmd：live [] / offline ['--trace']
+#   交付包布局 根目录 *.cmd：live [] / offline ['--trace']
+
+scripts\export_final_submission.ps1   # FINAL SUBMISSION EXPORT PASS files=315
+scripts\create_release_manifest.ps1   # RELEASE MANIFEST PASS files=4092
+scripts\audit_release_package.ps1     # RELEASE PACKAGE AUDIT PASS final_files=316
+```
+
+包内自查：`release/final_submission/逻辑分析仪演示.py` 与仓库版**哈希一致**
+（`B1A00302…`，146,192 字节）；`启动逻辑分析仪.cmd` / `离线演示.cmd` 都指向它。
+
+### 4. 未做 / 边界
+
+- 单文件版**没有**多文件版的三样东西：`0xAB` 波形+指令按拍对齐、四组泳道时间轴（寄存器/PC/写存储/事件）+ 播放条、
+  `--page` 命令行选页（单文件用「示例数据」按钮和 `--trace` 开关代替）。这三样是锦上添花，
+  要不要补进单文件由用户决定——补的话仍然只改这一个文件。
+- 单文件**不判断"样本与固件镜像同源"**：它的助记符直接由记录里的指令字反汇编，不依赖任何外部镜像，
+  所以那条判据在本文件里不存在（多文件版的 15 条里那条也不适用）。
+- 本轮未改任何 RTL、未重打位流、未改位流哈希、未动 `pipeline_cpu.v`。

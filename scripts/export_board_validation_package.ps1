@@ -23,7 +23,7 @@ function Copy-RequiredFile([string]$Source, [string]$Target) {
 # Shared RTL is placed at packageRoot/rtl because every PDS project keeps the
 # original ../../rtl source references and is opened from packageRoot/projects/*.
 $sharedRtl = @(
-  'pipeline_cpu.v','branch_predictor.v','forward_unit.v','hazard_unit.v','perf_monitor.v','perf_mmio.v',
+  'pipeline_cpu.v','branch_predictor.v','csr_unit.v','forward_unit.v','hazard_unit.v','perf_monitor.v','perf_mmio.v',
   'regfile.v','alu.v','imm_gen.v','decoder.v','branch_unit.v','load_store_unit.v',
   'soc_data_interconnect.v','soc_fpga_memory.v','uart_tx.v','uart_rx.v',
   'uart_mmio.v','gpio_mmio.v','capture_engine.v','logic_analyzer_pattern_gen.v',

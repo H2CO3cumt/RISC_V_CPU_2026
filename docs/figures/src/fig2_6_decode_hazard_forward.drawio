@@ -1,0 +1,41 @@
+﻿<mxfile host="app.diagrams.net" type="device">
+  <diagram name="图2-6 译码、冒险与前递流程图" id="fig2_6">
+    <mxGraphModel dx="1200" dy="1260" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1200" pageHeight="1260" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="n1" value="指令字进入译码级&#10;ifid_instr" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fontSize=14;fontFamily=Microsoft YaHei;fillColor=#FFE9D2;strokeColor=#D9822B;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="200" y="50" width="340" height="90" as="geometry" /></mxCell>
+        <mxCell id="n2" value="译码（指令 → 控制信号）&#10;reg_write · alu_src_a · alu_src_b · alu_ctrl&#10;mem_read · mem_write · result_src&#10;branch · jump · jalr · mdu_en · mdu_op&#10;csr_en · csr_wen · trap_ecall · trap_ebreak" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fontSize=14;fontFamily=Microsoft YaHei;fontStyle=1;fillColor=#FFE9D2;strokeColor=#D9822B;strokeWidth=2.5;" vertex="1" parent="1"><mxGeometry x="200" y="180" width="340" height="180" as="geometry" /></mxCell>
+        <mxCell id="n3" value="提取源寄存器与立即数&#10;rs1 · rs2 · rd · imm&#10;寄存器堆读出 rs1_data · rs2_data" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fontSize=14;fontFamily=Microsoft YaHei;fillColor=#FFE9D2;strokeColor=#D9822B;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="200" y="400" width="340" height="120" as="geometry" /></mxCell>
+
+        <mxCell id="d4" value="Load-Use 冲突 ?" style="rhombus;whiteSpace=wrap;html=1;fontSize=14;fontFamily=Microsoft YaHei;fillColor=#FFFFFF;strokeColor=#C86F17;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="260" y="560" width="220" height="130" as="geometry" /></mxCell>
+        <mxCell id="cond" value="判据&#10;ID/EX 为 Load 且&#10;目标寄存器等于本条 rs1 或 rs2" style="rounded=0;whiteSpace=wrap;html=1;fontSize=13;fontFamily=Microsoft YaHei;align=center;fillColor=#FFF9F3;strokeColor=#E0A458;strokeWidth=1.5;dashed=1;" vertex="1" parent="1"><mxGeometry x="30" y="700" width="280" height="110" as="geometry" /></mxCell>
+
+        <mxCell id="n5" value="插入一拍停顿（气泡）&#10;PC 与 IF/ID 保持，ID/EX 清空&#10;load_use_stall" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fontSize=14;fontFamily=Microsoft YaHei;fillColor=#FFD9B0;strokeColor=#C86F17;strokeWidth=2.5;" vertex="1" parent="1"><mxGeometry x="680" y="565" width="340" height="120" as="geometry" /></mxCell>
+
+        <mxCell id="n6" value="前递选择（三选一）&#10;forward_a · forward_b&#10;优先 EX/MEM，其次 MEM/WB，&#10;都不命中则用寄存器堆读出值" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fontSize=14;fontFamily=Microsoft YaHei;fontStyle=1;fillColor=#CCE2F7;strokeColor=#2E6FB7;strokeWidth=2.5;" vertex="1" parent="1"><mxGeometry x="180" y="850" width="380" height="160" as="geometry" /></mxCell>
+        <mxCell id="n7" value="生成 EX 级操作数&#10;operand_a = alu_src_a ? imm : 前递后 rs1&#10;operand_b = alu_src_b ? imm : 前递后 rs2" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fontSize=14;fontFamily=Microsoft YaHei;fillColor=#CCE2F7;strokeColor=#2E6FB7;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="180" y="1060" width="380" height="120" as="geometry" /></mxCell>
+        <mxCell id="n8" value="写入 ID/EX&#10;idex_* 控制信号与操作数" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fontSize=14;fontFamily=Microsoft YaHei;fillColor=#FFE9D2;strokeColor=#D9822B;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="180" y="1230" width="380" height="100" as="geometry" /></mxCell>
+
+        <mxCell id="s1" value="EX/MEM 结果&#10;exmem_regwrite · exmem_memread · exmem_rd" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fontSize=14;fontFamily=Microsoft YaHei;fillColor=#D8EEDA;strokeColor=#2E7D32;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="660" y="840" width="360" height="100" as="geometry" /></mxCell>
+        <mxCell id="s2" value="MEM/WB 结果&#10;memwb_regwrite · memwb_error · memwb_rd" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fontSize=14;fontFamily=Microsoft YaHei;fillColor=#D8EEDA;strokeColor=#2E7D32;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="660" y="960" width="360" height="100" as="geometry" /></mxCell>
+
+        <mxCell id="e12" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#5F5F5F;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="n1" target="n2"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e23" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#5F5F5F;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="n2" target="n3"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e34" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#5F5F5F;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="n3" target="d4"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e4n" value="否" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=13;fontFamily=Microsoft YaHei;fontColor=#1F5E9E;strokeColor=#2E6FB7;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="d4" target="n6"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="370" y="810" /></Array></mxGeometry></mxCell>
+        <mxCell id="e4y" value="是" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;fontSize=13;fontFamily=Microsoft YaHei;fontColor=#B5641A;strokeColor=#C86F17;strokeWidth=2;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="d4" target="n5"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e52" value="载入结果可用后重新译码" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;horizontal=1;fontSize=13;fontFamily=Microsoft YaHei;fontColor=#B5641A;strokeColor=#C86F17;strokeWidth=2;dashed=1;exitX=0.5;exitY=0;entryX=1;entryY=0.5;" edge="1" parent="1" source="n5" target="n2"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="1100" y="625" /><mxPoint x="1100" y="270" /></Array></mxGeometry></mxCell>
+
+        <mxCell id="es1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2E7D32;strokeWidth=2;exitX=0;exitY=0.5;entryX=1;entryY=0.3;" edge="1" parent="1" source="s1" target="n6"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="es2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2E7D32;strokeWidth=2;exitX=0;exitY=0.5;entryX=1;entryY=0.7;" edge="1" parent="1" source="s2" target="n6"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <mxCell id="e67" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#5F5F5F;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="n6" target="n7"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e78" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#5F5F5F;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="n7" target="n8"><mxGeometry relative="1" as="geometry" /></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
+
+

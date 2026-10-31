@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RISC-V 提交级 trace 数据流</title>
+<style>
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; }
+  body { background:#0e1420; color:#e7eefc; font:13px/1.5 "Microsoft YaHei","Segoe UI",sans-serif;
+         display:flex; flex-direction:column; overflow:hidden; }
+  header { background:#151d2c; border-bottom:1px solid #2b3a55; padding:8px 14px;
+           display:flex; flex-wrap:wrap; gap:14px; align-items:center; }
+  header h1 { font-size:15px; margin:0; white-space:nowrap; letter-spacing:.5px; }
+  .kv { color:#93a4c4; white-space:nowrap; }
+  .kv b { color:#e7eefc; font-weight:600; }
+  .badge { border-radius:999px; padding:2px 10px; font-size:12px; border:1px solid #33445f; background:#1a2436; }
+  .badge.ok { border-color:#2f7d5b; background:#123527; color:#8ff0c0; }
+  .badge.warn { border-color:#8a6d1f; background:#2c2410; color:#ffd479; }
+  .badge.bad { border-color:#8a2f2f; background:#2c1414; color:#ff9a9a; }
+  .spacer { flex:1 1 auto; }
+
+  #chars { background:#111827; border-bottom:1px solid #2b3a55; padding:6px 14px; display:flex;
+           gap:6px; align-items:center; flex-wrap:wrap; color:#93a4c4; }
+  .ch { font:600 15px/1 ui-monospace,Consolas,monospace; background:#1a2436; border:1px solid #2f4058;
+        border-radius:6px; padding:7px 11px; cursor:pointer; color:#cfe8ff; }
+  .ch:hover { background:#26364e; }
+  .ch.active { background:#0d5c86; border-color:#39c0ff; color:#fff; }
+  .ch small { display:block; color:#93a4c4; font-size:10px; font-weight:400; margin-top:2px; }
+
+  #overviewWrap { background:#0b111d; border-bottom:1px solid #2b3a55; padding:0; position:relative; height:74px; }
+  #overview { display:block; width:100%; height:74px; cursor:crosshair; }
+
+  main { flex:1 1 auto; display:grid; grid-template-columns:minmax(0,1.35fr) minmax(320px,1fr);
+         min-height:0; }
+  #left { display:flex; flex-direction:column; min-height:0; border-right:1px solid #2b3a55; }
+  #right { display:flex; flex-direction:column; min-height:0; overflow:auto; }
+
+  #toolbar { display:flex; gap:8px; align-items:center; padding:6px 10px; background:#131b29;
+             border-bottom:1px solid #24334b; flex-wrap:wrap; }
+  button { background:#1e2a3d; color:#e7eefc; border:1px solid #33445f; border-radius:6px;
+           padding:5px 11px; cursor:pointer; font-size:12px; }
+  button:hover { background:#26364e; }
+  button.primary { background:#0d5c86; border-color:#39c0ff; }
+  input[type=range] { flex:1 1 auto; min-width:120px; accent-color:#39c0ff; }
+  select { background:#1e2a3d; color:#e7eefc; border:1px solid #33445f; border-radius:6px; padding:4px 6px; }
+
+  #list { flex:1 1 auto; overflow:auto; min-height:0; }
+  table { border-collapse:collapse; width:100%; font:12px/1.45 ui-monospace,Consolas,monospace; }
+  th,td { text-align:left; padding:2px 8px; white-space:nowrap; }
+  thead th { position:sticky; top:0; background:#151d2c; color:#93a4c4; font-weight:500;
+             border-bottom:1px solid #2b3a55; z-index:2; }
+  tbody tr { cursor:pointer; }
+  tbody tr:hover { background:#16202f; }
+  tbody tr.sel { background:#0d3d5c; outline:1px solid #39c0ff; }
+  tbody tr.src { background:#2b2113; }
+  tbody tr.dst { background:#122b22; }
+  .pc { color:#7f96bb; }
+  .asm { color:#e7eefc; }
+  .val { color:#9ad0ff; }
+  .tag { font-size:10px; padding:1px 6px; border-radius:4px; margin-right:4px; }
+  .tag.w { background:#173a2c; color:#8ff0c0; }
+  .tag.m { background:#33240f; color:#ffcf7a; }
+  .tag.c { background:#331a3a; color:#e6a8ff; }
+  .tag.e { background:#3a1717; color:#ff9a9a; }
+
+  #busWrap { background:#0b111d; border-bottom:1px solid #2b3a55; height:62px; position:relative; }
+  #buslane { display:block; width:100%; height:62px; cursor:crosshair; }
+  #busLegend { position:absolute; right:10px; top:4px; font-size:11px; color:#93a4c4; display:flex; gap:10px; }
+  #busLegend i { display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:4px; vertical-align:-1px; }
+
+  #regWrap { background:#0b111d; border-bottom:1px solid #2b3a55; height:136px; position:relative; }
+  #regmap { display:block; width:100%; height:136px; cursor:crosshair; }
+  #regTitle { position:absolute; left:10px; top:4px; font-size:11px; color:#93a4c4; }
+
+  .card { border-bottom:1px solid #24334b; padding:10px 12px; }
+  .card h2 { font-size:12px; color:#93a4c4; margin:0 0 8px; font-weight:500; letter-spacing:.5px; }
+  .big { font:600 15px/1.6 ui-monospace,Consolas,monospace; color:#fff; word-break:break-all; }
+  .row { display:flex; gap:10px; padding:2px 0; }
+  .row .k { color:#93a4c4; min-width:74px; }
+  .row .v { color:#e7eefc; font-family:ui-monospace,Consolas,monospace; word-break:break-all; }
+  .flowline { display:flex; align-items:center; gap:8px; padding:2px 0; font-family:ui-monospace,Consolas,monospace; font-size:12px; }
+  .flowline .arrow { color:#39c0ff; }
+  .flowline a { color:#9ad0ff; cursor:pointer; text-decoration:underline dotted; }
+  .muted { color:#7f96bb; }
+  #regs { display:grid; grid-template-columns:repeat(4,1fr); gap:3px; font:11px/1.4 ui-monospace,Consolas,monospace; }
+  #regs div { background:#16202f; border-radius:4px; padding:2px 5px; white-space:nowrap; overflow:hidden; }
+  #regs div.hot { background:#0d3d5c; }
+  #regs div.zero { color:#5a6b88; }
+  footer { background:#151d2c; border-top:1px solid #2b3a55; padding:5px 14px; color:#93a4c4; font-size:11px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>RISC-V 提交级 trace · 数据流</h1>
+  <span class="kv">发送串 <b id="hdrSent">—</b></span>
+  <span class="kv">记录 <b id="hdrCount">—</b> 条</span>
+  <span class="kv">打点 <b id="hdrMarks">—</b></span>
+  <span class="kv">窗口阶段 <b id="hdrPhase">—</b></span>
+  <span class="kv">收尾状态 <b id="hdrStatus">—</b></span>
+  <span class="badge" id="hdrOverflow">—</span>
+  <span class="spacer"></span>
+  <span class="kv" id="hdrSource"></span>
+</header>
+
+<div id="chars"></div>
+<div id="overviewWrap"><canvas id="overview"></canvas></div>
+<div id="busWrap">
+  <canvas id="buslane"></canvas>
+  <div id="busLegend">
+    <span><i style="background:#3ad2a0"></i>数据存储写</span>
+    <span><i style="background:#39c0ff"></i>MMIO 命中</span>
+    <span><i style="background:#e6a8ff"></i>打点写入</span>
+    <span><i style="background:#40506b"></i>地址未知</span>
+  </div>
+</div>
+<div id="regWrap">
+  <canvas id="regmap"></canvas>
+  <div id="regTitle">寄存器热力图：横轴 = 记录序号，纵轴 = x0…x31，方格 = 该条记录写回了这个寄存器（黄色 = 当前选中指令读它）</div>
+</div>
+
+<main>
+  <div id="left">
+    <div id="toolbar">
+      <button id="btnFirst" title="窗口开头">⏮</button>
+      <button id="btnPrev">◀</button>
+      <button id="btnPlay" class="primary">▶ 播放</button>
+      <button id="btnNext">▶</button>
+      <button id="btnLast" title="窗口结尾">⏭</button>
+      <input type="range" id="scrub" min="0" max="0" value="0">
+      <span class="kv" id="posLabel">—</span>
+      <select id="speed">
+        <option value="220">慢速</option>
+        <option value="90" selected>常速</option>
+        <option value="30">快速</option>
+      </select>
+      <label class="kv"><input type="checkbox" id="onlyMarked"> 只看打点附近</label>
+    </div>
+    <div id="list"></div>
+  </div>
+  <div id="right">
+    <div class="card">
+      <h2>当前指令</h2>
+      <div class="big" id="detAsm">—</div>
+      <div class="row"><span class="k">记录序号</span><span class="v" id="detIdx">—</span></div>
+      <div class="row"><span class="k">退休 PC</span><span class="v" id="detPc">—</span></div>
+      <div class="row"><span class="k">指令字</span><span class="v" id="detInstr">—</span></div>
+      <div class="row"><span class="k">写回</span><span class="v" id="detWrite">—</span></div>
+      <div class="row"><span class="k">写存储</span><span class="v" id="detMem">—</span></div>
+      <div class="row"><span class="k">字符锚点</span><span class="v" id="detChar">—</span></div>
+    </div>
+    <div class="card">
+      <h2>数据从哪来</h2>
+      <div id="detSrcs" class="muted">—</div>
+    </div>
+    <div class="card">
+      <h2>数据去了哪（窗口内读者）</h2>
+      <div id="detDsts" class="muted">—</div>
+    </div>
+    <div class="card">
+      <h2>寄存器此刻的值（窗口内已写过的才列出）</h2>
+      <div id="regs"></div>
+    </div>
+  </div>
+</main>
+
+<footer id="foot">判据与页面标注同源：本页每个字段、每条助记符都由 python/trace_view.py 的同一份实现算出。这是一个<b>提交级</b>视图（一条记录 = 一条退休指令，没有时钟信息）；每拍的取指/停顿/冲刷请看 8 通道 Core 探针的波形页（docs/application_logic_analyzer.md §6.10），两者分工不同。</footer>
+
+<script>
+const D = {"meta":{"log":"D:\\RISC_V_CPU_2026\\results\\trace\\trace_phase0.log","mem":"D:\\RISC_V_CPU_2026\\fpga\\trace85\\rtl\\logic_analyzer_program.mem","summary":{"records":97,"distinct_pc":16,"hotspots":[{"pc":2492,"asm":"addi x14,x8,0","count":10,"share":0.10309278350515463},{"pc":2496,"asm":"lbu x15,0(x8)","count":10,"share":0.10309278350515463},{"pc":2500,"asm":"sw x15,0(x12)","count":10,"share":0.10309278350515463},{"pc":2504,"asm":"addi x13,x15,-97","count":10,"share":0.10309278350515463},{"pc":2508,"asm":"bltu x11,x13,-32","count":10,"share":0.10309278350515463},{"pc":2476,"asm":"sb x15,0(x14)","count":10,"share":0.10309278350515463},{"pc":2480,"asm":"xor x27,x27,x15","count":10,"share":0.10309278350515463},{"pc":2484,"asm":"addi x8,x8,1","count":10,"share":0.10309278350515463}],"top4_share":0.41237113402061853,"chars":10,"marks":[7,16,25,34,43,52,61,70,79,88],"instructions_per_char":[9,9,9,9,9,9,9,9,9],"sent":"HHELRISC-V"},"judgements":[{"name":"记录条数自洽","ok":true,"detail":"头部 count=97，实际导出 97 条"},{"name":"打点数等于字符数","ok":true,"detail":"marks=10，发送字符数=10"},{"name":"打点值等于发送的字符","ok":true,"detail":"打点=b'HHELRISC-V' 发送=b'HHELRISC-V'"},{"name":"打点索引单调且不越界","ok":true,"detail":"索引=[7, 16, 25, 34, 43, 52, 61, 70, 79, 88]，count=97"},{"name":"大写化结果","ok":true,"detail":"得到 b'HHELRISC-V'，期望 b'HHELRISC-V'"},{"name":"大写字符计数","ok":true,"detail":"up=0，期望 0"},{"name":"XOR 校验","ok":true,"detail":"xor=0x00000079，期望 0x00000079"},{"name":"字符数字段","ok":true,"detail":"chars=10，期望 10"},{"name":"收尾状态位","ok":true,"detail":"status=0x4（armed=0 recording=0 done=1 overflow=0）"},{"name":"未溢出","ok":true,"detail":"overflow=0，count=97，窗口容量=4096"},{"name":"rd_we 不得指向 x0","ok":true,"detail":"越界样本 0 条"},{"name":"store 必须有字节使能","ok":true,"detail":"越界样本 0 条"},{"name":"记录 pc 必须 4 字节对齐","ok":true,"detail":"越界样本 0 条"},{"name":"pc 与位流镜像同源","ok":true,"detail":"不一致记录 0 条"},{"name":"store 有效地址与记录低 12 位一致","ok":true,"detail":"不一致 0 条"}]},"phase":0,"count":97,"status":4,"sent":"HHELRISC-V","text":"HHELRISC-V","xor":121,"up":0,"nodes":[{"i":0,"pc":2456,"raw_pc":2456,"instr":552050723,"asm":"sw x14,512(x15)","mnemonic":"sw","reads":[15,14],"writes":[],"rd":0,"rd_we":0,"rd_data":0,"mem_we":1,"mem_addr":512,"mem_data":1,"mem_wstrb":15,"error":0,"srcs":[{"reg":15,"from":null},{"reg":14,"from":null}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":552050723},{"i":1,"pc":2460,"raw_pc":2460,"instr":593299,"asm":"addi x27,x18,0","mnemonic":"addi","reads":[18],"writes":[27],"rd":27,"rd_we":1,"rd_data":0,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":18,"from":null}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":593299},{"i":2,"pc":2464,"raw_pc":2464,"instr":583501331,"asm":"addi x12,x15,556","mnemonic":"addi","reads":[15],"writes":[12],"rd":12,"rd_we":1,"rd_data":268444204,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":15,"from":null}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":583501331},{"i":3,"pc":2468,"raw_pc":2468,"instr":26215827,"asm":"addi x11,x0,25","mnemonic":"addi","reads":[],"writes":[11],"rd":11,"rd_we":1,"rd_data":25,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":26215827},{"i":4,"pc":2472,"raw_pc":2472,"instr":20971631,"asm":"jal x0,20","mnemonic":"jal","reads":[],"writes":[],"rd":0,"rd_we":0,"rd_data":0,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":20971631},{"i":5,"pc":2492,"raw_pc":2492,"instr":263955,"asm":"addi x14,x8,0","mnemonic":"addi","reads":[8],"writes":[14],"rd":14,"rd_we":1,"rd_data":3816,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":8,"from":null}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":263955},{"i":6,"pc":2496,"raw_pc":2496,"instr":280451,"asm":"lbu x15,0(x8)","mnemonic":"lbu","reads":[8],"writes":[15],"rd":15,"rd_we":1,"rd_data":72,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":8,"from":null}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":280451},{"i":7,"pc":2500,"raw_pc":2500,"instr":16130083,"asm":"sw x15,0(x12)","mnemonic":"sw","reads":[12,15],"writes":[],"rd":0,"rd_we":0,"rd_data":0,"mem_we":1,"mem_addr":556,"mem_data":72,"mem_wstrb":15,"error":0,"srcs":[{"reg":12,"from":2},{"reg":15,"from":6}],"load_addr":null,"store_addr":268444204,"marks":["H"],"imem_instr":16130083},{"i":8,"pc":2504,"raw_pc":2504,"instr":4193748627,"asm":"addi x13,x15,-97","mnemonic":"addi","reads":[15],"writes":[13],"rd":13,"rd_we":1,"rd_data":4294967271,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":15,"from":6}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":4193748627},{"i":9,"pc":2508,"raw_pc":2508,"instr":4275429603,"asm":"bltu x11,x13,-32","mnemonic":"bltu","reads":[11,13],"writes":[],"rd":0,"rd_we":0,"rd_data":0,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":11,"from":3},{"reg":13,"from":8}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":4275429603},{"i":10,"pc":2476,"raw_pc":2476,"instr":16187427,"asm":"sb x15,0(x14)","mnemonic":"sb","reads":[14,15],"writes":[],"rd":0,"rd_we":0,"rd_data":0,"mem_we":1,"mem_addr":3816,"mem_data":72,"mem_wstrb":1,"error":0,"srcs":[{"reg":14,"from":5},{"reg":15,"from":6}],"load_addr":null,"store_addr":3816,"marks":[],"imem_instr":16187427},{"i":11,"pc":2480,"raw_pc":2480,"instr":16633267,"asm":"xor x27,x27,x15","mnemonic":"xor","reads":[27,15],"writes":[27],"rd":27,"rd_we":1,"rd_data":72,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":27,"from":1},{"reg":15,"from":6}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":16633267},{"i":12,"pc":2484,"raw_pc":2484,"instr":1311763,"asm":"addi x8,x8,1","mnemonic":"addi","reads":[8],"writes":[8],"rd":8,"rd_we":1,"rd_data":3817,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":8,"from":null}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":1311763},{"i":13,"pc":2488,"raw_pc":2488,"instr":53740131,"asm":"beq x8,x19,36","mnemonic":"beq","reads":[8,19],"writes":[],"rd":0,"rd_we":0,"rd_data":0,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":8,"from":12},{"reg":19,"from":null}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":53740131},{"i":14,"pc":2492,"raw_pc":2492,"instr":263955,"asm":"addi x14,x8,0","mnemonic":"addi","reads":[8],"writes":[14],"rd":14,"rd_we":1,"rd_data":3817,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":8,"from":12}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":263955},{"i":15,"pc":2496,"raw_pc":2496,"instr":280451,"asm":"lbu x15,0(x8)","mnemonic":"lbu","reads":[8],"writes":[15],"rd":15,"rd_we":1,"rd_data":72,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":8,"from":12}],"load_addr":3817,"store_addr":null,"marks":[],"imem_instr":280451},{"i":16,"pc":2500,"raw_pc":2500,"instr":16130083,"asm":"sw x15,0(x12)","mnemonic":"sw","reads":[12,15],"writes":[],"rd":0,"rd_we":0,"rd_data":0,"mem_we":1,"mem_addr":556,"mem_data":72,"mem_wstrb":15,"error":0,"srcs":[{"reg":12,"from":2},{"reg":15,"from":15}],"load_addr":null,"store_addr":268444204,"marks":["H"],"imem_instr":16130083},{"i":17,"pc":2504,"raw_pc":2504,"instr":4193748627,"asm":"addi x13,x15,-97","mnemonic":"addi","reads":[15],"writes":[13],"rd":13,"rd_we":1,"rd_data":4294967271,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":15,"from":15}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":4193748627},{"i":18,"pc":2508,"raw_pc":2508,"instr":4275429603,"asm":"bltu x11,x13,-32","mnemonic":"bltu","reads":[11,13],"writes":[],"rd":0,"rd_we":0,"rd_data":0,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":11,"from":3},{"reg":13,"from":17}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":4275429603},{"i":19,"pc":2476,"raw_pc":2476,"instr":16187427,"asm":"sb x15,0(x14)","mnemonic":"sb","reads":[14,15],"writes":[],"rd":0,"rd_we":0,"rd_data":0,"mem_we":1,"mem_addr":3817,"mem_data":18432,"mem_wstrb":2,"error":0,"srcs":[{"reg":14,"from":14},{"reg":15,"from":15}],"load_addr":null,"store_addr":3817,"marks":[],"imem_instr":16187427},{"i":20,"pc":2480,"raw_pc":2480,"instr":16633267,"asm":"xor x27,x27,x15","mnemonic":"xor","reads":[27,15],"writes":[27],"rd":27,"rd_we":1,"rd_data":0,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":27,"from":11},{"reg":15,"from":15}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":16633267},{"i":21,"pc":2484,"raw_pc":2484,"instr":1311763,"asm":"addi x8,x8,1","mnemonic":"addi","reads":[8],"writes":[8],"rd":8,"rd_we":1,"rd_data":3818,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":8,"from":12}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":1311763},{"i":22,"pc":2488,"raw_pc":2488,"instr":53740131,"asm":"beq x8,x19,36","mnemonic":"beq","reads":[8,19],"writes":[],"rd":0,"rd_we":0,"rd_data":0,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":8,"from":21},{"reg":19,"from":null}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":53740131},{"i":23,"pc":2492,"raw_pc":2492,"instr":263955,"asm":"addi x14,x8,0","mnemonic":"addi","reads":[8],"writes":[14],"rd":14,"rd_we":1,"rd_data":3818,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":8,"from":21}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":263955},{"i":24,"pc":2496,"raw_pc":2496,"instr":280451,"asm":"lbu x15,0(x8)","mnemonic":"lbu","reads":[8],"writes":[15],"rd":15,"rd_we":1,"rd_data":69,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":8,"from":21}],"load_addr":3818,"store_addr":null,"marks":[],"imem_instr":280451},{"i":25,"pc":2500,"raw_pc":2500,"instr":16130083,"asm":"sw x15,0(x12)","mnemonic":"sw","reads":[12,15],"writes":[],"rd":0,"rd_we":0,"rd_data":0,"mem_we":1,"mem_addr":556,"mem_data":69,"mem_wstrb":15,"error":0,"srcs":[{"reg":12,"from":2},{"reg":15,"from":24}],"load_addr":null,"store_addr":268444204,"marks":["E"],"imem_instr":16130083},{"i":26,"pc":2504,"raw_pc":2504,"instr":4193748627,"asm":"addi x13,x15,-97","mnemonic":"addi","reads":[15],"writes":[13],"rd":13,"rd_we":1,"rd_data":4294967268,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":15,"from":24}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":4193748627},{"i":27,"pc":2508,"raw_pc":2508,"instr":4275429603,"asm":"bltu x11,x13,-32","mnemonic":"bltu","reads":[11,13],"writes":[],"rd":0,"rd_we":0,"rd_data":0,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":11,"from":3},{"reg":13,"from":26}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":4275429603},{"i":28,"pc":2476,"raw_pc":2476,"instr":16187427,"asm":"sb x15,0(x14)","mnemonic":"sb","reads":[14,15],"writes":[],"rd":0,"rd_we":0,"rd_data":0,"mem_we":1,"mem_addr":3818,"mem_data":4521984,"mem_wstrb":4,"error":0,"srcs":[{"reg":14,"from":23},{"reg":15,"from":24}],"load_addr":null,"store_addr":3818,"marks":[],"imem_instr":16187427},{"i":29,"pc":2480,"raw_pc":2480,"instr":16633267,"asm":"xor x27,x27,x15","mnemonic":"xor","reads":[27,15],"writes":[27],"rd":27,"rd_we":1,"rd_data":69,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":27,"from":20},{"reg":15,"from":24}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":16633267},{"i":30,"pc":2484,"raw_pc":2484,"instr":1311763,"asm":"addi x8,x8,1","mnemonic":"addi","reads":[8],"writes":[8],"rd":8,"rd_we":1,"rd_data":3819,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":8,"from":21}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":1311763},{"i":31,"pc":2488,"raw_pc":2488,"instr":53740131,"asm":"beq x8,x19,36","mnemonic":"beq","reads":[8,19],"writes":[],"rd":0,"rd_we":0,"rd_data":0,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":8,"from":30},{"reg":19,"from":null}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":53740131},{"i":32,"pc":2492,"raw_pc":2492,"instr":263955,"asm":"addi x14,x8,0","mnemonic":"addi","reads":[8],"writes":[14],"rd":14,"rd_we":1,"rd_data":3819,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":8,"from":30}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":263955},{"i":33,"pc":2496,"raw_pc":2496,"instr":280451,"asm":"lbu x15,0(x8)","mnemonic":"lbu","reads":[8],"writes":[15],"rd":15,"rd_we":1,"rd_data":76,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":8,"from":30}],"load_addr":3819,"store_addr":null,"marks":[],"imem_instr":280451},{"i":34,"pc":2500,"raw_pc":2500,"instr":16130083,"asm":"sw x15,0(x12)","mnemonic":"sw","reads":[12,15],"writes":[],"rd":0,"rd_we":0,"rd_data":0,"mem_we":1,"mem_addr":556,"mem_data":76,"mem_wstrb":15,"error":0,"srcs":[{"reg":12,"from":2},{"reg":15,"from":33}],"load_addr":null,"store_addr":268444204,"marks":["L"],"imem_instr":16130083},{"i":35,"pc":2504,"raw_pc":2504,"instr":4193748627,"asm":"addi x13,x15,-97","mnemonic":"addi","reads":[15],"writes":[13],"rd":13,"rd_we":1,"rd_data":4294967275,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":15,"from":33}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":4193748627},{"i":36,"pc":2508,"raw_pc":2508,"instr":4275429603,"asm":"bltu x11,x13,-32","mnemonic":"bltu","reads":[11,13],"writes":[],"rd":0,"rd_we":0,"rd_data":0,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":11,"from":3},{"reg":13,"from":35}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":4275429603},{"i":37,"pc":2476,"raw_pc":2476,"instr":16187427,"asm":"sb x15,0(x14)","mnemonic":"sb","reads":[14,15],"writes":[],"rd":0,"rd_we":0,"rd_data":0,"mem_we":1,"mem_addr":3819,"mem_data":1275068416,"mem_wstrb":8,"error":0,"srcs":[{"reg":14,"from":32},{"reg":15,"from":33}],"load_addr":null,"store_addr":3819,"marks":[],"imem_instr":16187427},{"i":38,"pc":2480,"raw_pc":2480,"instr":16633267,"asm":"xor x27,x27,x15","mnemonic":"xor","reads":[27,15],"writes":[27],"rd":27,"rd_we":1,"rd_data":9,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":27,"from":29},{"reg":15,"from":33}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":16633267},{"i":39,"pc":2484,"raw_pc":2484,"instr":1311763,"asm":"addi x8,x8,1","mnemonic":"addi","reads":[8],"writes":[8],"rd":8,"rd_we":1,"rd_data":3820,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":8,"from":30}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":1311763},{"i":40,"pc":2488,"raw_pc":2488,"instr":53740131,"asm":"beq x8,x19,36","mnemonic":"beq","reads":[8,19],"writes":[],"rd":0,"rd_we":0,"rd_data":0,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":8,"from":39},{"reg":19,"from":null}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":53740131},{"i":41,"pc":2492,"raw_pc":2492,"instr":263955,"asm":"addi x14,x8,0","mnemonic":"addi","reads":[8],"writes":[14],"rd":14,"rd_we":1,"rd_data":3820,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":8,"from":39}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":263955},{"i":42,"pc":2496,"raw_pc":2496,"instr":280451,"asm":"lbu x15,0(x8)","mnemonic":"lbu","reads":[8],"writes":[15],"rd":15,"rd_we":1,"rd_data":82,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":8,"from":39}],"load_addr":3820,"store_addr":null,"marks":[],"imem_instr":280451},{"i":43,"pc":2500,"raw_pc":2500,"instr":16130083,"asm":"sw x15,0(x12)","mnemonic":"sw","reads":[12,15],"writes":[],"rd":0,"rd_we":0,"rd_data":0,"mem_we":1,"mem_addr":556,"mem_data":82,"mem_wstrb":15,"error":0,"srcs":[{"reg":12,"from":2},{"reg":15,"from":42}],"load_addr":null,"store_addr":268444204,"marks":["R"],"imem_instr":16130083},{"i":44,"pc":2504,"raw_pc":2504,"instr":4193748627,"asm":"addi x13,x15,-97","mnemonic":"addi","reads":[15],"writes":[13],"rd":13,"rd_we":1,"rd_data":4294967281,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":15,"from":42}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":4193748627},{"i":45,"pc":2508,"raw_pc":2508,"instr":4275429603,"asm":"bltu x11,x13,-32","mnemonic":"bltu","reads":[11,13],"writes":[],"rd":0,"rd_we":0,"rd_data":0,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":11,"from":3},{"reg":13,"from":44}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":4275429603},{"i":46,"pc":2476,"raw_pc":2476,"instr":16187427,"asm":"sb x15,0(x14)","mnemonic":"sb","reads":[14,15],"writes":[],"rd":0,"rd_we":0,"rd_data":0,"mem_we":1,"mem_addr":3820,"mem_data":82,"mem_wstrb":1,"error":0,"srcs":[{"reg":14,"from":41},{"reg":15,"from":42}],"load_addr":null,"store_addr":3820,"marks":[],"imem_instr":16187427},{"i":47,"pc":2480,"raw_pc":2480,"instr":16633267,"asm":"xor x27,x27,x15","mnemonic":"xor","reads":[27,15],"writes":[27],"rd":27,"rd_we":1,"rd_data":91,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":27,"from":38},{"reg":15,"from":42}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":16633267},{"i":48,"pc":2484,"raw_pc":2484,"instr":1311763,"asm":"addi x8,x8,1","mnemonic":"addi","reads":[8],"writes":[8],"rd":8,"rd_we":1,"rd_data":3821,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":8,"from":39}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":1311763},{"i":49,"pc":2488,"raw_pc":2488,"instr":53740131,"asm":"beq x8,x19,36","mnemonic":"beq","reads":[8,19],"writes":[],"rd":0,"rd_we":0,"rd_data":0,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":8,"from":48},{"reg":19,"from":null}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":53740131},{"i":50,"pc":2492,"raw_pc":2492,"instr":263955,"asm":"addi x14,x8,0","mnemonic":"addi","reads":[8],"writes":[14],"rd":14,"rd_we":1,"rd_data":3821,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":8,"from":48}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":263955},{"i":51,"pc":2496,"raw_pc":2496,"instr":280451,"asm":"lbu x15,0(x8)","mnemonic":"lbu","reads":[8],"writes":[15],"rd":15,"rd_we":1,"rd_data":73,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":8,"from":48}],"load_addr":3821,"store_addr":null,"marks":[],"imem_instr":280451},{"i":52,"pc":2500,"raw_pc":2500,"instr":16130083,"asm":"sw x15,0(x12)","mnemonic":"sw","reads":[12,15],"writes":[],"rd":0,"rd_we":0,"rd_data":0,"mem_we":1,"mem_addr":556,"mem_data":73,"mem_wstrb":15,"error":0,"srcs":[{"reg":12,"from":2},{"reg":15,"from":51}],"load_addr":null,"store_addr":268444204,"marks":["I"],"imem_instr":16130083},{"i":53,"pc":2504,"raw_pc":2504,"instr":4193748627,"asm":"addi x13,x15,-97","mnemonic":"addi","reads":[15],"writes":[13],"rd":13,"rd_we":1,"rd_data":4294967272,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":15,"from":51}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":4193748627},{"i":54,"pc":2508,"raw_pc":2508,"instr":4275429603,"asm":"bltu x11,x13,-32","mnemonic":"bltu","reads":[11,13],"writes":[],"rd":0,"rd_we":0,"rd_data":0,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":11,"from":3},{"reg":13,"from":53}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":4275429603},{"i":55,"pc":2476,"raw_pc":2476,"instr":16187427,"asm":"sb x15,0(x14)","mnemonic":"sb","reads":[14,15],"writes":[],"rd":0,"rd_we":0,"rd_data":0,"mem_we":1,"mem_addr":3821,"mem_data":18688,"mem_wstrb":2,"error":0,"srcs":[{"reg":14,"from":50},{"reg":15,"from":51}],"load_addr":null,"store_addr":3821,"marks":[],"imem_instr":16187427},{"i":56,"pc":2480,"raw_pc":2480,"instr":16633267,"asm":"xor x27,x27,x15","mnemonic":"xor","reads":[27,15],"writes":[27],"rd":27,"rd_we":1,"rd_data":18,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":27,"from":47},{"reg":15,"from":51}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":16633267},{"i":57,"pc":2484,"raw_pc":2484,"instr":1311763,"asm":"addi x8,x8,1","mnemonic":"addi","reads":[8],"writes":[8],"rd":8,"rd_we":1,"rd_data":3822,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":8,"from":48}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":1311763},{"i":58,"pc":2488,"raw_pc":2488,"instr":53740131,"asm":"beq x8,x19,36","mnemonic":"beq","reads":[8,19],"writes":[],"rd":0,"rd_we":0,"rd_data":0,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":8,"from":57},{"reg":19,"from":null}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":53740131},{"i":59,"pc":2492,"raw_pc":2492,"instr":263955,"asm":"addi x14,x8,0","mnemonic":"addi","reads":[8],"writes":[14],"rd":14,"rd_we":1,"rd_data":3822,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":8,"from":57}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":263955},{"i":60,"pc":2496,"raw_pc":2496,"instr":280451,"asm":"lbu x15,0(x8)","mnemonic":"lbu","reads":[8],"writes":[15],"rd":15,"rd_we":1,"rd_data":83,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":8,"from":57}],"load_addr":3822,"store_addr":null,"marks":[],"imem_instr":280451},{"i":61,"pc":2500,"raw_pc":2500,"instr":16130083,"asm":"sw x15,0(x12)","mnemonic":"sw","reads":[12,15],"writes":[],"rd":0,"rd_we":0,"rd_data":0,"mem_we":1,"mem_addr":556,"mem_data":83,"mem_wstrb":15,"error":0,"srcs":[{"reg":12,"from":2},{"reg":15,"from":60}],"load_addr":null,"store_addr":268444204,"marks":["S"],"imem_instr":16130083},{"i":62,"pc":2504,"raw_pc":2504,"instr":4193748627,"asm":"addi x13,x15,-97","mnemonic":"addi","reads":[15],"writes":[13],"rd":13,"rd_we":1,"rd_data":4294967282,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":15,"from":60}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":4193748627},{"i":63,"pc":2508,"raw_pc":2508,"instr":4275429603,"asm":"bltu x11,x13,-32","mnemonic":"bltu","reads":[11,13],"writes":[],"rd":0,"rd_we":0,"rd_data":0,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":11,"from":3},{"reg":13,"from":62}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":4275429603},{"i":64,"pc":2476,"raw_pc":2476,"instr":16187427,"asm":"sb x15,0(x14)","mnemonic":"sb","reads":[14,15],"writes":[],"rd":0,"rd_we":0,"rd_data":0,"mem_we":1,"mem_addr":3822,"mem_data":5439488,"mem_wstrb":4,"error":0,"srcs":[{"reg":14,"from":59},{"reg":15,"from":60}],"load_addr":null,"store_addr":3822,"marks":[],"imem_instr":16187427},{"i":65,"pc":2480,"raw_pc":2480,"instr":16633267,"asm":"xor x27,x27,x15","mnemonic":"xor","reads":[27,15],"writes":[27],"rd":27,"rd_we":1,"rd_data":65,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":27,"from":56},{"reg":15,"from":60}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":16633267},{"i":66,"pc":2484,"raw_pc":2484,"instr":1311763,"asm":"addi x8,x8,1","mnemonic":"addi","reads":[8],"writes":[8],"rd":8,"rd_we":1,"rd_data":3823,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":8,"from":57}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":1311763},{"i":67,"pc":2488,"raw_pc":2488,"instr":53740131,"asm":"beq x8,x19,36","mnemonic":"beq","reads":[8,19],"writes":[],"rd":0,"rd_we":0,"rd_data":0,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":8,"from":66},{"reg":19,"from":null}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":53740131},{"i":68,"pc":2492,"raw_pc":2492,"instr":263955,"asm":"addi x14,x8,0","mnemonic":"addi","reads":[8],"writes":[14],"rd":14,"rd_we":1,"rd_data":3823,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":8,"from":66}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":263955},{"i":69,"pc":2496,"raw_pc":2496,"instr":280451,"asm":"lbu x15,0(x8)","mnemonic":"lbu","reads":[8],"writes":[15],"rd":15,"rd_we":1,"rd_data":67,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":8,"from":66}],"load_addr":3823,"store_addr":null,"marks":[],"imem_instr":280451},{"i":70,"pc":2500,"raw_pc":2500,"instr":16130083,"asm":"sw x15,0(x12)","mnemonic":"sw","reads":[12,15],"writes":[],"rd":0,"rd_we":0,"rd_data":0,"mem_we":1,"mem_addr":556,"mem_data":67,"mem_wstrb":15,"error":0,"srcs":[{"reg":12,"from":2},{"reg":15,"from":69}],"load_addr":null,"store_addr":268444204,"marks":["C"],"imem_instr":16130083},{"i":71,"pc":2504,"raw_pc":2504,"instr":4193748627,"asm":"addi x13,x15,-97","mnemonic":"addi","reads":[15],"writes":[13],"rd":13,"rd_we":1,"rd_data":4294967266,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":15,"from":69}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":4193748627},{"i":72,"pc":2508,"raw_pc":2508,"instr":4275429603,"asm":"bltu x11,x13,-32","mnemonic":"bltu","reads":[11,13],"writes":[],"rd":0,"rd_we":0,"rd_data":0,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":11,"from":3},{"reg":13,"from":71}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":4275429603},{"i":73,"pc":2476,"raw_pc":2476,"instr":16187427,"asm":"sb x15,0(x14)","mnemonic":"sb","reads":[14,15],"writes":[],"rd":0,"rd_we":0,"rd_data":0,"mem_we":1,"mem_addr":3823,"mem_data":1124073472,"mem_wstrb":8,"error":0,"srcs":[{"reg":14,"from":68},{"reg":15,"from":69}],"load_addr":null,"store_addr":3823,"marks":[],"imem_instr":16187427},{"i":74,"pc":2480,"raw_pc":2480,"instr":16633267,"asm":"xor x27,x27,x15","mnemonic":"xor","reads":[27,15],"writes":[27],"rd":27,"rd_we":1,"rd_data":2,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":27,"from":65},{"reg":15,"from":69}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":16633267},{"i":75,"pc":2484,"raw_pc":2484,"instr":1311763,"asm":"addi x8,x8,1","mnemonic":"addi","reads":[8],"writes":[8],"rd":8,"rd_we":1,"rd_data":3824,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":8,"from":66}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":1311763},{"i":76,"pc":2488,"raw_pc":2488,"instr":53740131,"asm":"beq x8,x19,36","mnemonic":"beq","reads":[8,19],"writes":[],"rd":0,"rd_we":0,"rd_data":0,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":8,"from":75},{"reg":19,"from":null}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":53740131},{"i":77,"pc":2492,"raw_pc":2492,"instr":263955,"asm":"addi x14,x8,0","mnemonic":"addi","reads":[8],"writes":[14],"rd":14,"rd_we":1,"rd_data":3824,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":8,"from":75}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":263955},{"i":78,"pc":2496,"raw_pc":2496,"instr":280451,"asm":"lbu x15,0(x8)","mnemonic":"lbu","reads":[8],"writes":[15],"rd":15,"rd_we":1,"rd_data":45,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":8,"from":75}],"load_addr":3824,"store_addr":null,"marks":[],"imem_instr":280451},{"i":79,"pc":2500,"raw_pc":2500,"instr":16130083,"asm":"sw x15,0(x12)","mnemonic":"sw","reads":[12,15],"writes":[],"rd":0,"rd_we":0,"rd_data":0,"mem_we":1,"mem_addr":556,"mem_data":45,"mem_wstrb":15,"error":0,"srcs":[{"reg":12,"from":2},{"reg":15,"from":78}],"load_addr":null,"store_addr":268444204,"marks":["-"],"imem_instr":16130083},{"i":80,"pc":2504,"raw_pc":2504,"instr":4193748627,"asm":"addi x13,x15,-97","mnemonic":"addi","reads":[15],"writes":[13],"rd":13,"rd_we":1,"rd_data":4294967244,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":15,"from":78}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":4193748627},{"i":81,"pc":2508,"raw_pc":2508,"instr":4275429603,"asm":"bltu x11,x13,-32","mnemonic":"bltu","reads":[11,13],"writes":[],"rd":0,"rd_we":0,"rd_data":0,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":11,"from":3},{"reg":13,"from":80}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":4275429603},{"i":82,"pc":2476,"raw_pc":2476,"instr":16187427,"asm":"sb x15,0(x14)","mnemonic":"sb","reads":[14,15],"writes":[],"rd":0,"rd_we":0,"rd_data":0,"mem_we":1,"mem_addr":3824,"mem_data":45,"mem_wstrb":1,"error":0,"srcs":[{"reg":14,"from":77},{"reg":15,"from":78}],"load_addr":null,"store_addr":3824,"marks":[],"imem_instr":16187427},{"i":83,"pc":2480,"raw_pc":2480,"instr":16633267,"asm":"xor x27,x27,x15","mnemonic":"xor","reads":[27,15],"writes":[27],"rd":27,"rd_we":1,"rd_data":47,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":27,"from":74},{"reg":15,"from":78}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":16633267},{"i":84,"pc":2484,"raw_pc":2484,"instr":1311763,"asm":"addi x8,x8,1","mnemonic":"addi","reads":[8],"writes":[8],"rd":8,"rd_we":1,"rd_data":3825,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":8,"from":75}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":1311763},{"i":85,"pc":2488,"raw_pc":2488,"instr":53740131,"asm":"beq x8,x19,36","mnemonic":"beq","reads":[8,19],"writes":[],"rd":0,"rd_we":0,"rd_data":0,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":8,"from":84},{"reg":19,"from":null}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":53740131},{"i":86,"pc":2492,"raw_pc":2492,"instr":263955,"asm":"addi x14,x8,0","mnemonic":"addi","reads":[8],"writes":[14],"rd":14,"rd_we":1,"rd_data":3825,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":8,"from":84}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":263955},{"i":87,"pc":2496,"raw_pc":2496,"instr":280451,"asm":"lbu x15,0(x8)","mnemonic":"lbu","reads":[8],"writes":[15],"rd":15,"rd_we":1,"rd_data":86,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":8,"from":84}],"load_addr":3825,"store_addr":null,"marks":[],"imem_instr":280451},{"i":88,"pc":2500,"raw_pc":2500,"instr":16130083,"asm":"sw x15,0(x12)","mnemonic":"sw","reads":[12,15],"writes":[],"rd":0,"rd_we":0,"rd_data":0,"mem_we":1,"mem_addr":556,"mem_data":86,"mem_wstrb":15,"error":0,"srcs":[{"reg":12,"from":2},{"reg":15,"from":87}],"load_addr":null,"store_addr":268444204,"marks":["V"],"imem_instr":16130083},{"i":89,"pc":2504,"raw_pc":2504,"instr":4193748627,"asm":"addi x13,x15,-97","mnemonic":"addi","reads":[15],"writes":[13],"rd":13,"rd_we":1,"rd_data":4294967285,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":15,"from":87}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":4193748627},{"i":90,"pc":2508,"raw_pc":2508,"instr":4275429603,"asm":"bltu x11,x13,-32","mnemonic":"bltu","reads":[11,13],"writes":[],"rd":0,"rd_we":0,"rd_data":0,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":11,"from":3},{"reg":13,"from":89}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":4275429603},{"i":91,"pc":2476,"raw_pc":2476,"instr":16187427,"asm":"sb x15,0(x14)","mnemonic":"sb","reads":[14,15],"writes":[],"rd":0,"rd_we":0,"rd_data":0,"mem_we":1,"mem_addr":3825,"mem_data":22016,"mem_wstrb":2,"error":0,"srcs":[{"reg":14,"from":86},{"reg":15,"from":87}],"load_addr":null,"store_addr":3825,"marks":[],"imem_instr":16187427},{"i":92,"pc":2480,"raw_pc":2480,"instr":16633267,"asm":"xor x27,x27,x15","mnemonic":"xor","reads":[27,15],"writes":[27],"rd":27,"rd_we":1,"rd_data":121,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":27,"from":83},{"reg":15,"from":87}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":16633267},{"i":93,"pc":2484,"raw_pc":2484,"instr":1311763,"asm":"addi x8,x8,1","mnemonic":"addi","reads":[8],"writes":[8],"rd":8,"rd_we":1,"rd_data":3826,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":8,"from":84}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":1311763},{"i":94,"pc":2488,"raw_pc":2488,"instr":53740131,"asm":"beq x8,x19,36","mnemonic":"beq","reads":[8,19],"writes":[],"rd":0,"rd_we":0,"rd_data":0,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[{"reg":8,"from":93},{"reg":19,"from":null}],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":53740131},{"i":95,"pc":2524,"raw_pc":2524,"instr":268445623,"asm":"lui x15,0x10002","mnemonic":"lui","reads":[],"writes":[15],"rd":15,"rd_we":1,"rd_data":268443648,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":268445623},{"i":96,"pc":2528,"raw_pc":2528,"instr":2098963,"asm":"addi x14,x0,2","mnemonic":"addi","reads":[],"writes":[14],"rd":14,"rd_we":1,"rd_data":2,"mem_we":0,"mem_addr":0,"mem_data":0,"mem_wstrb":0,"error":0,"srcs":[],"load_addr":null,"store_addr":null,"marks":[],"imem_instr":2098963}],"marks":[{"index":7,"value":72},{"index":16,"value":72},{"index":25,"value":69},{"index":34,"value":76},{"index":43,"value":82},{"index":52,"value":73},{"index":61,"value":83},{"index":70,"value":67},{"index":79,"value":45},{"index":88,"value":86}],"regs_final":{"8":3826,"11":25,"12":268444204,"13":4294967285,"14":2,"15":268443648,"27":121}};
+const N = D.nodes;
+let sel = 0, playing = false, timer = null;
+const OV = document.getElementById('overview');
+const ovCtx = OV.getContext('2d');
+
+const CAT = (mn) => {
+  if (['lw','lh','lb','lhu','lbu'].includes(mn)) return '#f0a43a';   // load
+  if (['sw','sh','sb'].includes(mn)) return '#3ad2a0';               // store
+  if (['beq','bne','blt','bge','bltu','bgeu','jal','jalr'].includes(mn)) return '#c48bff';
+  if (['mul','mulh','mulhsu','mulhu','div','divu','rem','remu'].includes(mn)) return '#ff8fb0';
+  if (mn === 'illegal') return '#ff6161';
+  return '#4f9fd6';                                                  // ALU / misc
+};
+
+function hex(v, w){ return '0x' + (v >>> 0).toString(16).padStart(w || 8, '0'); }
+function byteStr(v){ const b = String.fromCharCode(v & 0xff); return (v & 0xff) >= 32 && (v & 0xff) < 127 ? b : '.'; }
+
+function fitCanvas(){
+  const dpr = window.devicePixelRatio || 1;
+  for (const [cv, ctx] of [[OV, ovCtx], [BL, blCtx], [RM, rmCtx]]){
+    const r = cv.getBoundingClientRect();
+    cv.width = Math.max(1, Math.round(r.width * dpr));
+    cv.height = Math.max(1, Math.round(r.height * dpr));
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  drawOverview();
+  drawBusLane();
+  drawRegMap();
+}
+
+function drawOverview(){
+  const r = OV.getBoundingClientRect();
+  const w = r.width, h = r.height;
+  ovCtx.clearRect(0, 0, w, h);
+  ovCtx.fillStyle = '#0b111d'; ovCtx.fillRect(0, 0, w, h);
+  const n = Math.max(1, N.length);
+  const bw = w / n;
+  // 每条指令一根竖条，按类别着色；高度按"是否有写回/写存储"区分
+  for (let i = 0; i < n; i++){
+    const nd = N[i];
+    const x = i * bw;
+    const hh = nd.mem_we ? h * 0.62 : (nd.rd_we ? h * 0.42 : h * 0.26);
+    ovCtx.fillStyle = CAT(nd.mnemonic);
+    ovCtx.globalAlpha = 0.85;
+    ovCtx.fillRect(x, h - hh - 14, Math.max(1, bw * 0.92), hh);
+  }
+  ovCtx.globalAlpha = 1;
+  // 打点：字符贴在底部
+  ovCtx.font = '11px Consolas, monospace';
+  ovCtx.textAlign = 'center';
+  const chars = document.getElementById('chars').children;
+  for (let k = 0; k < D.marks.length; k++){
+    const mk = D.marks[k];
+    const x = mk.index * bw;
+    ovCtx.strokeStyle = '#39c0ff'; ovCtx.lineWidth = 1;
+    ovCtx.beginPath(); ovCtx.moveTo(x, 0); ovCtx.lineTo(x, h - 10); ovCtx.stroke();
+    ovCtx.fillStyle = (k === activeChar) ? '#ffffff' : '#7fd6ff';
+    ovCtx.fillText(byteStr(mk.value), Math.min(w - 6, Math.max(6, x)), h - 2);
+  }
+  // 选择游标
+  const sx = (sel + 0.5) * bw;
+  ovCtx.strokeStyle = '#ffd479'; ovCtx.lineWidth = 2;
+  ovCtx.beginPath(); ovCtx.moveTo(sx, 0); ovCtx.lineTo(sx, h); ovCtx.stroke();
+}
+
+// ---- 总线 / MMIO 泳道 -------------------------------------------------------
+// 这一条是"总线视角"：按记录序号铺开，把每次**写存储**画成一根竖条。
+//   · 绿色 = 普通数据存储写（缓冲、变量）
+//   · 青色 = MMIO 命中（0x1000_0000..0x1000_3FFF，即 UART/GPIO/APP 窗口）
+//   · 紫色 = 写进 trace 自己的打点寄存器（0x1000_2200 + 0x2C）
+// 注意这是**提交级**的视图，不是每拍视图：一条记录 = 一条退休指令，
+// 没有时钟信息。想看每拍的取指/停顿/冲刷，用 8 通道 Core 探针那条波形页
+// （docs/application_logic_analyzer.md §6.10），两者分工不同。
+const BL = document.getElementById('buslane');
+const blCtx = BL.getContext('2d');
+const MMIO_LO = 0x10000000, MMIO_HI = 0x10004000;
+const MARKREG = 0x1000222C;
+
+function drawBusLane(){
+  const r = BL.getBoundingClientRect();
+  const w = r.width, h = r.height;
+  blCtx.clearRect(0, 0, w, h);
+  blCtx.fillStyle = '#0b111d'; blCtx.fillRect(0, 0, w, h);
+  const n = Math.max(1, N.length);
+  const bw = w / n;
+  const midY = h / 2;
+  // 基线
+  blCtx.strokeStyle = '#1c2739'; blCtx.lineWidth = 1;
+  blCtx.beginPath(); blCtx.moveTo(0, midY); blCtx.lineTo(w, midY); blCtx.stroke();
+  let stores = 0, mmio = 0, unknown = 0;
+  for (let i = 0; i < n; i++){
+    const nd = N[i];
+    if (!nd.mem_we) continue;
+    stores++;
+    // 记录里只有 mem_addr[11:0]，分不出 RAM / MMIO。能用窗口内基址寄存器
+    // 还原出 32 位有效地址时用还原值分类；还原不出来就画成暗色（不猜）。
+    const known = (nd.store_addr !== null && nd.store_addr !== undefined);
+    const a = known ? nd.store_addr : nd.mem_addr;
+    const isMark = known && (a >>> 0) === (MARKREG >>> 0);
+    const isMmio = known && !isMark && a >= MMIO_LO && a < MMIO_HI;
+    if (isMmio) mmio++;
+    if (!known) unknown++;
+    blCtx.fillStyle = isMark ? '#e6a8ff' : (isMmio ? '#39c0ff' : (known ? '#3ad2a0' : '#40506b'));
+    const x = i * bw;
+    const hh = 4 + 4 * popcount(nd.mem_wstrb);
+    blCtx.fillRect(x, midY - hh, Math.max(1, bw * 0.92), hh * 2);
+  }
+  // 选择游标
+  const sx = (sel + 0.5) * bw;
+  blCtx.strokeStyle = '#ffd479'; blCtx.lineWidth = 1;
+  blCtx.beginPath(); blCtx.moveTo(sx, 0); blCtx.lineTo(sx, h); blCtx.stroke();
+  blCtx.font = '10px Consolas, monospace';
+  blCtx.textAlign = 'left';
+  blCtx.fillStyle = '#7f96bb';
+  blCtx.fillText('写存储 ' + stores + ' 次（MMIO ' + mmio + ' 次，地址未知 ' + unknown + ' 次）', 8, h - 4);
+}
+
+function popcount(v){
+  let c = 0;
+  for (let b = 0; b < 4; b++) if (v & (1 << b)) c++;
+  return c;
+}
+
+// ---- 寄存器热力图 ----------------------------------------------------------
+// 横轴 = 记录序号，纵轴 = x0..x31（x0 恒不写，永远为空，正好当零线参考）。
+// 方格 = 该条记录用 rd_we 写回了这个寄存器；黄色行 = 当前选中指令读的寄存器。
+// 一眼能看出"这一窗里到底哪几个寄存器在被反复搬数据"。
+const RM = document.getElementById('regmap');
+const rmCtx = RM.getContext('2d');
+
+function regHue(r){ return 'hsl(' + ((r * 47) % 360) + ', 72%, 62%)'; }
+
+function drawRegMap(){
+  const rect = RM.getBoundingClientRect();
+  const w = rect.width, h = rect.height;
+  rmCtx.clearRect(0, 0, w, h);
+  rmCtx.fillStyle = '#0b111d'; rmCtx.fillRect(0, 0, w, h);
+  const left = 34, top = 16, bottom = 4;
+  const rows = 32;
+  const rowH = (h - top - bottom) / rows;
+  const n = Math.max(1, N.length);
+  const bw = (w - left) / n;
+  // 行标签（只标 4 的倍数，免得糊成一片）
+  rmCtx.font = '9px Consolas, monospace';
+  rmCtx.textAlign = 'right';
+  rmCtx.fillStyle = '#6d80a0';
+  for (let r = 0; r < rows; r += 4){
+    rmCtx.fillText('x' + r, left - 4, top + r * rowH + rowH * 0.8);
+    rmCtx.strokeStyle = '#141d2c'; rmCtx.lineWidth = 1;
+    rmCtx.beginPath(); rmCtx.moveTo(left, top + r * rowH); rmCtx.lineTo(w, top + r * rowH); rmCtx.stroke();
+  }
+  // 当前选中指令读的寄存器行
+  const watched = new Set(N[sel].reads);
+  for (const r of watched){
+    rmCtx.fillStyle = 'rgba(255,212,121,0.14)';
+    rmCtx.fillRect(left, top + r * rowH, w - left, rowH);
+  }
+  // 写回点
+  for (let i = 0; i < n; i++){
+    const nd = N[i];
+    if (!nd.rd_we || !nd.rd) continue;
+    rmCtx.fillStyle = regHue(nd.rd);
+    rmCtx.fillRect(left + i * bw, top + nd.rd * rowH + 0.5, Math.max(1, bw), Math.max(1, rowH - 1));
+  }
+  // 游标
+  const sx = left + (sel + 0.5) * bw;
+  rmCtx.strokeStyle = '#ffd479'; rmCtx.lineWidth = 1;
+  rmCtx.beginPath(); rmCtx.moveTo(sx, top); rmCtx.lineTo(sx, h - bottom); rmCtx.stroke();
+}
+
+let activeChar = -1;
+
+function renderHeader(){
+  document.getElementById('hdrSent').textContent = JSON.stringify(D.sent) + '（' + D.sent.length + ' 字符）';
+  document.getElementById('hdrCount').textContent = D.count;
+  document.getElementById('hdrMarks').textContent = D.marks.length;
+  document.getElementById('hdrPhase').textContent = D.phase === 0
+      ? '0 · 只记录处理过程' : '1 · 连串口轮询一起记录';
+  document.getElementById('hdrStatus').textContent = hex(D.status, 4)
+      + '（done=' + ((D.status >> 2) & 1) + '）';
+  const ovf = (D.status >> 3) & 1;
+  const b = document.getElementById('hdrOverflow');
+  b.className = 'badge ' + (ovf ? 'warn' : 'ok');
+  b.textContent = ovf ? '窗口已写满（后面还有指令未记录）' : '窗口未被撑爆';
+  document.getElementById('hdrSource').textContent = (D.meta.log || '') + '  ' + (D.meta.mem || '');
+}
+
+function renderChars(){
+  const box = document.getElementById('chars');
+  box.innerHTML = '';
+  const head = document.createElement('span');
+  head.className = 'kv';
+  head.textContent = '收到并处理：';
+  box.appendChild(head);
+  D.marks.forEach((mk, k) => {
+    const el = document.createElement('div');
+    el.className = 'ch';
+    el.innerHTML = byteStr(mk.value) + '<small>#' + mk.index + '</small>';
+    el.title = '点这个字符 → 跳到消费它的那条指令（记录 #' + mk.index + '）';
+    el.onclick = () => { activeChar = k; select(mk.index); };
+    box.appendChild(el);
+  });
+  const tail = document.createElement('span');
+  tail.className = 'kv';
+  tail.style.marginLeft = '10px';
+  tail.textContent = '结果 ' + JSON.stringify(D.text) + '  up=' + D.up + '  xor=' + hex(D.xor);
+  box.appendChild(tail);
+}
+
+function consumersOf(idx){
+  const out = [];
+  for (let i = idx + 1; i < N.length; i++){
+    for (const s of N[i].srcs) if (s.from === idx) { out.push({ i, reg: s.reg }); break; }
+  }
+  return out;
+}
+
+function renderList(){
+  const list = document.getElementById('list');
+  const onlyMarked = document.getElementById('onlyMarked').checked;
+  const half = 130;
+  let lo = Math.max(0, sel - half), hi = Math.min(N.length, sel + half + 1);
+  const markIdx = new Set(D.marks.map(m => m.index));
+  const srcSet = new Set(N[sel].srcs.map(s => s.from).filter(v => v !== null));
+  const dstSet = new Set(consumersOf(sel).map(x => x.i));
+
+  let html = '<table><thead><tr><th>#</th><th>PC</th><th>指令</th><th>结果 / 副作用</th><th></th></tr></thead><tbody>';
+  for (let i = lo; i < hi; i++){
+    const nd = N[i];
+    if (onlyMarked && !markIdx.has(i) && Math.abs(i - sel) > 40) continue;
+    const cls = i === sel ? 'sel' : (srcSet.has(i) ? 'src' : (dstSet.has(i) ? 'dst' : ''));
+    let tags = '';
+    if (nd.marks.length) tags += '<span class="tag c">' + nd.marks.join('') + '</span>';
+    if (nd.rd_we) tags += '<span class="tag w">x' + nd.rd + '</span>';
+    if (nd.mem_we) tags += '<span class="tag m">M</span>';
+    if (nd.error) tags += '<span class="tag e">ERR</span>';
+    let eff = '';
+    if (nd.rd_we) eff += '<span class="val">x' + nd.rd + ' = ' + hex(nd.rd_data) + '</span>';
+    if (nd.mem_we) eff += (eff ? ' &nbsp;' : '') + '<span class="val">[' + hex(nd.mem_addr, 4) + '] ← '
+        + hex(nd.mem_data) + ' (strb ' + nd.mem_wstrb.toString(16) + ')</span>';
+    if (!eff) eff = '<span class="muted">—</span>';
+    html += '<tr class="' + cls + '" data-i="' + i + '">'
+         +  '<td class="pc">' + i + '</td>'
+         +  '<td class="pc">' + hex(nd.pc, 3) + '</td>'
+         +  '<td class="asm">' + nd.asm + '</td>'
+         +  '<td>' + eff + '</td>'
+         +  '<td>' + tags + '</td></tr>';
+  }
+  html += '</tbody></table>';
+  list.innerHTML = html;
+  list.querySelectorAll('tr[data-i]').forEach(tr => {
+    tr.onclick = () => select(parseInt(tr.dataset.i, 10));
+  });
+  const row = list.querySelector('tr.sel');
+  if (row) row.scrollIntoView({ block: 'center' });
+}
+
+function renderDetail(){
+  const nd = N[sel];
+  document.getElementById('detAsm').textContent = nd.asm;
+  document.getElementById('detIdx').textContent = '#' + sel + ' / ' + N.length;
+  document.getElementById('detPc').textContent = hex(nd.pc, 3) + '（记录里是 pc[11:0]=' + hex(nd.raw_pc, 3) + '）';
+  document.getElementById('detInstr').textContent = hex(nd.instr);
+  document.getElementById('detWrite').textContent = nd.rd_we
+      ? ('x' + nd.rd + ' ← ' + hex(nd.rd_data)) : '—';
+  document.getElementById('detMem').textContent = nd.mem_we
+      ? ((nd.store_addr !== null && nd.store_addr !== undefined
+            ? hex(nd.store_addr) + '（按基址寄存器还原；记录里只有低 12 位 0x' + nd.mem_addr.toString(16) + '）'
+            : '0x' + nd.mem_addr.toString(16) + '（记录里只有低 12 位，基址不可知）')
+         + ' ← ' + hex(nd.mem_data) + '（字节使能 ' + nd.mem_wstrb.toString(16) + '）')
+      : (nd.load_addr !== null ? ('（load；按窗口内基址推出的地址 ' + hex(nd.load_addr) + '）')
+                               : '—（load 地址不在 trace 端口上）');
+  document.getElementById('detChar').textContent = nd.marks.length
+      ? (nd.marks.join(' ') + '（第 ' + (D.marks.findIndex(m => m.index === sel) + 1) + ' 个字符）')
+      : '—';
+
+  const srcs = document.getElementById('detSrcs');
+  if (!nd.srcs.length){ srcs.innerHTML = '<span class="muted">这条指令不读寄存器</span>'; }
+  else {
+    srcs.innerHTML = nd.srcs.map(s => {
+      if (s.from === null)
+        return '<div class="flowline"><span>x' + s.reg + '</span><span class="arrow">←</span>'
+             + '<span class="muted">窗口之前就已写好（窗口内看不到它的来源）</span></div>';
+      const p = N[s.from];
+      return '<div class="flowline"><span>x' + s.reg + '</span><span class="arrow">←</span>'
+           + '<a data-jump="' + s.from + '">#' + s.from + ' ' + p.asm + '</a>'
+           + '<span class="muted">→ ' + hex(p.rd_data) + '</span></div>';
+    }).join('');
+  }
+  const dsts = document.getElementById('detDsts');
+  const cons = consumersOf(sel);
+  dsts.innerHTML = cons.length
+    ? cons.map(c => '<div class="flowline"><span>x' + c.reg + '</span><span class="arrow">→</span>'
+        + '<a data-jump="' + c.i + '">#' + c.i + ' ' + N[c.i].asm + '</a></div>').join('')
+    : '<span class="muted">窗口内没有读者</span>';
+  document.querySelectorAll('[data-jump]').forEach(a => {
+    a.onclick = () => select(parseInt(a.dataset.jump, 10));
+  });
+
+  // 寄存器此刻的值：从窗口开头重放到 sel（只算窗口内写过的）
+  const regs = {};
+  for (let i = 0; i <= sel; i++){
+    const n2 = N[i];
+    if (n2.rd_we && n2.rd) regs[n2.rd] = { v: n2.rd_data, at: i };
+  }
+  const box = document.getElementById('regs');
+  let html = '';
+  for (let r = 0; r < 32; r++){
+    const e = regs[r];
+    const cls = r === 0 ? 'zero' : (e ? (e.at === sel ? 'hot' : '') : 'zero');
+    html += '<div class="' + cls + '" title="' + (e ? ('最后写于 #' + e.at) : '窗口内未写过') + '">'
+         + 'x' + r + ' ' + (r === 0 ? '0' : (e ? hex(e.v) : '—')) + '</div>';
+  }
+  box.innerHTML = html;
+}
+
+function select(i){
+  sel = Math.max(0, Math.min(N.length - 1, i));
+  document.getElementById('scrub').value = sel;
+  document.getElementById('posLabel').textContent = '#' + sel + ' / ' + (N.length - 1);
+  renderList(); renderDetail(); drawOverview(); drawBusLane(); drawRegMap();
+  const chars = document.getElementById('chars').children;
+  for (let k = 0; k < D.marks.length; k++){
+    const el = chars[k + 1];
+    if (el) el.classList.toggle('active', D.marks[k].index === sel);
+  }
+}
+
+function togglePlay(){
+  playing = !playing;
+  document.getElementById('btnPlay').textContent = playing ? '⏸ 暂停' : '▶ 播放';
+  if (timer){ clearInterval(timer); timer = null; }
+  if (!playing) return;
+  const step = parseInt(document.getElementById('speed').value, 10);
+  timer = setInterval(() => {
+    if (sel >= N.length - 1){ togglePlay(); return; }
+    select(sel + 1);
+  }, step);
+}
+
+OV.addEventListener('click', ev => {
+  const r = OV.getBoundingClientRect();
+  const frac = (ev.clientX - r.left) / r.width;
+  select(Math.round(frac * (N.length - 1)));
+});
+BL.addEventListener('click', ev => {
+  const r = BL.getBoundingClientRect();
+  const frac = (ev.clientX - r.left) / r.width;
+  select(Math.round(frac * (N.length - 1)));
+});
+RM.addEventListener('click', ev => {
+  const r = RM.getBoundingClientRect();
+  const frac = (ev.clientX - r.left - 34) / Math.max(1, r.width - 34);
+  select(Math.round(frac * (N.length - 1)));
+});
+document.getElementById('btnPrev').onclick = () => select(sel - 1);
+document.getElementById('btnNext').onclick = () => select(sel + 1);
+document.getElementById('btnFirst').onclick = () => select(0);
+document.getElementById('btnLast').onclick = () => select(N.length - 1);
+document.getElementById('btnPlay').onclick = togglePlay;
+document.getElementById('scrub').oninput = e => select(parseInt(e.target.value, 10));
+document.getElementById('speed').onchange = () => { if (playing){ togglePlay(); togglePlay(); } };
+document.getElementById('onlyMarked').onchange = () => renderList();
+window.addEventListener('resize', fitCanvas);
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowLeft'){ select(sel - 1); e.preventDefault(); }
+  else if (e.key === 'ArrowRight'){ select(sel + 1); e.preventDefault(); }
+  else if (e.key === ' '){ togglePlay(); e.preventDefault(); }
+});
+
+document.getElementById('scrub').max = Math.max(0, N.length - 1);
+renderHeader(); renderChars(); renderList(); renderDetail(); fitCanvas(); select(0);
+</script>
+</body>
+</html>

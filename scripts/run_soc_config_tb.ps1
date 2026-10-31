@@ -9,7 +9,7 @@ New-Item -ItemType Directory -Force -Path tmp/gcc_evidence | Out-Null
 
 $sources = @(
     'tb/imem_adapter.v', 'tb/ram_adapter.v',
-    'rtl/single_cycle_cpu.v', 'rtl/regfile.v', 'rtl/alu.v', 'rtl/imm_gen.v', 'rtl/decoder.v', 'rtl/branch_unit.v', 'rtl/load_store_unit.v',
+    'rtl/single_cycle_cpu.v', 'rtl/regfile.v', 'rtl/mdu.v','rtl/alu.v', 'rtl/imm_gen.v', 'rtl/decoder.v', 'rtl/branch_unit.v', 'rtl/load_store_unit.v',
     'rtl/soc_data_interconnect.v', 'rtl/gpio_mmio.v', 'rtl/uart_tx.v', 'rtl/uart_rx.v', 'rtl/uart_mmio.v', 'tb/tb_soc_config.v'
 )
 

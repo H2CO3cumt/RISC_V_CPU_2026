@@ -1,0 +1,227 @@
+{
+  "judgements": [
+    {
+      "name": "记录条数自洽",
+      "ok": true,
+      "detail": "头部 count=323，实际导出 323 条"
+    },
+    {
+      "name": "打点数等于字符数",
+      "ok": true,
+      "detail": "marks=8，发送字符数=8"
+    },
+    {
+      "name": "打点值等于发送的字符",
+      "ok": true,
+      "detail": "打点=b'hello,rv' 发送=b'hello,rv'"
+    },
+    {
+      "name": "打点索引单调且不越界",
+      "ok": true,
+      "detail": "索引=[9, 21, 33, 45, 57, 69, 78, 90]，count=323"
+    },
+    {
+      "name": "大写化结果",
+      "ok": true,
+      "detail": "得到 b'HELLO,RV'，期望 b'HELLO,RV'"
+    },
+    {
+      "name": "大写字符计数",
+      "ok": true,
+      "detail": "up=7，期望 7"
+    },
+    {
+      "name": "XOR 校验",
+      "ok": true,
+      "detail": "xor=0x0000006A，期望 0x0000006A"
+    },
+    {
+      "name": "字符数字段",
+      "ok": true,
+      "detail": "chars=8，期望 8"
+    },
+    {
+      "name": "收尾状态位",
+      "ok": true,
+      "detail": "status=0x4（armed=0 recording=0 done=1 overflow=0）"
+    },
+    {
+      "name": "未溢出",
+      "ok": true,
+      "detail": "overflow=0，count=323，窗口容量=4096"
+    },
+    {
+      "name": "rd_we 不得指向 x0",
+      "ok": true,
+      "detail": "越界样本 0 条"
+    },
+    {
+      "name": "store 必须有字节使能",
+      "ok": true,
+      "detail": "越界样本 0 条"
+    },
+    {
+      "name": "记录 pc 必须 4 字节对齐",
+      "ok": true,
+      "detail": "越界样本 0 条"
+    },
+    {
+      "name": "pc 与位流镜像同源",
+      "ok": true,
+      "detail": "不一致记录 0 条"
+    },
+    {
+      "name": "store 有效地址与记录低 12 位一致",
+      "ok": true,
+      "detail": "不一致 0 条"
+    },
+    {
+      "name": "波形样本数等于头部声明",
+      "ok": true,
+      "detail": "count=512，实际 512 个"
+    },
+    {
+      "name": "波形每拍一个样本（div=0）",
+      "ok": true,
+      "detail": "div=0（capture_engine 的 div=0 才是每拍采一次，否则拍号与指令对不上）"
+    },
+    {
+      "name": "波形里确有退休脉冲",
+      "ok": true,
+      "detail": "窗口 512 拍里数到 316 个退休脉冲"
+    },
+    {
+      "name": "波形窗口整段落在 trace 里",
+      "ok": true,
+      "detail": "窗口覆盖记录 #1..#316，trace 共 323 条"
+    },
+    {
+      "name": "波形覆盖 trace 的绝大部分（≥95%）",
+      "ok": true,
+      "detail": "覆盖 316/323 条（97.8%）；窗口 512 拍"
+    },
+    {
+      "name": "对齐锚点是 LA 的 arm 写",
+      "ok": true,
+      "detail": "arm 写在第 1 条（trace arm 在第 0 条），取偏移 +0；候选 [0, 2] 同样吻合，故本枪对齐精度 ±1 条"
+    },
+    {
+      "name": "数据访问脉冲数 = 区间内访存指令数",
+      "ok": true,
+      "detail": "波形 97 个 dv&dr 脉冲，记录 #1..#316 里 97 条访存指令（差 0）"
+    }
+  ],
+  "count": 323,
+  "marks": 8,
+  "status": 4,
+  "text": [
+    72,
+    69,
+    76,
+    76,
+    79,
+    44,
+    82,
+    86
+  ],
+  "wave": {
+    "count": 512,
+    "trigger": 0,
+    "window": 512,
+    "div": 0,
+    "retire_pulses": 316,
+    "data_pulses": 97
+  },
+  "align": {
+    "offset": 1,
+    "anchor": 1,
+    "delta": 0,
+    "tied": [
+      0,
+      2
+    ],
+    "ambiguous": true,
+    "trace_arm": 0,
+    "cycles": 512,
+    "retire_pulses": 316,
+    "data_pulses": 97,
+    "data_records": 97,
+    "mismatch": 0
+  },
+  "summary": {
+    "records": 323,
+    "distinct_pc": 26,
+    "hotspots": [
+      {
+        "pc": 2196,
+        "asm": "lw x15,0(x14)",
+        "count": 73,
+        "share": 0.2260061919504644
+      },
+      {
+        "pc": 2200,
+        "asm": "andi x15,x15,4",
+        "count": 73,
+        "share": 0.2260061919504644
+      },
+      {
+        "pc": 2204,
+        "asm": "beq x15,x0,-8",
+        "count": 73,
+        "share": 0.2260061919504644
+      },
+      {
+        "pc": 2156,
+        "asm": "addi x14,x8,0",
+        "count": 8,
+        "share": 0.02476780185758514
+      },
+      {
+        "pc": 2160,
+        "asm": "lbu x15,0(x8)",
+        "count": 8,
+        "share": 0.02476780185758514
+      },
+      {
+        "pc": 2164,
+        "asm": "sw x15,0(x12)",
+        "count": 8,
+        "share": 0.02476780185758514
+      },
+      {
+        "pc": 2168,
+        "asm": "addi x13,x15,-97",
+        "count": 8,
+        "share": 0.02476780185758514
+      },
+      {
+        "pc": 2172,
+        "asm": "bltu x11,x13,-32",
+        "count": 8,
+        "share": 0.02476780185758514
+      }
+    ],
+    "top4_share": 0.7027863777089783,
+    "chars": 8,
+    "marks": [
+      9,
+      21,
+      33,
+      45,
+      57,
+      69,
+      78,
+      90
+    ],
+    "instructions_per_char": [
+      12,
+      12,
+      12,
+      12,
+      12,
+      9,
+      12
+    ],
+    "sent": "hello,rv"
+  }
+}

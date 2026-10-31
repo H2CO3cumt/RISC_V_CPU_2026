@@ -13,7 +13,7 @@ module capture_engine #(
  output reg [15:0] trigger_index,output reg [15:0] capture_count
 );
  localparam [15:0] DEPTH16=DEPTH;
- reg [CHANNELS-1:0] mem[0:DEPTH-1],previous_sample;reg [15:0]write_ptr,div_count,post_remaining,start_index;integer i;
+ reg [CHANNELS-1:0] mem[0:DEPTH-1],previous_sample;reg [15:0]write_ptr,div_count,post_remaining,start_index;
  wire sample_tick=(sample_div==0)||(div_count>=sample_div);
  wire [CHANNELS-1:0] active_mask=trigger_mask&channel_mask;
  // 至少为触发样本保留一个槽，再从剩余容量分配 post 和 pre。
@@ -29,7 +29,11 @@ module capture_engine #(
  wire [15:0] logical_addr=start_index+read_index;
  assign read_data=mem[logical_addr%DEPTH];
  always @(posedge clk) begin
-  if(reset||clear)begin armed<=0;triggered<=0;done<=0;overflow<=0;trigger_index<=0;capture_count<=0;write_ptr<=0;div_count<=0;post_remaining<=0;start_index<=0;previous_sample<=0;for(i=0;i<DEPTH;i=i+1)mem[i]<=0;end
+  // 复位**不清 BRAM**：DEPTH=2048 时那条 for 循环会超过 PDS 的 Loop limit 2000
+  // （Verilog-4092，2026-10-10 实测让 la85 编译直接失败）。不清是安全的：
+  // 软件能读到的范围完全由 capture_count / start_index 决定，窗口之外的旧数据
+  // 永远不会出现在导出流里；上电时 mem 的内容不会被任何路径泄漏出去。
+  if(reset||clear)begin armed<=0;triggered<=0;done<=0;overflow<=0;trigger_index<=0;capture_count<=0;write_ptr<=0;div_count<=0;post_remaining<=0;start_index<=0;previous_sample<=0;end
   else begin
    if(arm)begin armed<=1;triggered<=0;done<=0;overflow<=0;trigger_index<=0;capture_count<=0;write_ptr<=0;div_count<=0;post_remaining<=post_count;start_index<=0;previous_sample<=channels;end
    else if(stop)begin armed<=0;done<=1;end

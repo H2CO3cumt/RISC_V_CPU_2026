@@ -13,6 +13,7 @@ add_design rtl/logic_analyzer_pattern_gen.v
 add_design rtl/logic_analyzer_mmio.v
 add_design rtl/application_mmio_mux.v
 add_design rtl/regfile.v
+add_design rtl/mdu.v
 add_design rtl/alu.v
 add_design rtl/imm_gen.v
 add_design rtl/decoder.v

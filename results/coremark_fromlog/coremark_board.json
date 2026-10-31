@@ -1,0 +1,27 @@
+{
+    "validation":  "PASS",
+    "pass":  true,
+    "port":  "(离线解析)",
+    "clock_hz":  85000000,
+    "ticks":  1759901953,
+    "iterations":  4000,
+    "score_x1000":  193192,
+    "cm_per_mhz_x1000":  2272,
+    "seconds_x1000":  20705,
+    "cpi_x1000":  1547,
+    "crclist":  "0xe714",
+    "crcmatrix":  "0x1fd7",
+    "crcstate":  "0x8e3a",
+    "crcfinal":  "0x65c5",
+    "validated":  true,
+    "problems":  [
+
+                 ],
+    "golden_notes":  [
+                         "ticks 金标准 2670014377 → 实测 1759901953 —— 不一致",
+                         "分数 金标准 79587 → 实测 193192 —— 不一致",
+                         "CoreMark/MHz 金标准 936 → 实测 2272",
+                         "crcfinal 金标准 0x5275 → 实测 0x65c5",
+                         "PERF 行的 cycle/instret 等计数器有窗口敏感性（约 ±1%），两次实跑不同属正常，不得据此写精确 CPI"
+                     ]
+}

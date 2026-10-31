@@ -1,0 +1,17 @@
+[
+  {
+    "run": 0,
+    "mode": "spi",
+    "view": "spi",
+    "value": 60,
+    "samples": 85,
+    "trigger": 4,
+    "uart": "",
+    "uart_errors": 0,
+    "spi": "3c",
+    "core_commits": 0,
+    "core_stalls": 0,
+    "core_flushes": 0,
+    "text": ""
+  }
+]

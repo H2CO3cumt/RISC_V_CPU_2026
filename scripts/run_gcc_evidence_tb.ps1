@@ -2,7 +2,7 @@ param([string]$IcarusRoot = $(if ($env:IVERILOG_ROOT) { $env:IVERILOG_ROOT } els
 $ErrorActionPreference='Stop'
 $env:PATH = "$(Resolve-Path $IcarusRoot)\bin;" + $env:PATH
 New-Item -ItemType Directory -Force -Path tmp/gcc_evidence | Out-Null
-$src=@('rtl/single_cycle_cpu.v','rtl/regfile.v','rtl/alu.v','rtl/imm_gen.v','rtl/decoder.v','rtl/branch_unit.v','rtl/load_store_unit.v','tb/ram_adapter.v','tb/imem_adapter.v','tb/core_harness.v','tb/tb_gcc_evidence.v')
+$src=@('rtl/single_cycle_cpu.v','rtl/regfile.v','rtl/mdu.v','rtl/alu.v','rtl/imm_gen.v','rtl/decoder.v','rtl/branch_unit.v','rtl/load_store_unit.v','tb/ram_adapter.v','tb/imem_adapter.v','tb/core_harness.v','tb/tb_gcc_evidence.v')
 function Compare-Trace([string]$e,[string]$a,[string]$label) {
   $names=@('index','pc','instruction','rd_we','rd','rd_data','mem_we','mem_addr','mem_data','mem_wstrb'); $el=@(Get-Content $e|?{$_});$al=@(Get-Content $a|?{$_});
   for($r=0;$r -lt [Math]::Max($el.Count,$al.Count);$r++){if($r -ge $el.Count -or $r -ge $al.Count){Write-Host "$label FIRST DIFFERENCE record=$r";return $false};$x=@($el[$r]-split ' ');$y=@($al[$r]-split ' ');for($f=0;$f -lt 10;$f++){if($x[$f] -cne $y[$f]){Write-Host "$label FIRST DIFFERENCE record=$r field=$($names[$f]) expected=$($x[$f]) actual=$($y[$f]) pc=$($x[1]) instruction=$($x[2])";return $false}}};Write-Host "$label PASS";return $true

@@ -1,0 +1,57 @@
+create_clock -name {clk_50m} [get_ports {clk_50m}] -period {20.000} -waveform {0.000 10.000}
+# M-24 / N2 板级 ILA 诊断位流的引脚约束。
+#
+# 与 `fpga/timer_demo/constraints/mes50hp_timer_demo.fdc` **逐条相同**：
+# 本诊断位流用的是同一个顶层、同一批管脚，只多了 Core 之外的一个 DebugCore。
+# 管脚仍只覆盖实际使用的 10 个信号：50 MHz 时钟、CP2102 UART 一对、用户 LED 8 个。
+#
+# 【为什么这里没有 JTAG 管脚】
+#   DebugCore 的 JTAG Hub 走的是 PGL50H 的**专用配置 JTAG 管脚**（不是用户 I/O），
+#   所以不需要、也不允许在 .fdc 里给它分配管脚。
+#   参考：fpga/coremark_ila 的约束文件同样没有 JTAG 条目，而它的位流实测可被
+#   Fabric Debugger 正常识别（`dbg_scan_chain` 能扫到 PGL50H）。
+define_attribute {p:clk_50m} {PAP_IO_DIRECTION} {Input}
+define_attribute {p:clk_50m} {PAP_IO_LOC} {P20}
+define_attribute {p:clk_50m} {PAP_IO_VCCIO} {3.3}
+define_attribute {p:clk_50m} {PAP_IO_STANDARD} {LVCMOS33}
+define_attribute {p:uart0_rx} {PAP_IO_DIRECTION} {Input}
+define_attribute {p:uart0_rx} {PAP_IO_LOC} {R8}
+define_attribute {p:uart0_rx} {PAP_IO_VCCIO} {3.3}
+define_attribute {p:uart0_rx} {PAP_IO_STANDARD} {LVCMOS33}
+define_attribute {p:uart0_tx} {PAP_IO_DIRECTION} {Output}
+define_attribute {p:uart0_tx} {PAP_IO_LOC} {R9}
+define_attribute {p:uart0_tx} {PAP_IO_VCCIO} {3.3}
+define_attribute {p:uart0_tx} {PAP_IO_STANDARD} {LVCMOS33}
+# LED1..LED8 = B2,A2,B3,A3,C5,A5,F7,F8（用户 LED 高电平点亮）
+define_attribute {p:led[0]} {PAP_IO_DIRECTION} {Output}
+define_attribute {p:led[0]} {PAP_IO_LOC} {B2}
+define_attribute {p:led[1]} {PAP_IO_DIRECTION} {Output}
+define_attribute {p:led[1]} {PAP_IO_LOC} {A2}
+define_attribute {p:led[2]} {PAP_IO_DIRECTION} {Output}
+define_attribute {p:led[2]} {PAP_IO_LOC} {B3}
+define_attribute {p:led[3]} {PAP_IO_DIRECTION} {Output}
+define_attribute {p:led[3]} {PAP_IO_LOC} {A3}
+define_attribute {p:led[4]} {PAP_IO_DIRECTION} {Output}
+define_attribute {p:led[4]} {PAP_IO_LOC} {C5}
+define_attribute {p:led[5]} {PAP_IO_DIRECTION} {Output}
+define_attribute {p:led[5]} {PAP_IO_LOC} {A5}
+define_attribute {p:led[6]} {PAP_IO_DIRECTION} {Output}
+define_attribute {p:led[6]} {PAP_IO_LOC} {F7}
+define_attribute {p:led[7]} {PAP_IO_DIRECTION} {Output}
+define_attribute {p:led[7]} {PAP_IO_LOC} {F8}
+define_attribute {p:led[0]} {PAP_IO_VCCIO} {3.3}
+define_attribute {p:led[1]} {PAP_IO_VCCIO} {3.3}
+define_attribute {p:led[2]} {PAP_IO_VCCIO} {3.3}
+define_attribute {p:led[3]} {PAP_IO_VCCIO} {3.3}
+define_attribute {p:led[4]} {PAP_IO_VCCIO} {3.3}
+define_attribute {p:led[5]} {PAP_IO_VCCIO} {3.3}
+define_attribute {p:led[6]} {PAP_IO_VCCIO} {3.3}
+define_attribute {p:led[7]} {PAP_IO_VCCIO} {3.3}
+define_attribute {p:led[0]} {PAP_IO_STANDARD} {LVCMOS33}
+define_attribute {p:led[1]} {PAP_IO_STANDARD} {LVCMOS33}
+define_attribute {p:led[2]} {PAP_IO_STANDARD} {LVCMOS33}
+define_attribute {p:led[3]} {PAP_IO_STANDARD} {LVCMOS33}
+define_attribute {p:led[4]} {PAP_IO_STANDARD} {LVCMOS33}
+define_attribute {p:led[5]} {PAP_IO_STANDARD} {LVCMOS33}
+define_attribute {p:led[6]} {PAP_IO_STANDARD} {LVCMOS33}
+define_attribute {p:led[7]} {PAP_IO_STANDARD} {LVCMOS33}
